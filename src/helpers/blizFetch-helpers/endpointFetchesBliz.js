@@ -7,7 +7,6 @@ const helpFetch = {
 
         const cachedToken = getToken(); // Check if the token is cached and valid
         if (cachedToken) {
-            console.log(`Token: ${cachedToken}\nIs cached!`);
             return cachedToken;
         }
         
