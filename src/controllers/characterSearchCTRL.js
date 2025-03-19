@@ -13,11 +13,15 @@ async function chechCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
     
-        const character = await Char.findOne({
-            name: name,
-            "playerRealm.slug": realm,
-            server: server
-        }).lean();
+        const character = await Char.findOneAndUpdate(
+            {
+                name: name,
+                "playerRealm.slug": realm,
+                server: server
+            },
+            { $inc: { checkedCount: 1 } }, 
+            { new: true, upsert: false, timestamps: false }
+        ).lean();
     
         if (!character) { // If no mongo entry try updating the db with a new one and send it
             const newCharacter = new Char(await fetchData(server, realm, name));
