@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "This API controls the database and sends requested data to the front-end.",
   "main": "DBMS.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
