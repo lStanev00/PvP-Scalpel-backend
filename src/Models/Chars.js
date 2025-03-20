@@ -1,31 +1,5 @@
 import mongoose from 'mongoose';
 
-const ratingSchema = new mongoose.Schema({
-    solo: { type: mongoose.Schema.Types.Mixed }, // Collected
-    solo_bg: { type: mongoose.Schema.Types.Mixed }, // Collected
-    '2v2': {
-        currentSeason: {
-            rating: { type: Number, default: 0 },
-            title: { type: mongoose.Schema.Types.Mixed, default: undefined },
-            seasonMatchStatistics: { type: mongoose.Schema.Types.Mixed, default: undefined },
-            weeklyMatchStatistics: { type: mongoose.Schema.Types.Mixed, default: undefined }
-        },
-        lastSeasonLadder: { type: mongoose.Schema.Types.Mixed, default: undefined },
-        record: { type: Number, default: 0 }
-    },
-    '3v3': {
-        currentSeason: {
-            rating: { type: Number, default: 0 },
-            title: { type: mongoose.Schema.Types.Mixed, default: undefined },
-            seasonMatchStatistics: { type: mongoose.Schema.Types.Mixed, default: undefined },
-            weeklyMatchStatistics: { type: mongoose.Schema.Types.Mixed, default: undefined }
-        },
-        lastSeasonLadder: { type: mongoose.Schema.Types.Mixed, default: undefined },
-        record: { type: Number, default: 0 }
-    },
-    rbg: { type: mongoose.Schema.Types.Mixed }
-}, { _id: false });
-
 const achievementsSchema = new mongoose.Schema({
     points: { type: mongoose.Schema.Types.Mixed }, // Collected
     "2s": { type: mongoose.Schema.Types.Mixed }, // Collected
@@ -81,7 +55,7 @@ const CharSchema = new mongoose.Schema({
         name: { type: String, default: '' },
         media: { type: String, default: '' }
     },
-    rating: ratingSchema, // Collected
+    rating: { type: mongoose.Schema.Types.Mixed }, // Collected
     achieves: achievementsSchema, // Collected
     media: mediaSchema, // Collected
     checkedCount: { type: Number, default: 0 },
@@ -89,7 +63,6 @@ const CharSchema = new mongoose.Schema({
     gear: gearSchema, // Collected
     lastLogin: { type: Number }, // Collected
     equipmentStats: mongoose.Schema.Types.Mixed, // Collected
-    linkedChars: mongoose.Schema.Types.Mixed, // TODO needs logic implementation !!!MAY VAIOLATE BLIZZARD TERMS Collect only on agreement
 }, { timestamps: true });
 
 const Char = mongoose.model(`Character`, CharSchema);

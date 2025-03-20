@@ -70,42 +70,56 @@ const helpFetch = {
                 "BATTLEGROUNDS": "rbg",
               }
             let result = {
-                solo: {
-                },
-                solo_bg: {
-                },
-                '2v2': {
-                    currentSeason : {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0
-                },
-                '3v3': {
-                    currentSeason : {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0
-                },
-                rbg: {
-                    currentSeason : {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0
-                }
             }
             const brackets = (await (await fetch(path, headers)).json()).brackets;
+            const bracketFetches = brackets.map(bracket =>
+                fetch(bracket.href, headers).then(res => res.json())
+            );
+            const allBracketsData = await Promise.all(bracketFetches);
+
+            const processBrackets = allBracketsData.map(async (data, index) => {
+                const seasonID = data.season.id;
+                const match = brackets[index].href.match(/pvp-bracket\/([^?]+)/);
+                const bracketName = match[1];
+                const pastSeasonCheckURL = `https://${server}.api.blizzard.com/data/wow/pvp-season/${seasonID - 1}/pvp-leaderboard/${bracketName}?namespace=dynamic-${server}&locale=en_US`;
+    
+                const currentBracket = data.bracket.type;
+                const lastSeasonLadderPromise = helpFetch.getpastRate(pastSeasonCheckURL, name, headers);
+                const titlePromise = helpFetch.getPvPTitle(data.tier.key.href, headers);
+    
+                const [lastSeasonLadder, title] = await Promise.all([lastSeasonLadderPromise, titlePromise]);
+    
+                const curentBracketData = {
+                    rating: data.rating,
+                    title: title,
+                    seasonMatchStatistics: data.season_match_statistics,
+                    weeklyMatchStatistics: data.weekly_match_statistics
+                };
+    
+                const bracketKey = bracketsCheatSheet[currentBracket];
+                if (!bracketKey) {
+                    console.warn(`Unknown bracket: ${currentBracket}`);
+                    return;
+                }
+    
+                if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
+                    result[bracketName] = {
+                        currentSeason: curentBracketData,
+                        lastSeasonLadder: lastSeasonLadder,
+                        record: undefined,
+                        _id: `${Math.random()}${bracketKey}${Math.random()}`
+                    };
+                } else {
+                    result[bracketKey] = {
+                        currentSeason: curentBracketData,
+                        lastSeasonLadder: lastSeasonLadder,
+                        record: undefined,
+                        _id: `${Math.random()}${bracketKey}`
+                    };
+                }
+            });
+            await Promise.all(processBrackets);
+            return result;
             for (const bracket of brackets) {
                 const data = await ( (await fetch(bracket.href, headers)).json());
                 const seasonID = data.season.id;
