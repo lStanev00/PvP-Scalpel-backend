@@ -23,10 +23,7 @@ const ratingSchema = new mongoose.Schema({
         lastSeasonLadder: { type: mongoose.Schema.Types.Mixed, default: undefined },
         record: { type: Number, default: 0 }
     },
-    rbg: {
-        rating: { type: Number, default: 0 },
-        lastSeasonLadder: { type: mongoose.Schema.Types.Mixed, default: undefined },
-    }
+    rbg: { type: mongoose.Schema.Types.Mixed }
 }, { _id: false });
 
 const achievementsSchema = new mongoose.Schema({

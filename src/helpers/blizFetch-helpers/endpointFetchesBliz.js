@@ -95,8 +95,14 @@ const helpFetch = {
                     record: 0
                 },
                 rbg: {
-                    rating: undefined,
+                    currentSeason : {
+                        rating: 0,
+                        title: undefined,
+                        seasonMatchStatistics: undefined,
+                        weeklyMatchStatistics: undefined
+                    },
                     lastSeasonLadder: undefined,
+                    record: 0
                 }
             }
             const brackets = (await (await fetch(path, headers)).json()).brackets;
@@ -125,9 +131,12 @@ const helpFetch = {
                         console.warn(`Unknown bracket: ${currentBracket}`);
                     }
                  } else if(currentBracket == `BATTLEGROUNDS`){
+                    console.log(data)
                     const curentBracketData = {
                         rating: data.rating,
-                        lastSeasonLadder: lastSeasonLadder,
+                        title: await helpFetch.getPvPTitle(data.tier.key.href, headers),
+                        seasonMatchStatistics: data.season_match_statistics,
+                        weeklyMatchStatistics: data.weekly_match_statistics
                     }
                     const bracketKey = bracketsCheatSheet[currentBracket];
                     if (bracketKey) {
