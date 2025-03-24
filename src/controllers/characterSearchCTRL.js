@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Char from "../Models/Chars.js"; // Model
+import mongoose from "mongoose";
 // Helpers
 import oldDataChecker from "../helpers/controllerHelpers/characterSearchCTRL/hourChecker.js";
 import fetchData from "../helpers/blizFetch.js";
@@ -13,7 +14,7 @@ async function chechCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
     
-        const character = await Char.findOneAndUpdate(
+        const characterUpdate = await Char.findOneAndUpdate(
             {
                 name: name,
                 "playerRealm.slug": realm,
@@ -22,6 +23,9 @@ async function chechCharacterGet(req, res) {
             { $inc: { checkedCount: 1 } }, 
             { new: true, upsert: false, timestamps: false }
         ).lean();
+        let character;
+
+        if (characterUpdate) character = characterUpdate.lean();
     
         if (!character) { // If no mongo entry try updating the db with a new one and send it
             const newCharacter = new Char(await fetchData(server, realm, name));
@@ -50,7 +54,8 @@ async function chechCharacterGet(req, res) {
         delete updatingIDs[charID]
         
     } catch (error) {
-        return res.status(404).json({messege: `Not Found`})
+        console.log(error)
+        return res.status(404).json({messege: `404`})
     }
 }
 

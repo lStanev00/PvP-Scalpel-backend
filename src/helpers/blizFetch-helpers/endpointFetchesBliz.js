@@ -70,7 +70,35 @@ const helpFetch = {
                 "BATTLEGROUNDS": "rbg",
               }
             let result = {
-            }
+                solo: {
+                },
+                solo_bg: {
+                },
+                '2v2': {
+                    currentSeason : {
+                        rating: 0,
+                        title: undefined,
+                        seasonMatchStatistics: undefined,
+                        weeklyMatchStatistics: undefined
+                    },
+                    lastSeasonLadder: undefined,
+                    record: 0
+                },
+                '3v3': {
+                    currentSeason : {
+                        rating: 0,
+                        title: undefined,
+                        seasonMatchStatistics: undefined,
+                        weeklyMatchStatistics: undefined
+                    },
+                    lastSeasonLadder: undefined,
+                    record: 0
+                },
+                rbg: {
+                    rating: undefined,
+                    lastSeasonLadder: undefined,
+                }
+            };
             const brackets = (await (await fetch(path, headers)).json()).brackets;
             const bracketFetches = brackets.map(bracket =>
                 fetch(bracket.href, headers).then(res => res.json())
@@ -90,12 +118,11 @@ const helpFetch = {
                 const [lastSeasonLadder, title] = await Promise.all([lastSeasonLadderPromise, titlePromise]);
     
                 const curentBracketData = {
-                    rating: data.rating,
+                    rating: data?.rating,
                     title: title,
                     seasonMatchStatistics: data.season_match_statistics,
                     weeklyMatchStatistics: data.weekly_match_statistics
                 };
-    
                 const bracketKey = bracketsCheatSheet[currentBracket];
                 if (!bracketKey) {
                     console.warn(`Unknown bracket: ${currentBracket}`);
