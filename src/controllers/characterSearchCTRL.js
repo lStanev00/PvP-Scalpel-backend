@@ -14,7 +14,7 @@ async function chechCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
     
-        const characterUpdate = await Char.findOneAndUpdate(
+        const character = await Char.findOneAndUpdate(
             {
                 name: name,
                 "playerRealm.slug": realm,
@@ -23,10 +23,7 @@ async function chechCharacterGet(req, res) {
             { $inc: { checkedCount: 1 } }, 
             { new: true, upsert: false, timestamps: false }
         ).lean();
-        let character;
 
-        if (characterUpdate) character = characterUpdate.lean();
-    
         if (!character) { // If no mongo entry try updating the db with a new one and send it
             const newCharacter = new Char(await fetchData(server, realm, name));
             res.status(200).json(newCharacter);
