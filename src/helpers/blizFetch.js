@@ -62,9 +62,6 @@ async function fetchData(server, realm, name) {
             helpFetch.getCharGear(data.equipment.href, headers),
             helpFetch.getStats(data.statistics.href, headers)
         ]);
-        console.log(result)
-
-        console.log(result)
 
         // Assign fetched values to result
         result.class.media = classMedia;
