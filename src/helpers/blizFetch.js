@@ -67,10 +67,10 @@ async function fetchData(server, realm, name) {
         result.class.media = classMedia;
         result.activeSpec.media = activeSpecMedia;
         result.rating = rating;
-        if (!result.rating["3v3"]) result.rating["3v3"] = {record: 0}
-        if (!result.rating["3v3"].record) result.rating["3v3"].record = 0;
-        if (!result.rating["2v2"]) result.rating["2v2"] = {record: 0}
-        if (!result.rating["2v2"].record) result.rating["2v2"].record = 0;
+        if (!result.rating["3v3"]) result.rating["3v3"] = {record: null}
+        if (!result.rating["3v3"].record) result.rating["3v3"].record = null;
+        if (!result.rating["2v2"]) result.rating["2v2"] = {record: null}
+        if (!result.rating["2v2"].record) result.rating["2v2"].record = null;
         result.rating["2v2"].record = rating2v2Record;
         result.rating["3v3"].record = rating3v3Record;
         result.achieves = achievements;
