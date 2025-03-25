@@ -10,6 +10,7 @@ const characterSearchCTRL = Router();
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, chechCharacterGet);
 
 const updatingIDs = {};
+const buildingEntries = {}
 async function chechCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
@@ -25,9 +26,13 @@ async function chechCharacterGet(req, res) {
         ).lean();
 
         if (!character) { // If no mongo entry try updating the db with a new one and send it
+            const key = `${server + realm + name}`;
+            if (buildingEntries[key]) return res.status(503).json({message: "Service temporarily unavailable. Data is still being fetched. Please try again later."})
+            buildingEntries[key] = true;
             const newCharacter = new Char(await fetchData(server, realm, name));
             res.status(200).json(newCharacter);
-            return await newCharacter.save();
+            await newCharacter.save();
+            return delete buildingEntries[key];
         }
         
         if (updatingIDs[character.id]) { // If already updating
