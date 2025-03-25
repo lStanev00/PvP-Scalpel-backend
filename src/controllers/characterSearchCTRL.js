@@ -1,6 +1,5 @@
 import { Router } from "express";
 import Char from "../Models/Chars.js"; // Model
-import mongoose from "mongoose";
 // Helpers
 import oldDataChecker from "../helpers/controllerHelpers/characterSearchCTRL/hourChecker.js";
 import fetchData from "../helpers/blizFetch.js";
@@ -8,14 +7,15 @@ import fetchData from "../helpers/blizFetch.js";
 const characterSearchCTRL = Router();
 
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, chechCharacterGet);
+characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
 
-const updatingIDs = {};
+const patchingIDs = {};
 const buildingEntries = {}
 async function chechCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
     
-        const character = await Char.findOneAndUpdate(
+        let character = await Char.findOneAndUpdate(
             {
                 name: name,
                 "playerRealm.slug": realm,
@@ -27,39 +27,96 @@ async function chechCharacterGet(req, res) {
 
         if (!character) { // If no mongo entry try updating the db with a new one and send it
             const key = `${server + realm + name}`;
-            if (buildingEntries[key]) return res.status(503).json({message: "Service temporarily unavailable. Data is still being fetched. Please try again later."})
+            if (buildingEntries[key]) {
+
+                while (buildingEntries[key]) {
+                    await new Promise(resolve => setTimeout(resolve, 300)); // little delay
+
+                    
+                };
+                character = await Char.findOne({
+                        name: name,
+                        "playerRealm.slug": realm,
+                        server: server
+                }).lean();
+                res.status(200).json(character)
+            }
             buildingEntries[key] = true;
-            const newCharacter = new Char(await fetchData(server, realm, name));
-            res.status(200).json(newCharacter);
-            await newCharacter.save();
-            return delete buildingEntries[key];
+            character = await fetchData(server, realm, name);
+            character.checkedCount = 1;
+            try {
+                const newCharacter = new Char(character);
+                res.status(200).json(newCharacter);
+                await newCharacter.save();
+                return delete buildingEntries[key];
+                
+            } catch (error) {
+                return res.status(404).json({
+                    messege : `No player in Region: ${server}, in Realm: ${realm}, with Name: ${name}\nCheck your input and try again.`
+                })
+            }
         }
         
-        if (updatingIDs[character.id]) { // If already updating
-            character.updating = true;
-            return res.status(202).json(character);
+        if (patchingIDs[character.id]) { // If already updating
+
+            while (patchingIDs[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
+             
+            character = await Char.findById(character.id).lean();
         }
-        const isDataFresh = await oldDataChecker(character);
+        return res.status(200).json(character)
     
-        if (isDataFresh) return res.status(200).json(character); // If the data is younger than 1 hr retun it with status 200
-    
-        res.status(202).json(character); // If data is older than 1 hour send the data + status 202 and start updating
-    
-        const charID = character._id;
-        updatingIDs[charID] = true;
-    
-        const newCharacterData = await fetchData(server, realm, name);
-    
-        await Char.findByIdAndUpdate(charID, {
-            $set: newCharacterData
-        });
-        delete updatingIDs[charID]
-        
     } catch (error) {
-        console.log(error)
-        return res.status(404).json({messege: `404`})
+        res.status(500).json({messege: `Error retrieveing the data`})
+        return console.warn(error)
     }
 }
 
+async function updateCharacterPatch(req, res) {
+    const { server, realm, name } = req.params;
+    let character;
+
+    try {
+        character = await Char.findOneAndUpdate(
+            {
+                name: name,
+                "playerRealm.slug": realm,
+                server: server
+            },
+            { $inc: { checkedCount: 1 } }, 
+            { new: true, upsert: false, timestamps: false }
+        ).lean();
+        
+    } catch (error) {
+        return res.status(404).json({
+            messege: `The entry does not exist, try get on:\n/checkCharacter/${server}/${realm}/${name}`,
+        });
+    }
+    const checkedCount = character.checkedCount;
+    const charID = character._id;
+
+    try {
+        patchingIDs[charID] = true;
+
+        const newCharacterData = await fetchData(server, realm, name);
+        newCharacterData.checkedCount = checkedCount;
+    
+        const patchedData = await Char.findByIdAndUpdate(charID, {
+            $set: newCharacterData
+          }, {
+            new: true
+          });
+        
+        return res.status(200).json(patchedData);
+
+    } catch (error) {
+        res.status(500).json({
+            messege: "The server encountered an unexpected condition that prevented it from fulfilling the request."
+        })
+        console.warn(error);
+    } finally {
+       if (patchingIDs[charID]) delete patchingIDs[charID];
+    }
+
+}
 
 export default characterSearchCTRL
