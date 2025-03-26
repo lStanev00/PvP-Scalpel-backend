@@ -87,5 +87,7 @@ const mail = {
     }
 }
 
+export default mail;
+
 // Test run with the next line (uncomment it)
 // mail.sendJWTAuth(`l.stanev2000@gmail.com`, `TEST`)
