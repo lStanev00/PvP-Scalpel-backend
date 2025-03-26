@@ -60,7 +60,40 @@ async function registerPost(req, res) {
     }
 }
 
+async function valdiateEmailPost(req, res) {
+    const token = req.body.token;
 
+    const userData = validateToken(token, JWT_SECRET);
+
+    if (!userData) return res.status(403).json({message: "Forbidden"});
+
+    let user = undefined;
+    try {
+        user = await User.findById(userData._id).lean();
+    } catch (error) {
+        return res.status(400).json({
+            400: `the Token: ${token} is invalid`
+        });
+    };
+
+    if(user) {
+        if (!waitingValidation[user._id]) return res.status(403).json({message: "Forbidden"});
+    };
+
+    try {
+        console.log(userData)
+        user = await User.findByIdAndUpdate(userData._id, {
+            $set: {
+                isVerified: true,
+            },
+        },
+        { new: true }).lean();
+        return res.status(201).json(user)
+    } catch (error) {
+        console.log(error)
+        return res.status(500).json({message: "Internal Server Error"})
+    }
+}
 
 
 export default authController;
