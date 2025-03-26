@@ -23,7 +23,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const mail = {
-    sendJWT : async function (email, token) {
+    sendJWTAuth : async function (email, token) {
         const link = frontEndDomain + `verify?token=${token}`;
         const html = `
         <div style="
@@ -87,4 +87,5 @@ const mail = {
     }
 }
 
-mail.sendJWT(`l.stanev2000@gmail.com`, `TEST`)
+// Test run with the next line (uncomment it)
+// mail.sendJWTAuth(`l.stanev2000@gmail.com`, `TEST`)
