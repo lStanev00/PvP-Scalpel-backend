@@ -65,5 +65,10 @@
   "bugs": {
     "url": "https://github.com/lStanev00/PvP-Scalpel-backend/issues"
   },
-  "homepage": "https://github.com/lStanev00/PvP-Scalpel-backend#readme"
+  "homepage": "https://github.com/lStanev00/PvP-Scalpel-backend#readme",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.10.0"
+  }
 }
