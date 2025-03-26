@@ -3,6 +3,7 @@ import dotenv from 'dotenv'; dotenv.config({ path: '../.env' });
 import { DBconnect } from "./src/helpers/mongoHelper.js";
 import router from "./src/router.js";
 import cors from 'cors'
+import cookieParser from "cookie-parser";
 
 const app = express();
 const port = 59534;
@@ -30,6 +31,7 @@ const allowedOrigins = [
 //   })
 // );
 app.use(cors());
+app.use(cookieParser());
 app.use(express.json({ extended: false }));
 app.use(`/`, router);
 
