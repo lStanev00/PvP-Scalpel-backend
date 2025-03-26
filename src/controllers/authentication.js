@@ -43,7 +43,7 @@ async function registerPost(req, res) {
         if (newUser === undefined) return;
 
         const token = jwt.sign(
-            { userId: newUser._id, email: newUser.email },
+            { _id: newUser._id, email: newUser.email },
             JWT_SECRET,
             { expiresIn: '10h' }
         );
