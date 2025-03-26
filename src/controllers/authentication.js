@@ -68,7 +68,7 @@ async function valdiateEmailPost(req, res) {
 
     let user = undefined;
     try {
-        user = await User.findById(userData._id).lean();
+        user = await User.findById(userData._id);
     } catch (error) {
         return res.status(400).json({
             400: `the Token: ${token} is invalid`
@@ -85,8 +85,14 @@ async function valdiateEmailPost(req, res) {
                 isVerified: true,
             },
         },
-        { new: true }).lean();
-        return res.status(201).json(user)
+        { new: true });
+        return res.status(201).json({
+            _id: user._id,
+            username: user.username,
+            email: user.email,
+            isVerified: user.isVerified,
+            role: user.role
+        })
     } catch (error) {
         console.log(error)
         return res.status(500).json({message: "Internal Server Error"})
