@@ -86,13 +86,14 @@ async function valdiateEmailPost(req, res) {
             },
         },
         { new: true });
-        return res.status(201).json({
+        res.status(201).json({
             _id: user._id,
             username: user.username,
             email: user.email,
             isVerified: user.isVerified,
             role: user.role
-        })
+        });
+        return delete waitingValidation[user._id];
     } catch (error) {
         console.log(error)
         return res.status(500).json({message: "Internal Server Error"})
