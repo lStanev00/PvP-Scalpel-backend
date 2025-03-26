@@ -14,7 +14,6 @@ authController.post("/validate/email", valdiateEmailPost);
 const waitingValidation = {};
 async function registerPost(req, res) {
     const { email, username, password } = req.body;
-    console.log("Email: " + email, `\nUsername: ` + username);
 
     try {
         let newUser = undefined;
@@ -81,7 +80,6 @@ async function valdiateEmailPost(req, res) {
     };
 
     try {
-        console.log(userData)
         user = await User.findByIdAndUpdate(userData._id, {
             $set: {
                 isVerified: true,
