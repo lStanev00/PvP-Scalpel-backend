@@ -28,6 +28,7 @@ const userSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    fingerprint: {type: mongoose.Schema.Types.Mixed, required: true},
     // Other TODO functionalities
     role: { // MISSING FUNC
         type: String,
@@ -54,7 +55,6 @@ userSchema.methods.comparePassword = function (candidatePassword) {
 
     return bcrypt.compare(candidatePassword, this.password);
 
-    // TODO Browser footprint validation logic (and storing) !! BUT USER AGREEMENT 1ST !!
 };
 
 const User = mongoose.model('User', userSchema);
