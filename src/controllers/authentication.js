@@ -11,6 +11,7 @@ const authController = Router();
 authController.post("/login", loginPost);
 authController.post("/register", registerPost);
 authController.post("/validate/email", valdiateEmailPost);
+authController.post("/verify/session", verifySessionPost);
 
 const waitingValidation = {};
 
@@ -155,6 +156,22 @@ async function valdiateEmailPost(req, res) {
         console.log(error)
         return res.status(500).json({message: "Internal Server Error"})
     }
+}
+
+async function verifySessionPost(req, res) {
+    const { _id, fingerprint } = req.body;
+
+    try {
+        const user = await User.findById(_id);
+
+        if(fingerprint !== user.fingerprint) return res.status(403).json({authorized: false});
+
+        return res.status(200).json({authorized: true});
+
+    } catch (error) {
+        return res.status(500).end();
+    }
+    
 }
 
 export default authController;
