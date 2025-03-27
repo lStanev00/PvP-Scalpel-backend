@@ -33,11 +33,11 @@ async function registerPost(req, res) {
         } catch (error) {
             const msg = {}
 
-            const emailExist = User.findOne({email : email});
-            const usernameExist = User.findOne({username : username});
+            const emailExist = await User.findOne({email : email}).lean();
+            const usernameExist = await User.findOne({username : username}).lean();
 
-            if (emailExist) msg.email = email; 
-            if (usernameExist) msg.username = username; 
+            if (emailExist) msg.email = emailExist.email; 
+            if (usernameExist) msg.username = usernameExist.username; 
 
             return res.status(409).json(msg);
 
