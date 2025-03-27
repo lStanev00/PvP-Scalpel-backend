@@ -1,7 +1,6 @@
 import { Router } from "express";
 import Char from "../Models/Chars.js"; // Model
 // Helpers
-import oldDataChecker from "../helpers/controllerHelpers/characterSearchCTRL/hourChecker.js";
 import fetchData from "../helpers/blizFetch.js";
 
 const characterSearchCTRL = Router();
