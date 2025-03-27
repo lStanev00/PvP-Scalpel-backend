@@ -24,7 +24,7 @@ const transporter = nodemailer.createTransport({
 
 const mail = {
     sendJWTAuth : async function (email, token) {
-        const link = frontEndDomain + `verify?token=${token}`;
+        const link = frontEndDomain + `verify/${token}`;
         const html = `
         <div style="
           max-width: 600px;
