@@ -7,7 +7,8 @@ export function getOptions(req) {
     return {
       httpOnly: true,
       secure: protocol === "https",             // True if request came over HTTPS
-      sameSite: isLocalhost ? "Lax" : "None",   // Lax works for dev, None for cross-domain
+      sameSite: isLocalhost ? "Lax" : "None", // Lax works for dev, None for cross-domain
+      maxAge: 15 * 24 * 60 * 60 * 1000   // 15 Days
     };
   }
   
