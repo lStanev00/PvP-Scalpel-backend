@@ -9,6 +9,7 @@ const app = express();
 const port = 59534;
 
 app.disable("x-powered-by");
+app.set('trust proxy', true);
 
 await DBconnect();
 const allowedOrigins = [
