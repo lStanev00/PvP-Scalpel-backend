@@ -15,6 +15,7 @@ const waitingValidation = {};
 async function registerPost(req, res) {
     const { email, username, password } = req.body;
     const auth1 = req.headers["600"];
+    if (!auth1) return res.status(500).end();
     if (auth1 !== "BasicPass") return res.status(500).end();
 
     try {
@@ -38,7 +39,7 @@ async function registerPost(req, res) {
             if (emailExist) msg.email = email; 
             if (usernameExist) msg.username = username; 
 
-            res.status(409).json(msg);
+            return res.status(409).json(msg);
 
         }
         if (newUser === undefined) return;
