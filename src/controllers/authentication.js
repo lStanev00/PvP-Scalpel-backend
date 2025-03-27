@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv';
 import mail from "../mailer.js";
 import validateToken from "../helpers/authToken.js";
+import { getOptions } from "../helpers/cookieOptions.js";
 const JWT_SECRET = process.env.JWT_SECRET
 
 const authController = Router();
@@ -58,6 +59,10 @@ async function loginPost(req, res) {
             fingerprint: newUserFP.fingerprint,
         }
 
+        const jwtToken = jwt.sign(loginObject, JWT_SECRET);
+        const options = getOptions(req);
+        res.cookie("token", jwtToken, options);
+          
         return res.status(200).json(loginObject);
 
     } catch (error) {
