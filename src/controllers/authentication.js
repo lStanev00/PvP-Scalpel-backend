@@ -8,12 +8,65 @@ const JWT_SECRET = process.env.JWT_SECRET
 
 const authController = Router();
 
+authController.post("/login", loginPost);
 authController.post("/register", registerPost);
 authController.post("/validate/email", valdiateEmailPost);
 
 const waitingValidation = {};
+
+async function loginPost(req, res) {
+    const { email, password, fingerprint } = req.body;
+    const auth1 = req.headers["600"];
+    if (!auth1) return res.status(500).end();
+    if (auth1 !== "BasicPass") return res.status(500).end();
+
+    try {
+        const attemptedUser = await User.findOne({email: email});
+        if (!attemptedUser) return res.status(400).end();
+        const isMatch = await attemptedUser.comparePassword(password);
+
+        if (!isMatch) return res.status(400).end(); // Bad password
+
+        if (!attemptedUser.isVerified) { // Not verified
+            if (waitingValidation[attemptedUser._id]) {
+                return res.status(403).json({message: "Please check your email box and verify your email"});
+            } else {
+                const token = jwt.sign(
+                    { _id: attemptedUser._id, email: attemptedUser.email },
+                    JWT_SECRET,
+                    { expiresIn: '10h' }
+                );
+        
+                await mail.sendJWTAuth(email, token);
+                waitingValidation[attemptedUser._id] = true;
+                return res.status(403).json({message: "A verification email's send to your inbox please verify your email to login!"});
+            }
+        }
+
+        const newUserFP = await User.findByIdAndUpdate(attemptedUser._id, {
+            $set: {
+                fingerprint: fingerprint
+            }
+        }, { new: true }).lean();
+
+        const loginObject = {
+            email: newUserFP.email,
+            username: newUserFP.username,
+            isVerified: newUserFP.isVerified,
+            role: newUserFP.role,
+            fingerprint: newUserFP.fingerprint,
+        }
+
+        return res.status(200).json(loginObject);
+
+    } catch (error) {
+        console.warn(error)
+        return res.status(500).end();
+    }
+}
+
 async function registerPost(req, res) {
-    const { email, username, password } = req.body;
+    const { email, username, password, fingerprint } = req.body;
     const auth1 = req.headers["600"];
     if (!auth1) return res.status(500).end();
     if (auth1 !== "BasicPass") return res.status(500).end();
@@ -24,7 +77,8 @@ async function registerPost(req, res) {
             newUser = new User({
                 email: email,
                 username: username,
-                password: password
+                password: password,
+                fingerprint: fingerprint,
             });
     
             await newUser.save();
@@ -45,7 +99,7 @@ async function registerPost(req, res) {
         if (newUser === undefined) return;
 
         const token = jwt.sign(
-            { _id: newUser._id, email: newUser.email },
+            { _id: newUser._id, email: newUser.email, fingerprint: newUser.fingerprint },
             JWT_SECRET,
             { expiresIn: '10h' }
         );
@@ -102,6 +156,5 @@ async function valdiateEmailPost(req, res) {
         return res.status(500).json({message: "Internal Server Error"})
     }
 }
-
 
 export default authController;
