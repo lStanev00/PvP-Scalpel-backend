@@ -52,6 +52,7 @@ async function loginPost(req, res) {
         }, { new: true }).lean();
 
         const loginObject = {
+            _id: newUserFP._id,
             email: newUserFP.email,
             username: newUserFP.username,
             isVerified: newUserFP.isVerified,
@@ -123,7 +124,7 @@ async function registerPost(req, res) {
 }
 
 async function valdiateEmailPost(req, res) {
-    const token = req.body.token;
+    const { token, fingerprint } = req.body;
 
     const userData = validateToken(token, JWT_SECRET);
 
@@ -146,16 +147,26 @@ async function valdiateEmailPost(req, res) {
         user = await User.findByIdAndUpdate(userData._id, {
             $set: {
                 isVerified: true,
+                fingerprint: fingerprint
             },
         },
         { new: true });
-        res.status(201).json({
+
+        const loginObject = {
             _id: user._id,
-            username: user.username,
             email: user.email,
+            username: user.username,
             isVerified: user.isVerified,
-            role: user.role
-        });
+            role: user.role,
+            fingerprint: user.fingerprint,
+        }
+
+        const jwtToken = jwt.sign(loginObject, JWT_SECRET);
+        const options = getOptions(req);
+
+        res.cookie("token", jwtToken, options);
+          
+        res.status(201).json(loginObject);
         return delete waitingValidation[user._id];
     } catch (error) {
         console.log(error)
