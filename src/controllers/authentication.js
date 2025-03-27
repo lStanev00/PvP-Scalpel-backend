@@ -14,6 +14,8 @@ authController.post("/validate/email", valdiateEmailPost);
 const waitingValidation = {};
 async function registerPost(req, res) {
     const { email, username, password } = req.body;
+    const auth1 = req.headers["600"];
+    if (auth1 !== "BasicPass") return res.status(500).end();
 
     try {
         let newUser = undefined;
