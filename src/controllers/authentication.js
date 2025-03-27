@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import mail from "../mailer.js";
 import validateToken from "../helpers/authToken.js";
 import { getOptions } from "../helpers/cookieOptions.js";
+import { fingerprintsMatch } from "../middlewares/authMiddleweare.js";
 const JWT_SECRET = process.env.JWT_SECRET
 
 const authController = Router();
@@ -180,7 +181,7 @@ async function verifySessionPost(req, res) {
     try {
         const user = await User.findById(_id);
 
-        if(fingerprint !== user.fingerprint) return res.status(403).json({authorized: false});
+        if(!fingerprintsMatch(fingerprint, user.fingerprint)) return res.status(403).json({authorized: false});
 
         return res.status(200).json({authorized: true});
 
