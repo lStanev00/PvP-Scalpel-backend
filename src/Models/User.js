@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema({
                 token : {type : String, required:false},
                 JWT : {type : String, required:false},
             },
+            newEmail : {
+                token : {type : String, required:false},
+                newEmail : {type : String, required:false},
+            },
             password: {
                 token : {type : String, required:false},
                 JWT : {type : String, required:false},

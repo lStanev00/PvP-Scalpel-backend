@@ -5,14 +5,14 @@ import dotenv from 'dotenv';
 import mail from "../mailer.js";
 import { getOptions } from "../helpers/cookieOptions.js";
 import bcrypt from 'bcrypt'
-import validateToken from "../helpers/authToken.js";
 const JWT_SECRET = process.env.JWT_SECRET
 
 const authController = Router();
 
 authController.post("/login", loginPost);
 authController.post("/register", registerPost);
-authController.post("/validate/token", valdiateTokenPost);
+authController.patch("change/email", changeEmailPatch)
+authController.patch("/validate/token", valdiateTokenPatch);
 authController.get("/verify/me", (req,res) => res.status(200).end());
 
 const waitingValidation = {};
@@ -104,7 +104,7 @@ async function registerPost(req, res) {
     }
 }
 
-async function valdiateTokenPost(req, res) {
+async function valdiateTokenPatch(req, res) {
     const { token, option } = req.body;
     const JWT = req.JWT;
     let user = req.user;
@@ -128,7 +128,7 @@ async function valdiateTokenPost(req, res) {
                     const jwtToken = jwt.sign(loginObject, JWT_SECRET);
                     const options = getOptions(req);
 
-                    res
+                    return res
                         .clearCookie("token", options)
                         .cookie("token", jwtToken, options)
                         .status(201)
@@ -139,8 +139,76 @@ async function valdiateTokenPost(req, res) {
                 }
             } else return res.status(400).end();
         }
+    } else if(option == `email`) {
+        if (user.newEmail && user.verifyTokens.newEmail.newEmail === JWT.newEmail && user.newEmail.token) {
+            if (!bcrypt.compare(token, user.verifyTokens.newEmail.token)) return res.status(401).end();
+
+            try {
+                const updatedUser = await User.findByIdAndUpdate(user._id, {
+                    $set: {
+                      email: JWT.newEmail
+                    },
+                    $unset: {
+                      'verifyTokens.newEmail': ''
+                    }
+                }, { new: true });
+
+                const loginObject = getLogedObject(updatedUser);
+
+                const jwtToken = jwt.sign(loginObject, JWT_SECRET);
+                const options = getOptions(req);
+
+                return res
+                    .clearCookie("token", options)
+                    .cookie("token", jwtToken, options)
+                    .status(201)
+                    .json(loginObject);
+            } catch (error) {
+                return res.status(500).end();
+            }
+        } else return res.status(400).end();
+    } else if (option == `password`){
+        
     }
+
 }
+
+async function changeEmailPatch(req, res) {
+    const user = req.user;
+    if(!user) return res.status(403).end();
+    
+    const { newEmail } = req.body;
+
+    const token = genCode();
+    const hashedToken = await cryptCode(token);
+    
+    
+    const updatedUser = await User.findByIdAndUpdate(user._id, {
+        $set: {
+            verifyTokens : {
+                newEmail : {
+                    token: hashedToken,
+                    newEmail: newEmail,
+                }
+            }
+        }
+    })
+
+    const loginObject = getLogedObject(updatedUser);
+    loginObject.newEmail = newEmail;
+    
+    const jwtToken = jwt.sign(loginObject, JWT_SECRET);
+    const options = getOptions(req);
+    
+    res
+        .clearCookie("token", options)
+        .cookie("token", jwtToken, options)
+        .status(201)
+        .json(loginObject);
+
+    mail.sendJWTAuth(newEmail, token, `password`)
+}
+
 export default authController;
 
 
