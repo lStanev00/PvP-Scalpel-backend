@@ -20,8 +20,7 @@ const waitingValidation = {};
 async function loginPost(req, res) {
     const { email, password, fingerprint } = req.body;
     const auth1 = req.headers["600"];
-    if (!auth1) return res.status(500).end();
-    if (auth1 !== "BasicPass") return res.status(500).end();
+    if (!auth1 && auth1 !== "BasicPass") return res.status(500).end();
 
     try {
         const attemptedUser = await User.findOne({email: email});
@@ -29,22 +28,6 @@ async function loginPost(req, res) {
         const isMatch = await attemptedUser.comparePassword(password);
 
         if (!isMatch) return res.status(400).end(); // Bad password
-
-        if (!attemptedUser.isVerified) { // Not verified
-            if (waitingValidation[attemptedUser._id]) {
-                return res.status(403).json({message: "Please check your email box and verify your email"});
-            } else {
-                const token = jwt.sign(
-                    { _id: attemptedUser._id, email: attemptedUser.email },
-                    JWT_SECRET,
-                    { expiresIn: '10h' }
-                );
-        
-                await mail.sendJWTAuth(email, token);
-                waitingValidation[attemptedUser._id] = true;
-                return res.status(403).json({message: "A verification email's send to your inbox please verify your email to login!"});
-            }
-        }
 
         const newUserFP = await User.findByIdAndUpdate(attemptedUser._id, {
             $set: {
@@ -76,8 +59,7 @@ async function loginPost(req, res) {
 async function registerPost(req, res) {
     const { email, username, password, fingerprint } = req.body;
     const auth1 = req.headers["600"];
-    if (!auth1) return res.status(500).end();
-    if (auth1 !== "BasicPass") return res.status(500).end();
+    if (!auth1 && auth1 !== "BasicPass") return res.status(500).end();
 
     try {
         let newUser = undefined;
@@ -88,33 +70,42 @@ async function registerPost(req, res) {
                 password: password,
                 fingerprint: fingerprint,
             });
-    
+            const code = genCode();
+            const JWT = jwt.sign(
+                { _id: newUser._id, email: newUser.email, fingerprint: newUser.fingerprint },
+                JWT_SECRET,
+                { expiresIn: '10h' }
+            );
+            newUser.verifyTokens = {
+                email: {
+                    token: code,
+                    JWT: JWT
+                }
+            }
             await newUser.save();
+    
             res.status(201).json({ _id: newUser._id, email: newUser.email });
-            
+            return await mail.sendJWTAuth(email, token, "email");
+
         } catch (error) {
             const msg = {}
 
-            const emailExist = await User.findOne({email : email}).lean();
-            const usernameExist = await User.findOne({username : username}).lean();
+            try {
+                const emailExist = await User.findOne({email : email}).lean();
+                const usernameExist = await User.findOne({username : username}).lean();
+    
+                if (emailExist) msg.email = emailExist.email; 
+                if (usernameExist) msg.username = usernameExist.username; 
+    
+                return res.status(409).json(msg);
+                
+            } catch (error) {
+                console.warn(error);
+                return res.status(500).json(msg);
+            }
 
-            if (emailExist) msg.email = emailExist.email; 
-            if (usernameExist) msg.username = usernameExist.username; 
-
-            return res.status(409).json(msg);
 
         }
-        if (newUser === undefined) return;
-
-        const token = jwt.sign(
-            { _id: newUser._id, email: newUser.email, fingerprint: newUser.fingerprint },
-            JWT_SECRET,
-            { expiresIn: '10h' }
-        );
-
-        await mail.sendJWTAuth(email, token);
-        waitingValidation[newUser._id] = true;
-
 
     } catch (error) {
         console.log(error)
@@ -192,3 +183,8 @@ async function verifySessionPost(req, res) {
 }
 
 export default authController;
+
+
+function genCode() { // Generates a 6 digit code
+    return Math.floor(100000 + Math.random() * 900000);
+}
