@@ -4,8 +4,6 @@ import User from '../Models/User.js';
 
 const JWT_SECRET = process.env.JWT_SECRET
 export async function authMiddleware(req, res, next) {
-    const token = req.cookies.token; 
-
     if(!token) return next();
 
     const auth = validateToken(token, JWT_SECRET);
