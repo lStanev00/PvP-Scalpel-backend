@@ -29,6 +29,19 @@ const userSchema = new mongoose.Schema({
         default: Date.now,
     },
     fingerprint: {type: mongoose.Schema.Types.Mixed, required: true},
+    verifyTokens : {
+        type : {
+            email : {
+                token : {type : Number, required:false},
+                JWT : {type : String, required:false},
+            },
+            password: {
+                token : {type : Number, required:false},
+                JWT : {type : String, required:false},
+            },
+        },
+        default: () => ({}),
+    },
     // Other TODO functionalities
     role: { // MISSING FUNC
         type: String,
