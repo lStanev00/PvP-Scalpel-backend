@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import mail from "../mailer.js";
 import { getOptions } from "../helpers/cookieOptions.js";
 import bcrypt from 'bcrypt'
+import { fingerprintsMatch } from "../middlewares/authMiddleweare.js";
+import validateToken from "../helpers/authToken.js";
 const JWT_SECRET = process.env.JWT_SECRET
 
 const authController = Router();
@@ -12,10 +14,73 @@ const authController = Router();
 authController.post("/login", loginPost);
 authController.post("/register", registerPost);
 authController.patch("change/email", changeEmailPatch)
+authController.post("reset/password", resetPasswordPost);
+authController.patch("reset/password", resetPasswordPatch);
 authController.patch("/validate/token", valdiateTokenPatch);
 authController.get("/verify/me", (req,res) => res.status(200).end());
 
-const waitingValidation = {};
+async function resetPasswordPost(req, res) {
+    const email = (req.body.email).trim();
+    const fingerprint = req.body.fingerprint;
+    
+    if(!email) return res.status(500).end();
+    
+    let user = undefined;
+    
+    try {
+        user = await User.findOne({ email: email });
+        if (!user){
+            return res.status(404).end();
+        } 
+    
+        if (user.verifyTokens.password) {
+            return res.status(400).end();
+        }
+        res.status(201).json({  message : `Email send at ${email}!`  });
+
+        const payload = {
+            fingerprint: fingerprint,
+            email: user.email
+        }
+    
+        const token = jwt.sign(payload, JWT_SECRET);
+
+        mail.sendJWTAuth(user.email, token, `password`);
+    
+        user.verifyTokens.password.fingerprint = fingerprint;
+        user.verifyTokens.password.token = tokenHash;
+    
+        return await user.save();
+    
+    
+    } catch (error) {
+        console.warn(error);
+        res.status(500).end();
+    }
+    
+}
+
+async function resetPasswordPatch(req, res) {
+    const {JWT, fingerprint, newPassword} = req.body;
+
+    const Validate = validateToken(JWT, JWT_SECRET);
+
+    // if (!fingerprintsMatch(Validate.fingerprint, fingerprint)) return res.status(403).end();
+
+    try {
+        const user = await User.findOne({ email: Validate.email})
+        if (!user) return res.status(403).json();
+
+        user.password = newPassword;
+        await user.save();
+
+        return res.status(201).end();
+    } catch (error) {
+        console.warn(error)
+        return res.status(500).end()
+    }
+
+}
 
 async function loginPost(req, res) {
     const { email, password, fingerprint } = req.body;
@@ -167,10 +232,7 @@ async function valdiateTokenPatch(req, res) {
                 return res.status(500).end();
             }
         } else return res.status(400).end();
-    } else if (option == `password`){
-        
     }
-
 }
 
 async function changeEmailPatch(req, res) {

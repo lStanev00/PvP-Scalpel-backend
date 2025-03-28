@@ -40,8 +40,8 @@ const userSchema = new mongoose.Schema({
                 newEmail : {type : String, required:false},
             },
             password: {
-                token : {type : String, required:false},
-                JWT : {type : String, required:false},
+                JWT: {type : String, required: false},
+                fingerprint: {type : mongoose.Schema.Types.Mixed, required: false},
             },
         },
         default: () => ({}),
