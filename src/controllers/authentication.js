@@ -13,11 +13,30 @@ const authController = Router();
 
 authController.post("/login", loginPost);
 authController.post("/register", registerPost);
-authController.patch("change/email", changeEmailPatch)
+authController.patch("change/email", changeEmailPatch);
+authController.patch("change/password", changePassowordPatch);
 authController.post("reset/password", resetPasswordPost);
 authController.patch("reset/password", resetPasswordPatch);
 authController.patch("/validate/token", valdiateTokenPatch);
 authController.get("/verify/me", (req,res) => res.status(200).end());
+
+async function changePassowordPatch(req, res) {
+    const { password, newPassword } = req.body;
+    const user = req.user;
+    try {
+        const isMatch = await user.comparePassword(password);
+        
+        if (!isMatch) return res.status(401).json({ message: 'Incorrect password' });
+
+        user.password = newPassword;
+        await user.save();
+
+         res.status(201).end();
+
+    } catch (error) {
+        
+    }
+}
 
 async function resetPasswordPost(req, res) {
     const email = (req.body.email).trim();
@@ -66,6 +85,7 @@ async function resetPasswordPatch(req, res) {
     const Validate = validateToken(JWT, JWT_SECRET);
 
     // if (!fingerprintsMatch(Validate.fingerprint, fingerprint)) return res.status(403).end();
+    if (!Validate) return res.status(403).end();
 
     try {
         const user = await User.findOne({ email: Validate.email})
