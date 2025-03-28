@@ -100,7 +100,6 @@ async function registerPost(req, res) {
                 return res.status(500).json(msg);
             }
 
-
         }
 
     } catch (error) {
