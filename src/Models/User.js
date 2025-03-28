@@ -32,22 +32,22 @@ const userSchema = new mongoose.Schema({
     verifyTokens : {
         type : {
             email : {
-                token : {type : Number, required:false},
+                token : {type : String, required:false},
                 JWT : {type : String, required:false},
             },
             password: {
-                token : {type : Number, required:false},
+                token : {type : String, required:false},
                 JWT : {type : String, required:false},
             },
         },
         default: () => ({}),
     },
-    // Other TODO functionalities
-    role: { // MISSING FUNC
+    role: { 
         type: String,
         enum: ['user', 'admin'],
         default: 'user',
     },
+    // Other TODO functionalities
     avatarUrl: String, // MISSING FUNC
 });
 

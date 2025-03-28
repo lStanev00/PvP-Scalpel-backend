@@ -3,9 +3,9 @@ import { Router } from "express";
 import jwt from 'jsonwebtoken'
 import dotenv from 'dotenv';
 import mail from "../mailer.js";
-import validateToken from "../helpers/authToken.js";
 import { getOptions } from "../helpers/cookieOptions.js";
-import { fingerprintsMatch } from "../middlewares/authMiddleweare.js";
+import bcrypt from 'bcrypt'
+import validateToken from "../helpers/authToken.js";
 const JWT_SECRET = process.env.JWT_SECRET
 
 const authController = Router();
@@ -13,7 +13,7 @@ const authController = Router();
 authController.post("/login", loginPost);
 authController.post("/register", registerPost);
 authController.post("/validate/token", valdiateTokenPost);
-authController.post("/verify/session", verifySessionPost);
+authController.get("/verify/me", (req,res) => res.status(200).end());
 
 const waitingValidation = {};
 
@@ -31,16 +31,9 @@ async function loginPost(req, res) {
             $set: {
                 fingerprint: fingerprint
             }
-        }, { new: true }).lean();
+        }, { new: true });
 
-        const loginObject = {
-            _id: newUserFP._id,
-            email: newUserFP.email,
-            username: newUserFP.username,
-            isVerified: newUserFP.isVerified,
-            role: newUserFP.role,
-            fingerprint: newUserFP.fingerprint,
-        }
+        const loginObject = getLogedObject(newUserFP);
 
         const jwtToken = jwt.sign(loginObject, JWT_SECRET);
         const options = getOptions(req);
@@ -67,6 +60,7 @@ async function registerPost(req, res) {
                 fingerprint: fingerprint,
             });
             const code = genCode();
+            const codeHash = await cryptCode(code);
             const JWT = jwt.sign(
                 { _id: newUser._id, email: newUser.email, fingerprint: newUser.fingerprint },
                 JWT_SECRET,
@@ -74,21 +68,21 @@ async function registerPost(req, res) {
             );
             newUser.verifyTokens = {
                 email: {
-                    token: code,
+                    token: codeHash,
                     JWT: JWT
                 }
             }
             await newUser.save();
     
             res.status(201).json({ _id: newUser._id, email: newUser.email });
-            return await mail.sendJWTAuth(email, token, "email");
+            return await mail.sendJWTAuth(email, code, "email");
 
         } catch (error) {
             const msg = {}
 
             try {
-                const emailExist = await User.findOne({email : email}).lean();
-                const usernameExist = await User.findOne({username : username}).lean();
+                const emailExist = await User.findOne({email : email});
+                const usernameExist = await User.findOne({username : username});
     
                 if (emailExist) msg.email = emailExist.email; 
                 if (usernameExist) msg.username = usernameExist.username; 
@@ -111,75 +105,63 @@ async function registerPost(req, res) {
 }
 
 async function valdiateTokenPost(req, res) {
-    const { token, fingerprint } = req.body;
+    const { token, option } = req.body;
+    const JWT = req.JWT;
+    let user = req.user;
 
-    const userData = validateToken(token, JWT_SECRET);
+    if (user) {
+        if (option == `verify`) {
+            if (user.email && user.email.JWT === JWT && user.email.token) {
+                if (!bcrypt.compare(token, user.email.token)) return res.status(401).end();
+                try {
+                    const updatedUser = await User.findByIdAndUpdate(user._id, {
+                        $set: {
+                          isVerified: true
+                        },
+                        $unset: {
+                          'verifyTokens.email': ''
+                        }
+                    }, { new: true});
 
-    if (!userData) return res.status(403).json({message: "Forbidden"});
+                    const loginObject = getLogedObject(updatedUser);
 
-    let user = undefined;
-    try {
-        user = await User.findById(userData._id);
-    } catch (error) {
-        return res.status(400).json({
-            400: `the Token: ${token} is invalid`
-        });
-    };
+                    const jwtToken = jwt.sign(loginObject, JWT_SECRET);
+                    const options = getOptions(req);
 
-    if(user) {
-        if (!waitingValidation[user._id]) return res.status(403).json({message: "Forbidden"});
-    };
-
-    try {
-        user = await User.findByIdAndUpdate(userData._id, {
-            $set: {
-                isVerified: true,
-                fingerprint: fingerprint
-            },
-        },
-        { new: true });
-
-        const loginObject = {
-            _id: user._id,
-            email: user.email,
-            username: user.username,
-            isVerified: user.isVerified,
-            role: user.role,
-            fingerprint: user.fingerprint,
+                    res
+                        .clearCookie("token", options)
+                        .cookie("token", jwtToken, options)
+                        .status(201)
+                        .json(loginObject);
+                      
+                } catch (error) {
+                    return res.status(500).end();
+                }
+            } else return res.status(400).end();
         }
-
-        const jwtToken = jwt.sign(loginObject, JWT_SECRET);
-        const options = getOptions(req);
-
-        res.cookie("token", jwtToken, options);
-          
-        res.status(201).json(loginObject);
-        return delete waitingValidation[user._id];
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json({message: "Internal Server Error"})
     }
 }
-
-async function verifySessionPost(req, res) {
-    const { _id, fingerprint } = req.body;
-
-    try {
-        const user = await User.findById(_id);
-
-        if(!fingerprintsMatch(fingerprint, user.fingerprint)) return res.status(403).json({authorized: false});
-
-        return res.status(200).json({authorized: true});
-
-    } catch (error) {
-        return res.status(500).end();
-    }
-    
-}
-
 export default authController;
 
 
 function genCode() { // Generates a 6 digit code
     return Math.floor(100000 + Math.random() * 900000);
+}
+
+function getLogedObject(user) {
+    return {
+        _id: user._id,
+        email: user.email,
+        username: user.username,
+        isVerified: user.isVerified,
+        role: user.role,
+        fingerprint: user.fingerprint,
+    }
+}
+
+
+async function cryptCode(code) {
+    const salt = 12;
+    const codeHash = await bcrypt.hash(code, salt);
+    return codeHash
 }

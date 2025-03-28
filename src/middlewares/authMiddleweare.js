@@ -29,7 +29,8 @@ export async function authMiddleware(req, res, next) {
             res.clearCookie("token", getOptions(req));
             return res.status(403).end();
         }
-          
+        
+        req.JWT = auth;
         req.user = user;
         next();
 
