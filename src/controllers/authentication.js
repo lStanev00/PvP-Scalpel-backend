@@ -12,15 +12,13 @@ const authController = Router();
 
 authController.post("/login", loginPost);
 authController.post("/register", registerPost);
-authController.post("/validate/email", valdiateEmailPost);
+authController.post("/validate/token", valdiateTokenPost);
 authController.post("/verify/session", verifySessionPost);
 
 const waitingValidation = {};
 
 async function loginPost(req, res) {
     const { email, password, fingerprint } = req.body;
-    const auth1 = req.headers["600"];
-    if (!auth1 && auth1 !== "BasicPass") return res.status(500).end();
 
     try {
         const attemptedUser = await User.findOne({email: email});
@@ -58,8 +56,6 @@ async function loginPost(req, res) {
 
 async function registerPost(req, res) {
     const { email, username, password, fingerprint } = req.body;
-    const auth1 = req.headers["600"];
-    if (!auth1 && auth1 !== "BasicPass") return res.status(500).end();
 
     try {
         let newUser = undefined;
@@ -115,7 +111,7 @@ async function registerPost(req, res) {
     }
 }
 
-async function valdiateEmailPost(req, res) {
+async function valdiateTokenPost(req, res) {
     const { token, fingerprint } = req.body;
 
     const userData = validateToken(token, JWT_SECRET);
