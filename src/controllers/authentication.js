@@ -18,7 +18,15 @@ authController.patch("change/password", changePassowordPatch);
 authController.post("reset/password", resetPasswordPost);
 authController.patch("reset/password", resetPasswordPatch);
 authController.patch("/validate/token", valdiateTokenPatch);
-authController.get("/verify/me", (req,res) => res.status(200).end());
+authController.get("/verify/me", getMe);
+
+async function getMe(req, res) {
+    const user = req.user;
+
+    if (!user) return res.status(200).json({_id : undefined});
+
+    return res.status(200).json(getLogedObject(user));
+}
 
 async function changePassowordPatch(req, res) {
     const { password, newPassword } = req.body;
@@ -308,7 +316,6 @@ function getLogedObject(user) {
         fingerprint: user.fingerprint,
     }
 }
-
 
 async function cryptCode(code) {
     const salt = 12;
