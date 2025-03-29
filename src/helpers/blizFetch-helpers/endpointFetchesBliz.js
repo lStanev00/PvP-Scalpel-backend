@@ -61,6 +61,7 @@ const helpFetch = {
 
     },
     getRating: async function(path, headers, server, name) {
+        const start = performance.now();
         try {
             const bracketsCheatSheet = {
                 "SHUFFLE": `solo`,
@@ -80,13 +81,14 @@ const helpFetch = {
                 const seasonID = data.season.id;
                 const match = brackets[index].href.match(/pvp-bracket\/([^?]+)/);
                 const bracketName = match[1];
-                const pastSeasonCheckURL = `https://${server}.api.blizzard.com/data/wow/pvp-season/${seasonID - 1}/pvp-leaderboard/${bracketName}?namespace=dynamic-${server}&locale=en_US`;
+                // const pastSeasonCheckURL = `https://${server}.api.blizzard.com/data/wow/pvp-season/${seasonID - 1}/pvp-leaderboard/${bracketName}?namespace=dynamic-${server}&locale=en_US`;
     
                 const currentBracket = data.bracket.type;
-                const lastSeasonLadderPromise = helpFetch.getpastRate(pastSeasonCheckURL, name, headers);
+                // const lastSeasonLadderPromise = helpFetch.getpastRate(pastSeasonCheckURL, name, headers);
                 const titlePromise = helpFetch.getPvPTitle(data.tier.key.href, headers);
     
-                const [lastSeasonLadder, title] = await Promise.all([lastSeasonLadderPromise, titlePromise]);
+                // const [lastSeasonLadder, title] = await Promise.all([lastSeasonLadderPromise, titlePromise]);
+                const title = await titlePromise;
     
                 const curentBracketData = {
                     rating: data?.rating,
@@ -103,84 +105,25 @@ const helpFetch = {
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
                     result[bracketName] = {
                         currentSeason: curentBracketData,
-                        lastSeasonLadder: lastSeasonLadder,
+                        // lastSeasonLadder: lastSeasonLadder,
                         record: undefined,
                         _id: `${Math.random()}${bracketKey}${Math.random()}`
                     };
                 } else {
                     result[bracketKey] = {
                         currentSeason: curentBracketData,
-                        lastSeasonLadder: lastSeasonLadder,
+                        // lastSeasonLadder: lastSeasonLadder,
                         record: undefined,
                         _id: `${Math.random()}${bracketKey}`
                     };
                 }
             });
             await Promise.all(processBrackets);
+            const end = performance.now(); 
+            console.log(`getRating() took ${(end - start).toFixed(2)} ms`);
             return result;
-            for (const bracket of brackets) {
-                const data = await ( (await fetch(bracket.href, headers)).json());
-                const seasonID = data.season.id;
-                const match = (bracket.href).match(/pvp-bracket\/([^?]+)/);
-                const bracketName = match[1];
-                const pastSeasonCheckURL = `https://${server}.api.blizzard.com/data/wow/pvp-season/${seasonID - 1}/pvp-leaderboard/${bracketName}?namespace=dynamic-${server}&locale=en_US`
-                const currentBracket = data.bracket.type;
-                const lastSeasonLadder = await helpFetch.getpastRate(pastSeasonCheckURL, name, headers);
-                if (currentBracket === `BLITZ` || currentBracket === `SHUFFLE`){
-                    const currentSeason = {
-                        rating: data.rating,
-                        title: await helpFetch.getPvPTitle(data.tier.key.href, headers),
-                        seasonMatchStatistics: data.season_match_statistics,
-                        weeklyMatchStatistics: data.weekly_match_statistics
-                    }
-                    const bracketKey = bracketsCheatSheet[currentBracket];
-                    if (bracketKey) {
-                        result[bracketKey][bracketName] = {
-                            currentSeason: currentSeason,
-                            lastSeasonLadder: lastSeasonLadder
-                        };
-                    } else {
-                        console.warn(`Unknown bracket: ${currentBracket}`);
-                    }
-                 } else if(currentBracket == `BATTLEGROUNDS`){
-                    console.log(data)
-                    const curentBracketData = {
-                        rating: data.rating,
-                        title: await helpFetch.getPvPTitle(data.tier.key.href, headers),
-                        seasonMatchStatistics: data.season_match_statistics,
-                        weeklyMatchStatistics: data.weekly_match_statistics
-                    }
-                    const bracketKey = bracketsCheatSheet[currentBracket];
-                    if (bracketKey) {
-                        result[bracketKey] = curentBracketData;
-                    } else {
-                        console.warn(`Unknown bracket: ${currentBracket}`);
-                    }
-
-                 } else {
-                    const curentBracketData = {
-                        currentSeason : {
-                            rating: data.rating,
-                            title: await helpFetch.getPvPTitle(data.tier.key.href, headers),
-                            seasonMatchStatistics: data.season_match_statistics,
-                            weeklyMatchStatistics: data.weekly_match_statistics
-                        },
-                        lastSeasonLadder: lastSeasonLadder,
-                        record: 0
-                    }
-                    const bracketKey = bracketsCheatSheet[currentBracket];
-                    if (bracketKey) {
-                        result[bracketKey] = curentBracketData;
-                    } else {
-                        console.warn(`Unknown bracket: ${currentBracket}`);
-                    }
-                    
-                }
-
-
-            }
-            return result
         } catch (error) {
+            console.log(error)
             return {
                 solo: {
                 },
@@ -328,6 +271,7 @@ const helpFetch = {
 
 
 async function filterAchiev (achievements, points, headers) {
+    const start = performance.now();
     let result = {
         points: points.points, // Collected
         "2s": {
@@ -495,6 +439,9 @@ async function filterAchiev (achievements, points, headers) {
                 console.log(error); break;
             }
     }
+    const end = performance.now();
+    console.log(`filterAchiev() took ${(end - start).toFixed(2)} ms`);
+
     return result
 }
 

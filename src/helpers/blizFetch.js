@@ -1,13 +1,15 @@
 import dotenv from 'dotenv';
-import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js'
+import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js';
+import { performance } from 'perf_hooks';
+
 dotenv.config({ path: '../../.env' });
 
 const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
 
 async function fetchData(server, realm, name) {
+    const start = performance.now();
     name = name.toLowerCase();
-    const result = {};
     let accessToken = await helpFetch.getAccessToken(clientId, clientSecret);
 
     const headers = {
@@ -77,6 +79,9 @@ async function fetchData(server, realm, name) {
         result.media = media;
         result.gear = gear;
         result.equipmentStats = equipmentStats;
+
+        const end = performance.now(); 
+        console.log(`blizFetch() took ${(end - start).toFixed(2)} ms`);
 
         return result;
     } catch (error) {
