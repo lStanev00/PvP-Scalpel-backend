@@ -417,6 +417,7 @@ async function getSeason() {
           headers: {
             "Content-Type": "application/json",
             "in-auth": `${token}`,
+            "600": "BasicPass"
           },
         })
         if (DBMSreq.status >= 500 || DBMSreq.status == 401){
