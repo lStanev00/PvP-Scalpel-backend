@@ -99,7 +99,7 @@ const mail = {
                     box-shadow: 0 0 10px rgba(0,0,0,0.3);
                     ">
                     <h2 style="color: #38bdf8;">🔒 Password Reset</h2>
-                    <p style="line-height: 1.6;">
+                    <p style="line-height: 1.6; color: #9ca3af;">
                         Thank you for registering at <strong>PvP Scalpel</strong>.<br />
                         Please click the button below to reset your password:
                     </p>
