@@ -13,10 +13,10 @@ const authController = Router();
 
 authController.post("/login", loginPost);
 authController.post("/register", registerPost);
-authController.patch("change/email", changeEmailPatch);
-authController.patch("change/password", changePassowordPatch);
-authController.post("reset/password", resetPasswordPost);
-authController.patch("reset/password", resetPasswordPatch);
+authController.patch("/change/email", changeEmailPatch);
+authController.patch("/change/password", changePassowordPatch);
+authController.post("/reset/password", resetPasswordPost);
+authController.patch("/reset/password", resetPasswordPatch);
 authController.patch("/validate/token", valdiateTokenPatch);
 authController.get("/verify/me", getMe);
 
@@ -50,17 +50,19 @@ async function resetPasswordPost(req, res) {
     const email = (req.body.email).trim();
     const fingerprint = req.body.fingerprint;
     
+    console.log(email)
     if(!email) return res.status(500).end();
     
     let user = undefined;
     
     try {
-        user = await User.findOne({ email: email });
+        user = await User.findOne({ email: email }).lean();
         if (!user){
             return res.status(404).end();
         } 
     
-        if (user.verifyTokens.password) {
+        if (user?.verifyTokens?.password) {
+            console.log(user)
             return res.status(400).end();
         }
         res.status(201).json({  message : `Email send at ${email}!`  });
@@ -115,7 +117,7 @@ async function loginPost(req, res) {
 
     try {
         const attemptedUser = await User.findOne({email: email});
-        if (!attemptedUser) return res.status(400).end();
+        if (!attemptedUser) return res.status(409).end();
         const isMatch = await attemptedUser.comparePassword(password);
 
         if (!isMatch) return res.status(400).end(); // Bad password
