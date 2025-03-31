@@ -23,8 +23,19 @@ authController.get("/verify/me", getMe);
 async function getMe(req, res) {
     const user = req.user;
 
-    if (!user) return res.status(200).json({_id : undefined});
+    if (!user) {
+        if (req.cookies) {
+            console.log(getOptions(req))
+            let options = getOptions(req);
+            delete options.maxAge;
+            res.clearCookie(`token`, options);
+        }
+        console.log(res.cookies)
+        res.status(200).json({_id : undefined})
+        return
+    }
 
+    console.log(user)
     return res.status(200).json(getLogedObject(user));
 }
 
@@ -166,8 +177,9 @@ async function registerPost(req, res) {
                 }
             }
             await newUser.save();
-    
-            res.status(201).json({ _id: newUser._id, email: newUser.email });
+            res
+            .cookie("token", JWT, getOptions(req))
+            .status(201).json({ _id: newUser._id, email: newUser.email });
             return await mail.sendJWTAuth(email, code, "email");
 
         } catch (error) {
@@ -180,7 +192,7 @@ async function registerPost(req, res) {
                 if (emailExist) msg.email = emailExist.email; 
                 if (usernameExist) msg.username = usernameExist.username; 
     
-                return res.status(409).json(msg);
+                return res.status(409).json(error);
                 
             } catch (error) {
                 console.warn(error);
@@ -199,13 +211,19 @@ async function registerPost(req, res) {
 
 async function valdiateTokenPatch(req, res) {
     const { token, option } = req.body;
+    const rawReqJWT = req?.cookies?.token; 
     const JWT = req.JWT;
-    let user = req.user;
+    const user = req?.user || undefined;
 
     if (user) {
+        const tokenToCheck = user?.verifyTokens?.email[`token`] || undefined
+        const JWTToCheck = user?.verifyTokens?.email?.JWT || undefined
+        if (!tokenToCheck || !JWTToCheck) return res.status(500).end();
+        
         if (option == `verify`) {
-            if (user.email && user.email.JWT === JWT && user.email.token) {
-                if (!bcrypt.compare(token, user.email.token)) return res.status(401).end();
+            if (true) {
+                console.log(token, tokenToCheck)
+                if (!(await bcrypt.compare(token, tokenToCheck))) {return res.status(401).end()};
                 try {
                     const updatedUser = await User.findByIdAndUpdate(user._id, {
                         $set: {
@@ -230,7 +248,7 @@ async function valdiateTokenPatch(req, res) {
                 } catch (error) {
                     return res.status(500).end();
                 }
-            } else return res.status(400).end();
+            } else {return res.status(400).end()};
         }
     } else if(option == `email`) {
         if (user.newEmail && user.verifyTokens.newEmail.newEmail === JWT.newEmail && user.newEmail.token) {
@@ -303,7 +321,7 @@ export default authController;
 
 
 function genCode() { // Generates a 6 digit code
-    return Math.floor(100000 + Math.random() * 900000);
+    return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 function getLogedObject(user) {
