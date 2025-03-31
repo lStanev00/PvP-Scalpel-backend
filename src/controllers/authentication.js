@@ -35,7 +35,6 @@ async function getMe(req, res) {
         return
     }
 
-    console.log(user)
     return res.status(200).json(getLogedObject(user));
 }
 
@@ -218,7 +217,7 @@ async function valdiateTokenPatch(req, res) {
     if (user) {
         const tokenToCheck = user?.verifyTokens?.email[`token`] || undefined
         const JWTToCheck = user?.verifyTokens?.email?.JWT || undefined
-        if (!tokenToCheck || !JWTToCheck) return res.status(500).end();
+        if (!tokenToCheck || !JWTToCheck) return res.status(401).end();
         
         if (option == `verify`) {
             if (true) {
@@ -246,6 +245,7 @@ async function valdiateTokenPatch(req, res) {
                         .json(loginObject);
                       
                 } catch (error) {
+                    console.warn(error)
                     return res.status(500).end();
                 }
             } else {return res.status(400).end()};
