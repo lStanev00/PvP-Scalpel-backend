@@ -24,7 +24,7 @@ const transporter = nodemailer.createTransport({
 
 const mail = {
     sendJWTAuth : async function (email, code, option) {
-        const passwoardLink = frontEndDomain + `resetPassword/${token}`;
+        const passwoardLink = frontEndDomain + `reset/password?token=${token}`;
         
         let header;
         let html;
