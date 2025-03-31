@@ -50,7 +50,6 @@ async function resetPasswordPost(req, res) {
     const email = (req.body.email).trim();
     const fingerprint = req.body.fingerprint;
     
-    console.log(email)
     if(!email) return res.status(500).end();
     
     let user = undefined;
@@ -62,7 +61,6 @@ async function resetPasswordPost(req, res) {
         } 
     
         if (user?.verifyTokens?.password) {
-            console.log(user)
             return res.status(400).end();
         }
         res.status(201).json({  message : `Email send at ${email}!`  });
