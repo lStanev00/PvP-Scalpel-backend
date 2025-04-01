@@ -57,6 +57,13 @@ const userSchema = new mongoose.Schema({
     avatarUrl: String, // MISSING FUNC
 });
 
+
+userSchema.virtual("posts", {
+    ref: Post,
+    localField: "_id",
+    foreignField: "author",
+})
+
 // Pre save for pass hash ! PASSWORDS CAN'T BE RAW STRING (AS IS) STORRED !
 userSchema.pre('save', async function (next) {
     if(!this.isModified('password')) return next(); // If pass noMod
