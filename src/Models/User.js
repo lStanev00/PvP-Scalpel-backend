@@ -59,7 +59,7 @@ const userSchema = new mongoose.Schema({
 
 
 userSchema.virtual("posts", {
-    ref: Post,
+    ref: "Post",
     localField: "_id",
     foreignField: "author",
 });
