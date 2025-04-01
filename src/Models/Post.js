@@ -19,7 +19,7 @@ const PostSchema = new mongoose.Schema({
         ref: "Char",
         require : false,
     }
-});
+}, {timestamps: true});
 
 PostSchema.index({ author: 1 });
 PostSchema.index({ character: 1 });
