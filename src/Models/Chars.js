@@ -65,5 +65,14 @@ const CharSchema = new mongoose.Schema({
     equipmentStats: mongoose.Schema.Types.Mixed, // Collected
 }, { timestamps: true });
 
+CharSchema.virtual("posts", {
+    ref: "Post",
+    localField: "_id",
+    foreignField: "character",
+})
+
+CharSchema.set("toObject", {  virtuals: true  });
+CharSchema.set("toJSON", {  virtuals: true  });
+
 const Char = mongoose.model(`Character`, CharSchema);
 export default Char;

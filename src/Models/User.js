@@ -62,7 +62,11 @@ userSchema.virtual("posts", {
     ref: Post,
     localField: "_id",
     foreignField: "author",
-})
+});
+
+
+userSchema.set("toObject", {  virtuals: true  });
+userSchema.set("toJSON", {  virtuals: true  });
 
 // Pre save for pass hash ! PASSWORDS CAN'T BE RAW STRING (AS IS) STORRED !
 userSchema.pre('save', async function (next) {
