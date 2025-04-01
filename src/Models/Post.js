@@ -13,5 +13,13 @@ const PostSchema = new mongoose.Schema({
         type: Schema.Types.ObjectId,
         ref: "User",
         required: true
+    },
+    character : {
+        type: Schema.Types.ObjectId,
+        ref: "Char",
+        require : false,
     }
-})
+});
+
+const Post = mongoose.model(`Post`, PostSchema);
+export default Post;
