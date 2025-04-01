@@ -260,7 +260,6 @@ async function registerPost(req, res) {
 
 async function valdiateTokenPatch(req, res) {
     const { token, option } = req.body;
-    const rawReqJWT = req?.cookies?.token; 
     const JWT = req.JWT;
     const user = req?.user || undefined;
 
@@ -297,11 +296,11 @@ async function valdiateTokenPatch(req, res) {
                     console.warn(error)
                     return res.status(500).end();
                 }
-            } else {return res.status(400).end()};
+            }
         }
     } else if(option == `email`) {
-        if (user.newEmail && user.verifyTokens.newEmail.newEmail === JWT.newEmail && user.newEmail.token) {
-            if (!bcrypt.compare(token, user.verifyTokens.newEmail.token)) return res.status(401).end();
+        if (user.verifyTokens.newEmail.token) {
+            if (!(bcrypt.compare(token, user.verifyTokens.newEmail.token))) return res.status(401).end();
 
             try {
                 const updatedUser = await User.findByIdAndUpdate(user._id, {
@@ -316,10 +315,13 @@ async function valdiateTokenPatch(req, res) {
                 const loginObject = getLogedObject(updatedUser);
 
                 const jwtToken = jwt.sign(loginObject, JWT_SECRET);
-                const options = getOptions(req);
+                let deleteOptions = getOptions(req);
+                const options = deleteOptions;
+
+                delete deleteOptions.maxAge;
 
                 return res
-                    .clearCookie("token", options)
+                    .clearCookie("token", deleteOptions)
                     .cookie("token", jwtToken, options)
                     .status(201)
                     .json(loginObject);
@@ -377,7 +379,7 @@ async function changeEmailPatch(req, res) {
             .status(201)
             .json(loginObject);
         
-        return await mail.sendJWTAuth(newEmail, token, `password`);
+        return await mail.sendJWTAuth(newEmail, token, `email`);
         
     } catch (error) {
         res.status(500).end();
