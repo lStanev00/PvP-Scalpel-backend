@@ -21,8 +21,8 @@ const PostSchema = new mongoose.Schema({
     }
 });
 
-PostSchema.index({ author: 1});
-PostSchema.index({ character: 1})
+PostSchema.index({ author: 1 });
+PostSchema.index({ character: 1 });
 
 const Post = mongoose.model(`Post`, PostSchema);
 export default Post;
