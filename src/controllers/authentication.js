@@ -15,10 +15,61 @@ authController.post("/login", loginPost);
 authController.post("/register", registerPost);
 authController.patch("/change/email", changeEmailPatch);
 authController.patch("/change/password", changePassowordPatch);
+authController.patch("/change/username", changeUsernamePatch);
 authController.post("/reset/password", resetPasswordPost);
 authController.patch("/reset/password", resetPasswordPatch);
 authController.patch("/validate/token", valdiateTokenPatch);
 authController.get("/verify/me", getMe);
+
+async function changeUsernamePatch(req, res) {
+    const user = req?.user;
+    const {newUsername} = req.body;
+
+    console.log(user)
+    
+    if (!user) {
+        if (req.cookies) {
+            let options = getOptions(req);
+            delete options.maxAge;
+            res.clearCookie(`token`, options);
+        }
+        return res.status(403).end();
+    }
+
+    if ( !newUsername || newUsername === user.username ) return res.status(400).json({msg:`Please provide new username`})
+
+    try {
+        const usernameExist = await User.findOne({username: newUsername}).lean();
+        if (usernameExist) return res.status(409).json({ msg: `User with username "${newUsername}" already exists. Please choose another one.` });
+    } catch (error) {
+        console.warn(error);
+        return res.status(500).end();
+    }
+
+    try {
+        let newUName = newUsername.trim();
+        const updatedUser = await User.findByIdAndUpdate(user.id, {
+            $set: {
+                username: newUName,
+            }
+        }, {  new: true  });
+
+        let deleteOptions = getOptions(req);
+        const newCookieOptions = deleteOptions;
+        
+        delete deleteOptions.maxAge;
+        const JWT = jwt.sign(getLogedObject(updatedUser), JWT_SECRET);
+        res
+        .clearCookie(`token`, deleteOptions)
+        .cookie("token", JWT , newCookieOptions)
+        .status(201)
+        .end();
+        return
+    } catch (error) {
+        console.warn(error);
+        return res.status(500).end();
+    }
+}
 
 async function getMe(req, res) {
     const user = req.user;
