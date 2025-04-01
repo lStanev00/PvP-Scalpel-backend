@@ -48,6 +48,7 @@ async function onPost(req, res) {
             9: `Initiate`,
         };
         mem.rank = roleMap[mem.rank]
+
         const exist = await Member.findOne({ blizID: mem.blizID });
         if (exist){
             // await Member.findByIdAndUpdate(mem._id, mem);
@@ -68,7 +69,7 @@ async function onPost(req, res) {
 }
 async function onGetList(req,res) {
     try {
-        const memList = await Member.find();
+        const memList = await Member.find().lean();
         res.status(200).json(memList);
     } catch (error) {
         res.status(404).json({msg:`There's no such collection`});
@@ -78,7 +79,8 @@ async function onPostList(req, res) {
     const QUERY = req.body?.query;
     if (!QUERY) return res.status(404).json({msg:`Not FOUND!`});
     const list = {
-        "name": 1
+        "name": 1,
+        "playerRealmSlug": 1,
     }
     for (const qr of QUERY) {
         list[`${qr}`] = 1

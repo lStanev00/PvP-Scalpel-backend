@@ -25,12 +25,10 @@ async function getMe(req, res) {
 
     if (!user) {
         if (req.cookies) {
-            console.log(getOptions(req))
             let options = getOptions(req);
             delete options.maxAge;
             res.clearCookie(`token`, options);
         }
-        console.log(res.cookies)
         res.status(200).json({_id : undefined})
         return
     }
@@ -221,7 +219,6 @@ async function valdiateTokenPatch(req, res) {
         
         if (option == `verify`) {
             if (true) {
-                console.log(token, tokenToCheck)
                 if (!(await bcrypt.compare(token, tokenToCheck))) {return res.status(401).end()};
                 try {
                     const updatedUser = await User.findByIdAndUpdate(user._id, {

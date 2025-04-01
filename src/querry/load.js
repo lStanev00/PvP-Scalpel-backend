@@ -336,6 +336,16 @@ async function getSeason() {
     const { name, realm } = member.character;
     const playerRealmSlug = realm.slug.toLowerCase();
     const playerNameSlug = name.toLowerCase();
+
+    // const req = await fetch(`https://api.pvpscalpel.com/checkCharacter/eu/${playerRealmSlug}/${name}`, {
+    //   method: "GET",
+    //   headers: {
+    //     "600": "BasicPass"
+    //   }
+    // })
+
+    // const reqData = await req.json();
+    // console.log(req.data)
   
     // Fetch character profile
     // await delay(5); 
@@ -360,6 +370,8 @@ async function getSeason() {
     );
     
   //   console.log(`THIS IS ERRORING HERE:`, `eu`, (name).toLowerCase(), playerRealmSlug, ACCESS_TOKEN);
+
+
     
     return {
       name,

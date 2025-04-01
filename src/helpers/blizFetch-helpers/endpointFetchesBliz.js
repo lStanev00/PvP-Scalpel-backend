@@ -367,7 +367,7 @@ async function filterAchiev (achievements, points, headers) {
             result["Blitz"].XP = BGXPResult;
             break;
         } catch (error) {
-            console.log(error); break;
+            (error); break;
         }
     }
     // Get the RBG WINS
