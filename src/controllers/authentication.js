@@ -333,38 +333,57 @@ async function valdiateTokenPatch(req, res) {
 async function changeEmailPatch(req, res) {
     const user = req.user;
     if(!user) return res.status(403).end();
+
     
     const { newEmail } = req.body;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return res.status(400).json({msg : `${newEmail} is not a valid Email!`});
+
+    try {
+        const isExisting = await User.findOne({email: newEmail}).lean();
+        if (isExisting) return res.status(409).json({msg: `User with ${newEmail} already exists!`});
+
+    } catch (error) {
+        res.status(500).end();
+        console.warn(error);
+    }
 
     const token = genCode();
     const hashedToken = await cryptCode(token);
     
-    
-    const updatedUser = await User.findByIdAndUpdate(user._id, {
-        $set: {
-            verifyTokens : {
-                newEmail : {
-                    token: hashedToken,
-                    newEmail: newEmail,
+    try {
+        const updatedUser = await User.findByIdAndUpdate(user.id, {
+            $set: {
+                verifyTokens : {
+                    newEmail : {
+                        token: hashedToken,
+                        newEmail: newEmail,
+                    }
                 }
             }
-        }
-    })
+        }, {new:true});
+        
+        const loginObject = getLogedObject(updatedUser);
+        loginObject.newEmail = newEmail;
+        
+        const jwtToken = jwt.sign(loginObject, JWT_SECRET);
+        let deleteOptions = getOptions(req)
+        const options = deleteOptions;
 
-    const loginObject = getLogedObject(updatedUser);
-    loginObject.newEmail = newEmail;
-    
-    const jwtToken = jwt.sign(loginObject, JWT_SECRET);
-    const options = getOptions(req);
-    
-    res
-        .clearCookie("token", options)
-        .cookie("token", jwtToken, options)
-        .status(201)
-        .json(loginObject);
-
-    mail.sendJWTAuth(newEmail, token, `password`)
-}
+        delete deleteOptions.maxAge;
+        
+        res
+            .clearCookie("token", deleteOptions)
+            .cookie("token", jwtToken, options)
+            .status(201)
+            .json(loginObject);
+        
+        return await mail.sendJWTAuth(newEmail, token, `password`);
+        
+    } catch (error) {
+        res.status(500).end();
+        return console.warn(error);
+    }
+    }
 
 export default authController;
 
