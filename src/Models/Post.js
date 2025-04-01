@@ -1,4 +1,7 @@
-import mongoose, { mongo, Schema } from "mongoose";
+import mongoose, { Schema } from "mongoose";
+import Char from './Chars.js';
+import User from './User.js'
+
 
 const PostSchema = new mongoose.Schema({
     title : {
@@ -11,12 +14,12 @@ const PostSchema = new mongoose.Schema({
     },
     author: {
         type: Schema.Types.ObjectId,
-        ref: "User",
+        ref: User,
         required: true
     },
     character : {
         type: Schema.Types.ObjectId,
-        ref: "Char",
+        ref: Char,
         require : false,
     }
 }, {timestamps: true});

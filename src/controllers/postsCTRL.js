@@ -2,7 +2,9 @@ import { Router } from "express";
 import Post from "../Models/Post.js";
 
 
-const commentsCTRL = Router();
+const postsCTRL = Router();
+
+postsCTRL.post(`/new/post`, createPostPOST);
 
 
 async function createPostPOST(req, res) {
@@ -17,14 +19,13 @@ async function createPostPOST(req, res) {
             title, content, author: authorID, character: characterID
         }).save();
 
-        const popNewPost = await newPost.populate("character").populate("author");
+        const popNewPost = await Post.findById(newPost.id).populate("character").populate("author");
 
         return res.status(201).json(popNewPost.toObject());
     } catch (error) {
         console.warn(error);
         return res.status(500).end();
     }
-
 }
 
-export default commentsCTRL;
+export default postsCTRL;
