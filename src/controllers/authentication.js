@@ -263,12 +263,10 @@ async function valdiateTokenPatch(req, res) {
     const JWT = req.JWT;
     const user = req?.user || undefined;
 
-    if (user) {
-        const tokenToCheck = user?.verifyTokens?.email[`token`] || undefined
-        const JWTToCheck = user?.verifyTokens?.email?.JWT || undefined
-        if (!tokenToCheck || !JWTToCheck) return res.status(401).end();
-        
         if (option == `verify`) {
+            const tokenToCheck = user?.verifyTokens?.email[`token`] || undefined
+            const JWTToCheck = user?.verifyTokens?.email?.JWT || undefined
+            if (!tokenToCheck || !JWTToCheck) return res.status(401).end();
             if (true) {
                 if (!(await bcrypt.compare(token, tokenToCheck))) {return res.status(401).end()};
                 try {
@@ -284,10 +282,13 @@ async function valdiateTokenPatch(req, res) {
                     const loginObject = getLogedObject(updatedUser);
 
                     const jwtToken = jwt.sign(loginObject, JWT_SECRET);
-                    const options = getOptions(req);
+                    let deleteOptions = getOptions(req)
+                    const options = deleteOptions;
+
+                    delete deleteOptions.maxAge;
 
                     return res
-                        .clearCookie("token", options)
+                        .clearCookie("token", deleteOptions)
                         .cookie("token", jwtToken, options)
                         .status(201)
                         .json(loginObject);
@@ -298,37 +299,37 @@ async function valdiateTokenPatch(req, res) {
                 }
             }
         }
-    } else if(option == `email`) {
-        if (user.verifyTokens.newEmail.token) {
-            if (!(bcrypt.compare(token, user.verifyTokens.newEmail.token))) return res.status(401).end();
+        else if(option == `email`) {
+            if (user.verifyTokens.newEmail.token) {
+                if (!(bcrypt.compare(token, user.verifyTokens.newEmail.token))) return res.status(401).end();
 
-            try {
-                const updatedUser = await User.findByIdAndUpdate(user._id, {
-                    $set: {
-                      email: JWT.newEmail
-                    },
-                    $unset: {
-                      'verifyTokens.newEmail': ''
-                    }
-                }, { new: true });
+                try {
+                    const updatedUser = await User.findByIdAndUpdate(user._id, {
+                        $set: {
+                        email: JWT.newEmail
+                        },
+                        $unset: {
+                        'verifyTokens.newEmail': ''
+                        }
+                    }, { new: true });
 
-                const loginObject = getLogedObject(updatedUser);
+                    const loginObject = getLogedObject(updatedUser);
 
-                const jwtToken = jwt.sign(loginObject, JWT_SECRET);
-                let deleteOptions = getOptions(req);
-                const options = deleteOptions;
+                    const jwtToken = jwt.sign(loginObject, JWT_SECRET);
+                    let deleteOptions = getOptions(req);
+                    const options = deleteOptions;
 
-                delete deleteOptions.maxAge;
+                    delete deleteOptions.maxAge;
 
-                return res
-                    .clearCookie("token", deleteOptions)
-                    .cookie("token", jwtToken, options)
-                    .status(201)
-                    .json(loginObject);
-            } catch (error) {
-                return res.status(500).end();
-            }
-        } else return res.status(400).end();
+                    return res
+                        .clearCookie("token", deleteOptions)
+                        .cookie("token", jwtToken, options)
+                        .status(201)
+                        .json(loginObject);
+                } catch (error) {
+                    return res.status(500).end();
+                }
+            } else return res.status(400).end();
     }
 }
 
@@ -385,7 +386,7 @@ async function changeEmailPatch(req, res) {
         res.status(500).end();
         return console.warn(error);
     }
-    }
+}
 
 export default authController;
 
