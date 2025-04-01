@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
         trim: true,
+        select: false
     },
     username: {
         type: String,
@@ -19,29 +20,32 @@ const userSchema = new mongoose.Schema({
     password: {
         type: String,
         required: true,
+        select: false
     },
     isVerified: {
         type: Boolean,
         default: false,
+        select: false
     },
     createdAt: {
         type: Date,
         default: Date.now,
+        select: false
     },
-    fingerprint: {type: mongoose.Schema.Types.Mixed, required: true},
+    fingerprint: {type: mongoose.Schema.Types.Mixed, required: true, select: false},
     verifyTokens : {
         type : {
             email : {
-                token : {type : String, required:false},
-                JWT : {type : String, required:false},
+                token : {type : String, required:false, select: false},
+                JWT : {type : String, required:false, select: false},
             },
             newEmail : {
-                token : {type : String, required:false},
-                newEmail : {type : String, required:false},
+                token : {type : String, required:false, select: false},
+                newEmail : {type : String, required:false, select: false},
             },
             password: {
-                JWT: {type : String, required: false},
-                fingerprint: {type : mongoose.Schema.Types.Mixed, required: false},
+                JWT: {type : String, required: false, select: false},
+                fingerprint: {type : mongoose.Schema.Types.Mixed, required: false, select: false},
             },
         },
         default: () => ({}),
@@ -52,6 +56,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['user', 'admin'],
         default: 'user',
+        select: false
     },
     // Other TODO functionalities
     avatarUrl: String, // MISSING FUNC
