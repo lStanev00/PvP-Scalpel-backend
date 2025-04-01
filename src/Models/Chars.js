@@ -53,15 +53,18 @@ const CharSchema = new mongoose.Schema({
     },
     activeSpec: { // Collected
         name: { type: String, default: '' },
-        media: { type: String, default: '' }
+        media: { type: String, default: '' },
+        select: false
     },
-    rating: { type: mongoose.Schema.Types.Mixed }, // Collected
+    rating: { type: mongoose.Schema.Types.Mixed,
+        select: false }, // Collected
     achieves: achievementsSchema, // Collected
     media: mediaSchema, // Collected
     checkedCount: { type: Number, default: 0 },
     server: { type: String, default: '' }, // Collected
     gear: gearSchema, // Collected
-    lastLogin: { type: Number }, // Collected
+    lastLogin: { type: Number,
+        select: false }, // Collected
     equipmentStats: mongoose.Schema.Types.Mixed, // Collected
 }, { timestamps: true });
 
