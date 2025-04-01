@@ -58,12 +58,13 @@ async function changeUsernamePatch(req, res) {
         const newCookieOptions = deleteOptions;
         
         delete deleteOptions.maxAge;
-        const JWT = jwt.sign(getLogedObject(updatedUser), JWT_SECRET);
+        const loginObj = getLogedObject(updatedUser);
+        const JWT = jwt.sign(loginObj, JWT_SECRET);
         res
         .clearCookie(`token`, deleteOptions)
         .cookie("token", JWT , newCookieOptions)
         .status(201)
-        .end();
+        .json(loginObj);
         return
     } catch (error) {
         console.warn(error);
