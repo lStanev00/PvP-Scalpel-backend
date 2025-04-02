@@ -20,7 +20,10 @@ async function createPostPOST(req, res) {
             title, content, author: authorID, character: characterID
         }).save();
 
-        const popNewPost = await Post.findById(newPost.id).populate("character").populate("author");
+        const popNewPost = await Post.findById(newPost.id).populate({
+            path: "author",
+            select : "username _id"
+        });
 
         return res.status(201).json(popNewPost.toObject());
     } catch (error) {
