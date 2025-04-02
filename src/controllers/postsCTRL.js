@@ -5,6 +5,7 @@ import Post from "../Models/Post.js";
 const postsCTRL = Router();
 
 postsCTRL.post(`/new/post`, createPostPOST);
+postsCTRL.delete(`delete/post`, postDELETE);
 
 
 async function createPostPOST(req, res) {
@@ -28,4 +29,21 @@ async function createPostPOST(req, res) {
     }
 }
 
+async function postDELETE(req, res) {
+    const {postID} = req.body;
+    const user = req.user;
+
+    try {
+        const post = await Post.findById(postID);
+        if (user._id !== post.author) return res.status(400).end();
+
+        await Post.findByIdAndDelete(postID);
+
+        return res.status(200).end();
+
+    } catch (error) {
+        console.warn(error)
+        return res.status(500).end();
+    }
+}
 export default postsCTRL;
