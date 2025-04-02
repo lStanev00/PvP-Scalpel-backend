@@ -6,6 +6,8 @@ const postsCTRL = Router();
 
 postsCTRL.post(`/new/post`, createPostPOST);
 postsCTRL.delete(`/delete/post`, postDELETE);
+postsCTRL.get(`/get/posts`, getPosts);
+
 
 
 async function createPostPOST(req, res) {
@@ -49,4 +51,25 @@ async function postDELETE(req, res) {
         return res.status(500).end();
     }
 }
+
+async function getPosts(req, res) {
+    try {
+        const postsList = await Post.find()
+            .populate({
+                path: "author",
+                select: "username _id"
+            })
+            .populate({
+                path: "character",
+                select: "name playerRealm media server _id"
+            })
+            .lean();
+        
+        return res.status(200).json(postsList);
+    } catch (error) {
+        console.warn(error);
+        return res.status(500).end()
+    }
+}
+
 export default postsCTRL;
