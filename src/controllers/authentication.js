@@ -275,11 +275,13 @@ async function valdiateTokenPatch(req, res) {
     const { token, option } = req.body;
     const JWT = req.JWT;
     const user = req?.user || undefined;
+    console.log(user)
 
         if (option == `verify`) {
-            const tokenToCheck = user?.verifyTokens?.email[`token`] || undefined
+            const tokenToCheck = user.verifyTokens?.email?.token || undefined
             const JWTToCheck = user?.verifyTokens?.email?.JWT || undefined
-            if (!tokenToCheck || !JWTToCheck) return res.status(401).end();
+            console.log(tokenToCheck)
+            if (!tokenToCheck) return res.status(401).end();
             if (true) {
                 if (!(await bcrypt.compare(token, tokenToCheck))) {return res.status(401).end()};
                 try {
@@ -313,7 +315,7 @@ async function valdiateTokenPatch(req, res) {
             }
         }
         else if(option == `email`) {
-            if (user.verifyTokens.newEmail.token) {
+            if (user?.verifyTokens?.newEmail?.token) {
                 if (!(bcrypt.compare(token, user.verifyTokens.newEmail.token))) return res.status(401).end();
 
                 try {

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Post from "../Models/Post.js";
+import User from "../Models/User.js";
 
 
 const postsCTRL = Router();
@@ -7,7 +8,32 @@ const postsCTRL = Router();
 postsCTRL.post(`/new/post`, createPostPOST);
 postsCTRL.delete(`/delete/post`, postDELETE);
 postsCTRL.get(`/get/posts`, getPosts);
+postsCTRL.get(`/get/user/posts`, getUserPosts);
 postsCTRL.patch(`/edit/post`, editPostPATCH);
+
+
+async function getUserPosts(req, res) {
+    const user = req?.user;
+
+    if (!user) return res.status(404).json({msg:`No such user`});
+
+    try {
+        const userWithPosts = await User.findById(user._id)
+            .populate({
+                path: "posts",
+                populate: {
+                    path: "character",
+                    select: "name playerRealm media server _id"
+                }
+            })
+            .lean();
+
+        return res.status(200).json({posts : userWithPosts?.posts})
+    } catch (error) {
+        console.warn(error);
+        res.status(500).end()
+    }
+}
 
 
 async function editPostPATCH(req, res) {
@@ -123,3 +149,17 @@ async function getPosts(req, res) {
 }
 
 export default postsCTRL;
+
+
+
+function getLogedObjectWithPosts(user) {
+    return {
+        _id: user._id,
+        email: user.email,
+        username: user.username,
+        isVerified: user.isVerified,
+        role: user.role,
+        fingerprint: user.fingerprint,
+        posts
+    }
+}
