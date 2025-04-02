@@ -5,7 +5,7 @@ import Post from "../Models/Post.js";
 const postsCTRL = Router();
 
 postsCTRL.post(`/new/post`, createPostPOST);
-postsCTRL.delete(`delete/post`, postDELETE);
+postsCTRL.delete(`/delete/post`, postDELETE);
 
 
 async function createPostPOST(req, res) {
@@ -35,7 +35,7 @@ async function postDELETE(req, res) {
 
     try {
         const post = await Post.findById(postID);
-        if (user._id !== post.author) return res.status(400).end();
+        if (!user._id.equals(post.author)) return res.status(400).end();
 
         await Post.findByIdAndDelete(postID);
 
