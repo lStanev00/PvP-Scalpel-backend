@@ -19,7 +19,7 @@ const PostSchema = new mongoose.Schema({
     },
     character : {
         type: Schema.Types.ObjectId,
-        ref: Char,
+        ref: "Char",
         require : false,
     }
 }, {timestamps: true});
