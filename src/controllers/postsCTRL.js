@@ -13,7 +13,7 @@ async function createPostPOST(req, res) {
     if(!user) return res.status(403).end();
 
     const {  title, content, authorID, characterID  } = req.body;
-    if (!title || !content || !authorID || !characterID) return res.status(400).json({msg:`Please provide all the information to procee`});
+    if (!title || !content || !authorID || !characterID) return res.status(400).json({msg:`Please provide all the information to proceed`});
 
     try {
         const newPost = await new Post({
