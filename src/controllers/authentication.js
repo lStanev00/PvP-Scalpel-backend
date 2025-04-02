@@ -20,6 +20,19 @@ authController.post("/reset/password", resetPasswordPost);
 authController.patch("/reset/password", resetPasswordPatch);
 authController.patch("/validate/token", valdiateTokenPatch);
 authController.get("/verify/me", getMe);
+authController.get("/logout", logoutGet);
+
+
+async function logoutGet(req, res) {
+    if (req.cookies) {
+        const deleteOptions = getOptions(req);
+        delete deleteOptions.maxAge;
+
+        res.clearCookie(`token`, deleteOptions);
+    }
+
+    return res.status(200).end();
+}
 
 async function changeUsernamePatch(req, res) {
     const user = req?.user;
