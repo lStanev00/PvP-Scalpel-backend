@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import User from './User.js'
+import Char from "./Chars.js";
 
 
 const PostSchema = new mongoose.Schema({
@@ -18,7 +19,7 @@ const PostSchema = new mongoose.Schema({
     },
     character : {
         type: Schema.Types.ObjectId,
-        ref: "Char",
+        ref: Char,
         require : false,
     }
 }, {timestamps: true});
