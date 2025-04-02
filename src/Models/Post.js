@@ -1,5 +1,4 @@
 import mongoose, { Schema } from "mongoose";
-import Char from './Chars.js';
 import User from './User.js'
 
 

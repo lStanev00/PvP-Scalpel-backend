@@ -22,7 +22,13 @@ async function chechCharacterGet(req, res) {
             },
             { $inc: { checkedCount: 1 } }, 
             { new: true, upsert: false, timestamps: false }
-        ).lean();
+        ).populate({
+            path: "posts", 
+            populate: {
+              path: "author",          
+              select: "username _id"   
+            }
+          }).lean();
 
         if (!character) { // If no mongo entry try updating the db with a new one and send it
             const key = `${server + realm + name}`;
@@ -37,7 +43,13 @@ async function chechCharacterGet(req, res) {
                         name: name,
                         "playerRealm.slug": realm,
                         server: server
-                }).lean();
+                }).populate({
+                    path: "posts", 
+                    populate: {
+                      path: "author",          
+                      select: "username _id"   
+                    }
+                  }).lean();
                 res.status(200).json(character)
             }
             buildingEntries[key] = true;
@@ -60,7 +72,13 @@ async function chechCharacterGet(req, res) {
 
             while (patchingIDs[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
              
-            character = await Char.findById(character.id).lean();
+            character = await Char.findById(character.id).populate({
+                path: "posts", 
+                populate: {
+                  path: "author",          
+                  select: "username _id"   
+                }
+              }).lean();
         }
         return res.status(200).json(character)
     
