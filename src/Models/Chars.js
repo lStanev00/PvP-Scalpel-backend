@@ -67,7 +67,7 @@ const CharSchema = new mongoose.Schema({
     lastLogin: { type: Number}, // Collected
     equipmentStats: mongoose.Schema.Types.Mixed, // Collected
     likes: [{
-        type: Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: User,
         required: false
     }]
