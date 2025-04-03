@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import User from './User.js';
 
 const achievementsSchema = new mongoose.Schema({
     points: { type: mongoose.Schema.Types.Mixed }, // Collected
@@ -65,6 +66,11 @@ const CharSchema = new mongoose.Schema({
     gear: gearSchema, // Collected
     lastLogin: { type: Number}, // Collected
     equipmentStats: mongoose.Schema.Types.Mixed, // Collected
+    likes: [{
+        type: Schema.Types.ObjectId,
+        ref: User,
+        required: false
+    }]
 }, { timestamps: true });
 
 CharSchema.virtual("posts", {
