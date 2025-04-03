@@ -21,7 +21,12 @@ const PostSchema = new mongoose.Schema({
         type: Schema.Types.ObjectId,
         ref: Char,
         require : false,
-    }
+    },
+    favorites : {
+        type: Schema.Types.ObjectId,
+        ref: Char,
+        require : false,
+    },
 }, {timestamps: true});
 
 PostSchema.index({ author: 1 });
