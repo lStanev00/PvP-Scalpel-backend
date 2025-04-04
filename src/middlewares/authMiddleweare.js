@@ -7,7 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET
 export async function authMiddleware(req, res, next) {
     const auth1 = req.headers["600"];
     if (!auth1 && auth1 !== "BasicPass") return res.status(500).end();
-    console.log(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
+    if (req.protocol == "https") console.log(`${req.protocol}://${req.get('host')}${req.originalUrl}`);
 
     
     const JWT = req.cookies.token
