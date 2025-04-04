@@ -23,7 +23,9 @@ export async function authMiddleware(req, res, next) {
         const user = await User.findById(auth._id);
 
         if(!user){
-            res.clearCookie("token", getOptions(req));
+            const clearOptions = getOptions(req);
+            delete clearOptions.maxAge;
+            res.clearCookie("token", clearOptions);
             return res.status(403).end();
         }
 
