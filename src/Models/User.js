@@ -60,7 +60,7 @@ const userSchema = new mongoose.Schema({
     },
     favChars: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: User,
+        ref: "Char",
         required: false
     }],
     // Other TODO functionalities
