@@ -58,6 +58,11 @@ const userSchema = new mongoose.Schema({
         default: 'user',
         
     },
+    favChars: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: User,
+        required: false
+    }],
     // Other TODO functionalities
     avatarUrl: String, // MISSING FUNC
 });

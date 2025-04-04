@@ -79,6 +79,13 @@ CharSchema.virtual("posts", {
     foreignField: "character",
 })
 
+CharSchema.virtual("favorite", {
+    ref: User,
+    localField: "_id",
+    foreignField: "favChars",
+});
+
+
 CharSchema.set("toObject", {  virtuals: true  });
 CharSchema.set("toJSON", {  virtuals: true  });
 
