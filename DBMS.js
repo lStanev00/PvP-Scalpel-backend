@@ -41,4 +41,4 @@ app.use(express.json({ extended: false }));
 app.use(`/`, router);
 
 
-app.listen(port, console.log(`Server's running at http://localhost:${port}`));
+app.listen(port, console.log(`Server's running at http://localhost:${port} or https://api.pvpscalpel.com`));
