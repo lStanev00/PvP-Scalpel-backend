@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { jsonMessage } from "../helpers/resposeHelpers.js";
 import Char from "../Models/Chars.js";
+import User from "../Models/User.js";
 
 const userActionCTRL = Router();
 
-userActionCTRL.post(`/like/:charID`, setLike);
+userActionCTRL.get(`/like/:charID`, setLike);
+userActionCTRL.get(`favorite/:charID`, setFavorite);
 
 
 
@@ -29,6 +31,32 @@ async function setLike(req, res) {
         console.warn(error);
         return jsonMessage(res, 500, "Internal Server Error");
     }
+}
+
+async function setFavorite(req, res) {
+    const user = req.user;
+    if (!user || !user._id) return jsonMessage(res, 401, "No user");
+  
+    const charID = req.params.charID;
+    if (!charID) return jsonMessage(res, 400, "Bad request");
+
+    try {
+        const alreadyFavorited = await User.findOne({ _id: user._id, favChars: charID });
+
+        const update = alreadyFavorited
+            ? { $pull: { favChars: charID } }
+            : { $addToSet: { favChars: charID } }
+
+        const updatedUser = await User.findByIdAndUpdate(user._id, update, {  new: true  });
+
+        const newFavList = updatedUser.favChars;
+
+        return jsonMessage(res, 200, newFavList);
+    } catch (error) {
+        console.warn(error);
+        return jsonMessage(res, 500, "Server error");
+    }
+    
 }
   
 
