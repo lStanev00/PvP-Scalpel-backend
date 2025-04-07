@@ -69,7 +69,8 @@ const CharSchema = new mongoose.Schema({
     likes: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: User,
-        required: false
+        required: false,
+        default: [],
     }]
 }, { timestamps: true });
 

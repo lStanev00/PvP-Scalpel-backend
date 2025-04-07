@@ -26,7 +26,7 @@ async function setLike(req, res) {
   
         const updatedChar = await Char.findByIdAndUpdate(charID, update, { new: true });
   
-        return res.status(200).json({ likes: updatedChar.likes.length });
+        return res.status(200).json({ likesCount: updatedChar.likes.length,  isLiked: (updatedChar.likes).includes(user._id) });
     } catch (error) {
         console.warn(error);
         return jsonMessage(res, 500, "Internal Server Error");
