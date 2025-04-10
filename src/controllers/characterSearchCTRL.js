@@ -5,12 +5,12 @@ import fetchData from "../helpers/blizFetch.js";
 
 const characterSearchCTRL = Router();
 
-characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, chechCharacterGet);
+characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, checkCharacterGet);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
 
 const patchingIDs = {};
 const buildingEntries = {}
-async function chechCharacterGet(req, res) {
+async function checkCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
     
@@ -54,7 +54,7 @@ async function chechCharacterGet(req, res) {
             }
             buildingEntries[key] = true;
             character = await fetchData(server, realm, name);
-            character.checkedCount = 1;
+            character.checkedCount = Number(1);
             try {
                 const newCharacter = new Char(character);
                 res.status(200).json(newCharacter);
