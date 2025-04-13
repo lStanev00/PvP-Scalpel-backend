@@ -36,15 +36,15 @@ async function onPost(req, res) {
     
     try {
         const roleMap = {
-            0: "Guild Master",
-            1: "Officer",
-            2: "Veteran",
-            3: "Blood Sniffer",
-            4: "BGs & Arena",
-            5: "BGs",
-            6: "Arena",
-            7: "Member",
-            8: "Gear team",
+            0: "Warlord",
+            1: "Council",
+            2: "Vanguard",
+            3: "Envoy",
+            4: "Champion",
+            5: "Gladiator",
+            6: "Slayer",
+            7: "Striker",
+            8: "Alt / Twink",
             9: `Initiate`,
         };
         mem.rank = roleMap[mem.rank]
