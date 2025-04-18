@@ -39,9 +39,11 @@ async function fetchData(server, realm, name) {
             achieves: { points: Number(data.achievement_points) },
             class: { name: data.character_class.name },
             race: data.race.name,
-            activeSpec: { name: data.active_spec.name }
+            activeSpec: { name: data.active_spec.name },
+            guildMember: false,
         };
-
+        
+        if (data?.guild?.href == "https://eu.api.blizzard.com/data/wow/guild/chamber-of-aspects/pvp-scalpel?namespace=profile-eu") result.guildMember = true;
         // Fetch dependent data in parallel
         const [
             classMedia,
