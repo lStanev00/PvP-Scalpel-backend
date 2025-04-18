@@ -43,7 +43,7 @@ async function fetchData(server, realm, name) {
             guildMember: false,
         };
         
-        if (data?.guild?.href == "https://eu.api.blizzard.com/data/wow/guild/chamber-of-aspects/pvp-scalpel?namespace=profile-eu") result.guildMember = true;
+        if (data?.guild?.name == "PvP Scalpel") result.guildMember = true;
         // Fetch dependent data in parallel
         const [
             classMedia,
@@ -84,6 +84,7 @@ async function fetchData(server, realm, name) {
 
         const end = performance.now(); 
         console.log(`blizFetch() took ${(end - start).toFixed(2)} ms`);
+        console.log(result.guildMember)
 
         return result;
     } catch (error) {
