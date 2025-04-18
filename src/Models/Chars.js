@@ -45,6 +45,7 @@ const CharSchema = new mongoose.Schema({
         name: { type: String, required: true },
         slug: { type: String, required: true }
     },
+    guildMember: {type: Boolean, default: false},
     level: { type: Number, default: 1 }, // Collected
     faction: { type: String, default: '' }, // Collected
     race: { type: String, default: '' }, // Collected
