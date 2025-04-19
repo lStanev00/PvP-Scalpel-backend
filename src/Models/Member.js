@@ -38,9 +38,13 @@ const MemberSchema = new mongoose.Schema({
     rating: ratingSchema,
     achieves: achievementsSchema,
     media: mediaSchema
-
-
 });
+
+MemberSchema.virtual("char", {
+    ref: "Character",
+    localField: "_id",
+    foreignField: "character"
+})
 
 const Member = mongoose.model(`Member`, MemberSchema);
 export default Member

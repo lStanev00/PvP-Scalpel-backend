@@ -72,7 +72,12 @@ const CharSchema = new mongoose.Schema({
         ref: User,
         required: false,
         default: [],
-    }]
+    }],
+    guildInsight : {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Member",
+        required: false
+    }
 }, { timestamps: true });
 
 CharSchema.virtual("posts", {
