@@ -72,6 +72,24 @@ async function blizzFetch(endpoint, playerName, bracket, retries = 3) {
     return null; // Return null if all retries fail
   }
 
+  async function fetchDBMS(endpoint, options = {}) {
+    // const apiDomain = "https://api.pvpscalpel.com";
+    const url = `http://localhost:59534`
+    const defaultOptions = {
+  
+        credentials: "include", // always include cookies
+        headers: {
+          "600": "BasicPass",
+          "Content-Type": "application/json",
+          ...options.headers,
+          cache: 'no-store',
+        },
+    };
+
+    const finalOptions = { ...defaultOptions, ...options };
+
+    return fetch(url + endpoint, finalOptions)
+  }
   async function fetchPvPData(realm, name) {
     // const charString = `${characterClass.toLowerCase().replace(` `, ``)}-${spec.toLowerCase()}`;
   
@@ -406,45 +424,53 @@ async function getSeason() {
     const members = guildRoster.members;
   
     console.log("Fetching PvP data for each guild member...");
-    let results = [];
+    // let results = [];
     for (const member of members) {
-      console.log(member)
-      const playerData = await fetchCharacterData(member);
-      if (playerData) {
-        results.push(playerData);
-      }
+      // console.log(member);
+      const realmSlug = member?.character.realm?.slug;
+      const playerName = member?.character.name;
+      console.log(realmSlug, playerName)
+
+      const req = await fetchDBMS(`/patchCharacter/eu/${realmSlug}/${playerName}`,{
+        method: "PATCH"
+      });
+      // console.log(req.status)
+      // const playerData = await fetchCharacterData(member);
+      // if (playerData) {
+      //   results.push(playerData);
+      // }
     }
   
-    // Sort by rank
-    results = results.sort((a, b) => a.rank - b.rank);
-    let success = 0;
-    let fails = 0;
+    // // Sort by rank
+    // results = results.sort((a, b) => a.rank - b.rank);
+    // let success = 0;
+    // let fails = 0;
 
-    for (const entry of results) {
-      try {
-        // const member = { name, playerRealmSlug, blizID, rank, race, class, spec, rating, achieves, media }
-        const member = entry
-        const token = jwt.sign(member, JWT_SECRET, { expiresIn: "20s" });
-        const DBMSreq = await fetch(`http://localhost:59534/member`, {
-          method: `POST`,
-          headers: {
-            "Content-Type": "application/json",
-            "in-auth": `${token}`,
-            "600": "BasicPass"
-          },
-        })
-        if (DBMSreq.status >= 500 || DBMSreq.status == 401){
-          console.log(member.name);
-          fails = fails + 1;
-        } else {
-            success = success + 1;
-        }
+    // for (const entry of results) {
+    //   try {
+    //     // const member = { name, playerRealmSlug, blizID, rank, race, class, spec, rating, achieves, media }
+    //     const member = entry
+    //     const token = jwt.sign(member, JWT_SECRET, { expiresIn: "20s" });
+    //     const DBMSreq = await fetch(`http://localhost:59534/member`, {
+    //       method: `POST`,
+    //       headers: {
+    //         "Content-Type": "application/json",
+    //         "in-auth": `${token}`,
+    //         "600": "BasicPass"
+    //       },
+    //     })
+    //     if (DBMSreq.status >= 500 || DBMSreq.status == 401){
+    //       console.log(member.name);
+    //       fails = fails + 1;
+    //     } else {
+    //         success = success + 1;
+    //     }
         
-      } catch (error) {
-        console.error("Error saving PvP data:", error.message);
-      }
-    }
-    console.log(`PvP data successfully!\nSuccess: ${success}\nFails: ${fails}`);
+    //   } catch (error) {
+    //     console.error("Error saving PvP data:", error.message);
+    //   }
+    // }
+    // console.log(`PvP data successfully!\nSuccess: ${success}\nFails: ${fails}`);
   };
 
   getGuildPvPData();
