@@ -2,6 +2,7 @@ import { Router } from "express";
 import Char from "../Models/Chars.js"; // Model
 // Helpers
 import fetchData from "../helpers/blizFetch.js";
+import { jsonMessage } from "../helpers/resposeHelpers.js";
 
 const characterSearchCTRL = Router();
 
@@ -30,42 +31,14 @@ async function checkCharacterGet(req, res) {
             }
           }).lean();
 
-        if (!character) { // If no mongo entry try updating the db with a new one and send it
-            const key = `${server + realm + name}`;
-            if (buildingEntries[key]) {
-
-                while (buildingEntries[key]) {
-                    await new Promise(resolve => setTimeout(resolve, 300)); // little delay
-
-                    
-                };
-                character = await Char.findOne({
-                        name: name,
-                        "playerRealm.slug": realm,
-                        server: server
-                }).populate({
-                    path: "posts", 
-                    populate: {
-                      path: "author",          
-                      select: "username _id"   
-                    }
-                  }).lean();
-                res.status(200).json(character)
-            }
-            buildingEntries[key] = true;
-            character = await fetchData(server, realm, name);
-            character.checkedCount = Number(1);
-            try {
-                const newCharacter = new Char(character);
-                res.status(200).json(newCharacter);
-                await newCharacter.save();
-                return delete buildingEntries[key];
-                
-            } catch (error) {
-                return res.status(404).json({
-                    messege : `No player in Region: ${server}, in Realm: ${realm}, with Name: ${name}\nCheck your input and try again.`
-                })
-            }
+        if(!character) {
+            character = buildCharacter(server, realm, name, character, res);
+            console.log(character)
+    
+            if (!character) return jsonMessage(res, 404, "No character with this credentials");
+            return jsonMessage (res, 200, character);
+    
+    
         }
         
         if (patchingIDs[character.id]) { // If already updating
@@ -108,6 +81,16 @@ async function updateCharacterPatch(req, res) {
             messege: `The entry does not exist, try get on:\n/checkCharacter/${server}/${realm}/${name}`,
         });
     }
+
+    if(!character) {
+        character = buildCharacter(server, realm, name, character, res);
+
+        if (!character) return jsonMessage(res, 404, "No character with this credentials");
+        return jsonMessage (res, 200, character);
+
+
+    }
+
     const checkedCount = character.checkedCount;
     const charID = character._id;
 
@@ -137,3 +120,43 @@ async function updateCharacterPatch(req, res) {
 }
 
 export default characterSearchCTRL
+
+
+async function buildCharacter(server, realm, name, character, res) { // If no mongo entry try updating the db with a new one and send it
+    const key = `${server + realm + name}`;
+    if (buildingEntries[key]) {
+
+        while (buildingEntries[key]) {
+            await new Promise(resolve => setTimeout(resolve, 300)); // little delay
+
+            
+        };
+        character = await Char.findOne({
+                name: name,
+                "playerRealm.slug": realm,
+                server: server
+        }).populate({
+            path: "posts", 
+            populate: {
+              path: "author",          
+              select: "username _id"   
+            }
+          }).lean();
+        return character
+    }
+    buildingEntries[key] = true;
+    character = await fetchData(server, realm, name);
+    if (character == false) return console.log(server,realm,name)
+    character.checkedCount = Number(1);
+    try {
+        const newCharacter = new Char(character);
+        res.status(200).json(newCharacter);
+        await newCharacter.save();
+        delete buildingEntries[key];
+        return character
+        
+    } catch (error) {
+        console.log(error)
+        return null;
+    }
+}
