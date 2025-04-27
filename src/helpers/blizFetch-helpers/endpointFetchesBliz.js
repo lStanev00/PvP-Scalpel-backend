@@ -51,6 +51,7 @@ const helpFetch = {
                 return data2 ? data2.assets[0].value : undefined
                 
             } catch (error) {
+                if (data1?.code === 404 ) return null;
                 return data1.assets[0].value
             }
             
