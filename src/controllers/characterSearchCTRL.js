@@ -122,7 +122,7 @@ async function updateCharacterPatch(req, res) {
 export default characterSearchCTRL
 
 
-async function buildCharacter(server, realm, name, character, res) { // If no mongo entry try updating the db with a new one and send it
+async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
     const key = `${server + realm + name}`;
     if (buildingEntries[key]) {
 
@@ -150,7 +150,6 @@ async function buildCharacter(server, realm, name, character, res) { // If no mo
     character.checkedCount = Number(1);
     try {
         const newCharacter = new Char(character);
-        res.status(200).json(newCharacter);
         await newCharacter.save();
         delete buildingEntries[key];
         return character
