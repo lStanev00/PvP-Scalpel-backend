@@ -148,7 +148,7 @@ async function getSeason() {
     }
 }
 
-  async function getGuildMembers() {
+  async function updateGuildMembersData() {
     // Get and store access token and season
     accessToken = await getAccessToken()
     currentSeason = await getSeason();
@@ -180,8 +180,8 @@ async function getSeason() {
     }
   };
 
-  getGuildMembers();
-  setInterval(getGuildMembers, 3400000);
+  updateGuildMembersData();
+  setInterval(updateGuildMembersData, 3400000);
 
 // TEST WITH 1 FETCH
   async function getOneMemberPvPData(server, realmSlug, playerName) {
