@@ -184,69 +184,17 @@ async function getSeason() {
   setInterval(getGuildMembers, 3400000);
 
 // TEST WITH 1 FETCH
-  async function getOneMemberPvPData() {
+  async function getOneMemberPvPData(server, realmSlug, playerName) {
     // Get and store access token and season
     accessToken = await getAccessToken();
     currentSeason = await getSeason();
     const now = new Date();
     console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
-  
-    console.log("Fetching guild roster...");
-    const guildRoster = await blizzFetch(
-      `/data/wow/guild/${GUILD_REALM}/${GUILD_NAME}/roster?`,
-      "Guild",
-      "Roster"
-    );
-  
-    if (!guildRoster || !guildRoster.members) {
-      throw new Error("Failed to fetch guild roster.");
-    }
-  
-    // For testing, fetch data for only one member (e.g., the first member)
-    let member = await (await fetch(`https://eu.api.blizzard.com/profile/wow/character/chamber-of-aspects/nikolbg?namespace=profile-eu&locale=en_US`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      'Cache-Control': 'no-cache',  // prevents cached responses
-      'Pragma': 'no-cache',
-  })).json();
-    // console.log(member);
 
-    member = {
-      character : member
-    }
-    
-    console.log(`Fetching PvP data for ${member.character.name}...`);
-  
-    const playerData = await fetchCharacterData(member);
-    if (!playerData) {
-      console.log(`No PvP data for ${member.character.name}`);
-      return;
-    }
-  
-    try {
-      // Create a short-lived JWT for this member's data
-      const token = jwt.sign(playerData, JWT_SECRET, { expiresIn: "20s" });
-      debugger;
-      const DBMSreq = await fetch(`http://localhost:59534/member`, {
-        method: `POST`,
-        headers: {
-          "Origin": "https://pvpscalpel.com",
-          "Content-Type": "application/json",
-          "in-auth": `${token}`,
-          'Cache-Control': 'no-cache',  // prevents cached responses
-          'Pragma': 'no-cache',
-        },
-      });
-      console.log(await DBMSreq.json());
+    const req = await fetchDBMS(`/patchCharacter/${server}/${realmSlug}/${playerName}`,{
+      method: "PATCH"
+    });
 
-      
-      if (DBMSreq.status >= 500 || DBMSreq.status === 401) {
-        console.log("Error saving PvP data for:", playerData);
-      } else {
-        console.log("PvP data saved successfully for:", playerData.name);
-      }
-    } catch (error) {
-      console.error("Error saving PvP data:", error.message);
-    }
   }
   
   // For testing, call the function that fetches data for one member only
