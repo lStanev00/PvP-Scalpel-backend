@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node dbms"
+    "start": "node dbms",
+    "testPatch": "cd src/querry && node testPatch"
   },
   "repository": {
     "type": "git",
