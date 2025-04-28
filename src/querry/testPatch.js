@@ -151,7 +151,7 @@ async function getSeason() {
   async function updateGuildMembersData() {
     // Get and store access token and season
     accessToken = await getAccessToken()
-    currentSeason = await getSeason();
+    // currentSeason = await getSeason();
     // currentSeason = 39
     const now = new Date(); 
     console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);

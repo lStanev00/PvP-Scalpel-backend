@@ -165,6 +165,7 @@ async function getSeason() {
   
     const members = guildRoster.members;
     console.log(members[0].character)
+    return members
 
   
     console.log("Fetching PvP data for each guild member...");
@@ -182,8 +183,8 @@ async function getSeason() {
     }
   };
 
-  getGuildMembers();
-  setInterval(getGuildMembers, 3400000);
+  // getGuildMembers();
+  // setInterval(getGuildMembers, 3400000);
 
 // TEST WITH 1 FETCH
   async function getOneMemberPvPData(server, realmSlug, playerName) {
