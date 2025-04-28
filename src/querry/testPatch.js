@@ -430,6 +430,7 @@ async function getSeason() {
       const realmSlug = member?.character.realm?.slug;
       const playerName = member?.character.name;
       console.log(realmSlug, playerName)
+      await delay(1000)
 
       const req = await fetchDBMS(`/patchCharacter/eu/${realmSlug}/${playerName}`,{
         method: "PATCH"
