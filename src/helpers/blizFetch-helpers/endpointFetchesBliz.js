@@ -44,6 +44,7 @@ const helpFetch = {
 
     },
     getMedia : async function (data, path, headers) {
+        if (data?.code === 404 ) return null;
         try {
             const data1 = await(await fetch(data[path].key.href, headers)).json();
             try {
