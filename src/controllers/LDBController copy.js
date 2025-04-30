@@ -13,7 +13,7 @@ LDBControllerTest.get(`/LDBtest/BG`, BGGet);
 
 async function twosGet(req, res) {
     try {
-        const charList = fetchRatingAndSort("2v2");
+        const charList = await fetchRatingAndSort("2v2");
 
         return jsonMessage(res, 200, charList)
     } catch (error) {
