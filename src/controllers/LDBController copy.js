@@ -172,15 +172,29 @@ async function fetchRatingAndSort (bracket) {
         try {
             const charList = await Char.find({ guildMember:true }).lean();
             const shuffleEntries = charList.filter(entry => {
-                const ratingList = Object.keys(entry?.rating);
+                const ratingList = Object.entries(entry?.rating);
+                let result = []
                 for (const bracket of ratingList) {
-                    if (bracket.startsWith("shuffle-")) {
-
-
-                        return true
-                    };
+                    const [ bracketName, bracketData ] = bracket;
+                    if (bracketName.startsWith("shuffle-")) result.push(bracket);
                 }
-                return false;
+
+                if (result.length === 0) return false;
+
+                else if (result. length > 1) {
+                    result.sort( (a, b) => {
+                        const ratingA = a[1]?.currentSeason?.rating || 0;
+                        const ratingB = b[1]?.currentSeason?.rating || 0;
+
+                        return ratingB - ratingA;
+                    });
+                }
+
+                delete entry.gear
+                entry.rating = {
+                    [result[0][0]] : result[0][1]
+                }
+                return entry
             });
 
             return shuffleEntries
