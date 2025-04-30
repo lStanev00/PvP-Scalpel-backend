@@ -168,15 +168,15 @@ function sortBG(players) {
 
 async function findRatingAndSort (bracket) {
 
-    if (bracket == "shuffle") {
+    if (bracket == "shuffle" || bracket == "blitz") {
         try {
             const charList = await Char.find({ guildMember:true }).lean();
             const shuffleEntries = charList.filter(entry => {
                 const ratingList = Object.entries(entry?.rating);
                 let result = []
-                for (const bracket of ratingList) {
-                    const [ bracketName, bracketData ] = bracket;
-                    if (bracketName.startsWith("shuffle-")) result.push(bracket);
+                for (const format of ratingList) {
+                    const [ bracketName, bracketData ] = format;
+                    if (bracketName.startsWith(`${bracket}-`)) result.push(format);
                 }
 
                 if (result.length === 0) return false;
