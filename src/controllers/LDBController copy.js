@@ -35,7 +35,9 @@ async function threesGet(req,res) {
 async function soloGet(req,res) {
     try {
 
+        const charList = await fetchRatingAndSort(`shuffle`);
 
+        return jsonMessage(res, 200, charList)
         
     } catch (error) {
         res.status(404);
@@ -172,12 +174,16 @@ async function fetchRatingAndSort (bracket) {
             const shuffleEntries = charList.filter(entry => {
                 const ratingList = Object.keys(entry?.rating);
                 for (const bracket of ratingList) {
-                    if (bracket.startsWith("shuffle-")) return true;
+                    if (bracket.startsWith("shuffle-")) {
+
+
+                        return true
+                    };
                 }
                 return false;
             });
 
-            
+            return shuffleEntries
             
         } catch (error) {
             console.warn(error);
