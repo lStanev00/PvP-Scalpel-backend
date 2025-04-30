@@ -12,7 +12,10 @@ LDBControllerTest.get(`/LDBtest/BG`, BGGet);
 
 async function twosGet(req, res) {
     try {
-        const charList = await Char.find({ "rating.2v2.currentSeason.rating" : { $exists : true } })
+        const charList = await Char.find({ 
+            "rating.2v2.currentSeason.rating" : { $exists : true },
+            guildMember: true 
+        })
         .sort({
             'rating.2v2.currentSeason.rating': -1,
             'rating.2v2.record': -1
@@ -28,38 +31,16 @@ async function twosGet(req, res) {
 
 async function threesGet(req,res) {
     try {
-        const sortObj = {
-            "Three's Company: 2700": 7,
-            "Three's Company: 2400": 6,
-            "Three's Company: 2200": 5,
-            "Three's Company: 2000": 4,
-            "Three's Company: 1750": 3,
-            "Three's Company: 1550": 2,
-            "0": 1
-        };
-        let players = await Member.find(
-            { "rating.3v3": { $exists: true } }, 
-            { name: 1, "rating.3v3": 1, 'playerRealmSlug': 1, 'class' : 1, 'spec': 1, "media.avatar": 1, "achieves.3s": 1, _id: 1 } 
-          ).sort({ "rating.3v3": -1 }); 
-
-          players = players.sort((a, b) => {
-            const ratingA = b.rating?.["3v3"] || 0;
-            const ratingB = a.rating?.["3v3"] || 0;
+        const charList = await Char.find({
+            "rating.3v3.currentSeason.rating" : { $exists: true },
+            guildMember: true
+        }).sort({
+            "rating.3v3.currentSeason.rating": -1,
+            "rating.3v3.record": -1
+        })
+        .lean();
         
-            if (ratingA !== ratingB) {
-                return ratingA - ratingB; 
-            } else {
-                const achieveA = a.achieves?.["3s"]?.name || "Unranked"; 
-                const achieveB = b.achieves?.["3s"]?.name || "Unranked";
-        
-                const rankA = sortObj[achieveA] || 1; 
-                const rankB = sortObj[achieveB] || 1;
-        
-                return rankB - rankA; 
-            }
-        });
-        
-        res.status(200).json(players);
+        res.status(200).json(charList);
         
     } catch (error) {
         res.status(404);
