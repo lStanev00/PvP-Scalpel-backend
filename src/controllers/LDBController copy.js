@@ -24,19 +24,11 @@ async function twosGet(req, res) {
 
 async function threesGet(req,res) {
     try {
-        const charList = await Char.find({
-            "rating.3v3.currentSeason.rating" : { $exists: true },
-            guildMember: true
-        }).sort({
-            "rating.3v3.currentSeason.rating": -1,
-            "rating.3v3.record": -1
-        })
-        .lean();
+        const charList = await fetchRatingAndSort("3v3");
         
-        res.status(200).json(charList);
-        
+    return jsonMessage(res, 200, charList)        
     } catch (error) {
-        res.status(404);
+        return res.status(404);
     }
 }
 
@@ -173,6 +165,25 @@ function sortBG(players) {
 // Helper for the fetches and sort
 
 async function fetchRatingAndSort (bracket) {
+
+    if (bracket == "shuffle") {
+        try {
+            const charList = await Char.find({ guildMember:true }).lean();
+            const shuffleEntries = charList.filter(entry => {
+                const ratingList = Object.keys(entry?.rating);
+                for (const bracket of ratingList) {
+                    if (bracket.startsWith("shuffle-")) return true;
+                }
+                return false;
+            });
+
+            
+            
+        } catch (error) {
+            console.warn(error);
+            return null
+        }
+    }
 
     try {
         const charList = await Char.find({
