@@ -49,12 +49,8 @@ async function threesGet(req,res) {
 
 async function soloGet(req,res) {
     try {
-        const players = await Member.find(
-            { "rating.solo": { $exists: true } }, 
-            { name: 1, "media.avatar": 1, 'playerRealmSlug': 1, 'class' : 1, 'spec': 1, "rating.solo": 1, _id: 1 } 
-          ).sort({ "rating.solo": -1 }); 
 
-        res.status(200).json(players);
+
         
     } catch (error) {
         res.status(404);
@@ -178,4 +174,25 @@ function sortBG(players) {
     });
 
     return players
+}
+
+
+// Helper for the fetches and sort
+
+async function fetchRatingAndSort (bracket) {
+
+    try {
+        const charList = await Char.find({
+            [`rating.${bracket}.currentSeason.rating`] : { $exists: true },
+            guildMember: true
+        }).sort({
+            [`rating.${bracket}.currentSeason.rating`]: -1,
+            [`rating.${bracket}.record`]: -1
+        })
+        .lean();
+        return charList
+    } catch (error) {
+        console.warn(error);
+        return null
+    }
 }
