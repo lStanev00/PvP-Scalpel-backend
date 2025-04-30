@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Char from "../Models/Chars.js";
+import { jsonMessage } from "../helpers/resposeHelpers.js";
 
 const LDBControllerTest = Router();
 
@@ -12,17 +13,9 @@ LDBControllerTest.get(`/LDBtest/BG`, BGGet);
 
 async function twosGet(req, res) {
     try {
-        const charList = await Char.find({ 
-            "rating.2v2.currentSeason.rating" : { $exists : true },
-            guildMember: true 
-        })
-        .sort({
-            'rating.2v2.currentSeason.rating': -1,
-            'rating.2v2.record': -1
-        })
-        .lean();
+        const charList = fetchRatingAndSort("2v2");
 
-        res.status(200).json(charList);
+        return jsonMessage(res, 200, charList)
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error", details: error.message });
     }
