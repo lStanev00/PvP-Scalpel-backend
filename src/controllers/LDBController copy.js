@@ -13,7 +13,7 @@ LDBControllerTest.get(`/LDBtest/BG`, BGGet);
 
 async function twosGet(req, res) {
     try {
-        const charList = await fetchRatingAndSort("2v2");
+        const charList = await findRatingAndSort("2v2");
 
         return jsonMessage(res, 200, charList)
     } catch (error) {
@@ -24,7 +24,7 @@ async function twosGet(req, res) {
 
 async function threesGet(req,res) {
     try {
-        const charList = await fetchRatingAndSort("3v3");
+        const charList = await findRatingAndSort("3v3");
         
     return jsonMessage(res, 200, charList)        
     } catch (error) {
@@ -35,7 +35,7 @@ async function threesGet(req,res) {
 async function soloGet(req,res) {
     try {
 
-        const charList = await fetchRatingAndSort(`shuffle`);
+        const charList = await findRatingAndSort(`shuffle`);
 
         return jsonMessage(res, 200, charList)
         
@@ -166,7 +166,7 @@ function sortBG(players) {
 
 // Helper for the fetches and sort
 
-async function fetchRatingAndSort (bracket) {
+async function findRatingAndSort (bracket) {
 
     if (bracket == "shuffle") {
         try {
