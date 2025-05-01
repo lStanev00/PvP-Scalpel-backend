@@ -181,7 +181,7 @@ async function getSeason() {
   };
 
   updateGuildMembersData();
-  setInterval(updateGuildMembersData, 3400000);
+  setInterval(updateGuildMembersData, 3600000); // Runs every hour
 
 // TEST WITH 1 FETCH
   async function getOneMemberPvPData(server, realmSlug, playerName) {
