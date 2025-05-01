@@ -1,6 +1,6 @@
 import { Router } from "express";
 import Char from "../Models/Chars.js";
-import { jsonMessage } from "../helpers/resposeHelpers.js";
+import { jsonResponse } from "../helpers/resposeHelpers.js";
 
 const LDBControllerTest = Router();
 
@@ -15,7 +15,7 @@ async function twosGet(req, res) {
     try {
         const charList = await findRatingAndSort("2v2");
 
-        return jsonMessage(res, 200, charList)
+        return jsonResponse(res, 200, charList)
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error", details: error.message });
     }
@@ -26,7 +26,7 @@ async function threesGet(req,res) {
     try {
         const charList = await findRatingAndSort("3v3");
         
-    return jsonMessage(res, 200, charList)        
+    return jsonResponse(res, 200, charList)        
     } catch (error) {
         return res.status(404);
     }
@@ -37,7 +37,7 @@ async function soloGet(req,res) {
 
         const charList = await findRatingAndSort(`shuffle`);
 
-        return jsonMessage(res, 200, charList)
+        return jsonResponse(res, 200, charList)
         
     } catch (error) {
         res.status(404);
@@ -47,7 +47,7 @@ async function blitzGet(req,res) {
     try {
         const charList = await findRatingAndSort(`blitz`);
 
-        return jsonMessage( res, 200, charList );
+        return jsonResponse( res, 200, charList );
         
     } catch (error) {
         res.status(404);
@@ -57,7 +57,7 @@ async function BGGet(req,res) {
     try {
         const charList = await findRatingAndSort(`rbg`);
 
-        jsonMessage(res, 200, charList)
+        jsonResponse(res, 200, charList)
         
     } catch (error) {
         res.status(404);
