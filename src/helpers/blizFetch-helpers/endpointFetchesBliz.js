@@ -62,7 +62,7 @@ const helpFetch = {
         }
 
     },
-    getRating: async function(path, headers, currentSeasonIndex) {
+    getRating: async function(path, headers, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
         const start = performance.now();
         try {
             const bracketsCheatSheet = {
@@ -73,7 +73,27 @@ const helpFetch = {
                 "BATTLEGROUNDS": "rbg",
               }
             let result = {};
-            const brackets = (await (await fetch(path, headers)).json()).brackets;
+            if (server != undefined && realm != undefined && name != undefined) {
+                name = name.toLowerCase();
+                path = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}/pvp-summary?namespace=profile-${server}`;
+
+                const clientId = process.env.CLIENT_ID;
+                const clientSecret = process.env.CLIENT_SECRET;
+
+                const accessToken =  await this.getAccessToken(clientId, clientSecret);
+
+                headers = {
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`, 
+                      'Cache-Control': 'no-cache',  
+                      'Pragma': 'no-cache',
+                    },
+                };
+
+                currentSeasonIndex = await this.getCurrentPvPSeasonIndex(headers);
+                
+            }
+            let brackets = (await (await fetch(path, headers)).json()).brackets;
             if (brackets == undefined) return {
                 solo: {
                 },
