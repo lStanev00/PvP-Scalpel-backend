@@ -62,7 +62,7 @@ const helpFetch = {
         }
 
     },
-    getRating: async function(path, headers, server, name) {
+    getRating: async function(path, headers, currentSeasonIndex) {
         const start = performance.now();
         try {
             const bracketsCheatSheet = {
@@ -110,7 +110,9 @@ const helpFetch = {
             const allBracketsData = await Promise.all(bracketFetches);
 
             const processBrackets = allBracketsData.map(async (data, index) => {
-                // const seasonID = data.season.id;
+                const seasonIndex = data.season.id;
+
+                if(seasonIndex != currentSeasonIndex) return null;
                 const match = brackets[index].href.match(/pvp-bracket\/([^?]+)/);
                 const bracketName = match[1];
                 // const pastSeasonCheckURL = `https://${server}.api.blizzard.com/data/wow/pvp-season/${seasonID - 1}/pvp-leaderboard/${bracketName}?namespace=dynamic-${server}&locale=en_US`;
@@ -298,6 +300,22 @@ const helpFetch = {
             console.log(error);
             return undefined
         }
+    },
+    getCurrentPvPSeasonIndex: async function (headers) {
+        const url = "https://eu.api.blizzard.com/data/wow/pvp-season/index?namespace=dynamic-eu&locale=en_GB";
+
+        
+        try {
+            const req = await this.fetchWithLocale(url, headers);
+            const data = await req.json();
+            const currentSeasonId = data?.current_season?.id;
+
+            return currentSeasonId;
+            
+        } catch (error) {
+            return null
+        }
+        
     }
 }
 
