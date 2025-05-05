@@ -75,7 +75,7 @@ async function findRatingAndSort (bracket) {
             const charList = await Char.find({ guildMember:true })
             .select(`name playerRealm race class activeSpec rating achieves.${bracket == "shuffle" ? "solo" : "Blitz"} media server`)
             .lean();
-            const shuffleEntries = charList.filter(entry => {
+            const hibrdEntries = charList.filter(entry => {
                 const ratingList = Object.entries(entry?.rating);
                 let result = []
                 for (const format of ratingList) {
@@ -94,13 +94,33 @@ async function findRatingAndSort (bracket) {
                     });
                 }
 
-                entry.rating = {
-                    [result[0][0]] : result[0][1]
-                }
+                entry.rating = [
+                    [result[0][0]] , result[0][1]
+                ]
+                
                 return entry
             });
 
-            return shuffleEntries
+            const sortedEntries = hibrdEntries.sort((a, b) => {
+                const ratingA = a?.rating[1].currentSeason?.rating || 0;
+                const ratingB = b.rating[1].currentSeason?.rating || 0;
+
+                return ratingB - ratingA;
+            });
+
+            for (let i = 0; i < sortedEntries.length; i++) {
+                
+                const element = sortedEntries[i];
+
+                const objRestructure = {
+                    [element.rating[0]] : element.rating[1]
+                }
+                
+                sortedEntries[i].rating = objRestructure;
+
+            }
+
+            return sortedEntries
             
         } catch (error) {
             console.warn(error);
