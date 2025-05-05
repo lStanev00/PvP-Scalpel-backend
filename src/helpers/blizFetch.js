@@ -25,6 +25,7 @@ async function fetchData(server, realm, name) {
         let data = await helpFetch.getCharProfile(server, realm, name, headers);
         if (!data || !data.id) return false;
 
+        const currentSeasonIndex = await helpFetch.getCurrentPvPSeasonIndex(headers);
         const result = {
             name: data.name,
             server,
@@ -58,7 +59,7 @@ async function fetchData(server, realm, name) {
         ] = await Promise.all([
             helpFetch.getMedia(data, 'character_class', headers),
             helpFetch.getMedia(data, 'active_spec', headers),
-            helpFetch.getRating(data.pvp_summary.href, headers, server, result.name),
+            helpFetch.getRating(data.pvp_summary.href, headers, currentSeasonIndex),
             helpFetch.getAchievById(data.achievements_statistics.href, headers, 370),
             helpFetch.getAchievById(data.achievements_statistics.href, headers, 595),
             helpFetch.getAchievXP(data.achievements.href, headers, result.achieves),
