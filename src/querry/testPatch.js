@@ -144,18 +144,23 @@ async function getAccessToken() {
     const members = guildRoster.members;
   
     console.log("Fetching PvP data for each guild member...");
+    let delayMS = 500;
 
     for (const member of members) {
 
       const realmSlug = member?.character.realm?.slug;
       const playerName = member?.character.name;
       console.log(realmSlug, playerName)
-      await delay(500)
+      await delay(delayMS)
 
       const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
         method: "PATCH"
       });
-      if (req.status != 200) {
+
+      if (req.status == 201) delayMS = 2000
+      else if (req.status == 200) delayMS = 500
+      else if (req.status != 200) {
+        delayMS = 1000
         console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
       }
     }
