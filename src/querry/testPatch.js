@@ -156,7 +156,7 @@ async function getAccessToken() {
         method: "PATCH"
       });
       if (req.status != 200) {
-        console.warn(`ERROR IN THE FETCH! CODE : \n ${req.status}`)
+        console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
       }
     }
   };
