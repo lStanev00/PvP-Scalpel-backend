@@ -155,6 +155,9 @@ async function getAccessToken() {
       const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
         method: "PATCH"
       });
+      if (req.status != 200) {
+        console.warn(`ERROR IN THE FETCH! CODE : \n ${req.status}`)
+      }
     }
   };
 
