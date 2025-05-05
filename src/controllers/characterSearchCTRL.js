@@ -5,7 +5,7 @@ import fetchData from "../helpers/blizFetch.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 
-const characterSearchCTRL = Router();
+export const characterSearchCTRL = Router();
 
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, checkCharacterGet);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
@@ -156,7 +156,7 @@ async function patchPvPData(req, res) {
     }
 }
 
-export default characterSearchCTRL
+// export default characterSearchCTRL
 
 
 async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
