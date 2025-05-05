@@ -128,31 +128,9 @@ async function getAccessToken() {
     }
 }
 
-async function getSeason() {
-    const seasonURL = `https://eu.api.blizzard.com/data/wow/pvp-season/index?namespace=dynamic-eu&locale=en_US`;
-
-    try {
-        const req = await fetch(seasonURL, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-            'Cache-Control': 'no-cache',  // prevents cached responses
-            'Pragma': 'no-cache',
-        });
-
-        if (!req.ok) throw new Error(`Error getting curent season: ${response.status}`);
-
-        const data = await req.json();
-
-        return data.current_season.id
-    } catch (error) {
-        console.log(`Can't get season ERRORED: ${error}`);
-    }
-}
-
   async function updateGuildMembersData() {
     // Get and store access token and season
     accessToken = await getAccessToken()
-    // currentSeason = await getSeason();
-    // currentSeason = 39
     const now = new Date(); 
     console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
@@ -174,7 +152,7 @@ async function getSeason() {
       console.log(realmSlug, playerName)
       await delay(1000)
 
-      const req = await fetchDBMS(`/patchCharacter/eu/${realmSlug}/${playerName}`,{
+      const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
         method: "PATCH"
       });
     }
@@ -187,7 +165,6 @@ async function getSeason() {
   async function getOneMemberPvPData(server, realmSlug, playerName) {
     // Get and store access token and season
     accessToken = await getAccessToken();
-    currentSeason = await getSeason();
     const now = new Date();
     console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
