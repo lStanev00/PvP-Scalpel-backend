@@ -147,7 +147,7 @@ async function patchPvPData(req, res) {
 
             const newChar = await buildCharacter(server, realm, name);
 
-            return jsonResponse(res, 200, newChar)
+            return jsonResponse(res, 201, newChar)
 
         }
     } catch (error) {
