@@ -151,7 +151,6 @@ async function patchMemberList(req, res) {
         return jsonMessage(res, 500, "Internal Server ERROR");        
     }
 
-    return jsonResponse(res, 200, memberList);
 }
 export default memberCtrl;
 
