@@ -159,7 +159,7 @@ async function patchPvPData(req, res) {
 // export default characterSearchCTRL
 
 
-async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
+export async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
     const key = `${server + realm + name}`;
     if (buildingEntries[key]) {
 
