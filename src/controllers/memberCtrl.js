@@ -2,6 +2,8 @@ import { Router } from "express";
 import Member from "../Models/Member.js"
 import dotenv from 'dotenv';
 import validateToken from "../helpers/authToken.js";
+import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
+import { jsonResponse } from "../helpers/resposeHelpers.js";
 
 dotenv.config({ path: '../../.env' });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -11,6 +13,7 @@ const memberCtrl = Router();
 
 memberCtrl.post(`/member`, onPost);
 memberCtrl.get(`/member/list`, onGetList)
+memberCtrl.patch(`/member/patch`, patchMemberList)
 memberCtrl.post(`/member/list`, onPostList)
 memberCtrl.get(`/member/:id`, onGet);
 
@@ -92,5 +95,11 @@ async function onPostList(req, res) {
     } catch (error) {
         return res.status(404).json({msg:`Not FOUND! ${list}`});
     }
+}
+
+async function patchMemberList(req, res) {
+    const memberList = await helpFetch.getGuildMembers();
+
+    return jsonResponse(res, 200, memberList);
 }
 export default memberCtrl;
