@@ -150,7 +150,7 @@ async function getAccessToken() {
       const realmSlug = member?.character.realm?.slug;
       const playerName = member?.character.name;
       console.log(realmSlug, playerName)
-      await delay(1000)
+      await delay(500)
 
       const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
         method: "PATCH"
