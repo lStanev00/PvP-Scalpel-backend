@@ -21,8 +21,6 @@ const GUILD_NAME = "pvp-scalpel"; // Guild name slugified
 const BASE_URL = `https://${REGION}.api.blizzard.com`;
 const NAMESPACE = "profile-eu";
 
-// Store the current PvP Season
-let currentSeason = null;
 
 // Helper function for delay
 function delay(ms) {
