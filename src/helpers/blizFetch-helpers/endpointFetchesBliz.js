@@ -334,6 +334,32 @@ const helpFetch = {
             return null
         }
         
+    },
+    getGuildMembers : async function () {
+        const guildNameSlug = "pvp-scalpel";
+        const guildRealmSlug = "chamber-of-aspects";
+        const guildServer = "eu"
+        const path = `https://${guildServer}.api.blizzard.com/data/wow/guild/${guildRealmSlug}/${guildNameSlug}/roster?namespace=profile-${guildServer}`;
+
+        const clientId = process.env.CLIENT_ID;
+        const clientSecret = process.env.CLIENT_SECRET;
+
+        const accessToken =  await this.getAccessToken(clientId, clientSecret);
+
+        const headers = {
+            headers: {
+              Authorization: `Bearer ${accessToken}`, 
+              'Cache-Control': 'no-cache',  
+              'Pragma': 'no-cache',
+            },
+        };
+
+        const req = await this.fetchWithLocale(path, headers);
+        const data = await req.json();
+
+        const memberList = data.members;
+
+        return memberList
     }
 }
 
