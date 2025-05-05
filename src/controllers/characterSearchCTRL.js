@@ -2,12 +2,14 @@ import { Router } from "express";
 import Char from "../Models/Chars.js"; // Model
 // Helpers
 import fetchData from "../helpers/blizFetch.js";
-import { jsonMessage } from "../helpers/resposeHelpers.js";
+import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
+import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 
 const characterSearchCTRL = Router();
 
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, checkCharacterGet);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
+characterSearchCTRL.patch(`/patchPvPData/:server/:realm/:name`, patchPvPData);
 
 const patchingIDs = {};
 const buildingEntries = {}
@@ -119,6 +121,41 @@ async function updateCharacterPatch(req, res) {
 
 }
 
+async function patchPvPData(req, res) {
+    const { server, realm, name } = req.params;
+    
+    try {
+        const char = await Char.findOne({
+            name: name,
+            "playerRealm.slug" : realm,
+            server: server
+        })
+
+        
+        if (char) {
+            
+            const PvPData = await helpFetch.getRating(undefined, undefined, undefined, server, realm, name);
+            const updatedCharPvpData = await Char.findByIdAndUpdate(char._id, {
+                rating: PvPData
+            },{ new: true });
+
+            const safeDataToShip = updatedCharPvpData.toObject();
+            
+            return jsonResponse(res, 200, safeDataToShip);
+
+        } else {
+
+            const newChar = await buildCharacter(server, realm, name);
+
+            return jsonResponse(res, 200, newChar)
+
+        }
+    } catch (error) {
+        console.warn(error)
+        return jsonMessage(res, 500, "Internal server ERROR")
+    }
+}
+
 export default characterSearchCTRL
 
 
@@ -152,7 +189,7 @@ async function buildCharacter(server, realm, name, character) { // If no mongo e
         const newCharacter = new Char(character);
         await newCharacter.save();
         delete buildingEntries[key];
-        return character
+        return character;
         
     } catch (error) {
         console.log(error)
