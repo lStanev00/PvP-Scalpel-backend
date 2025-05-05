@@ -3,7 +3,9 @@ import Member from "../Models/Member.js"
 import dotenv from 'dotenv';
 import validateToken from "../helpers/authToken.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-import { jsonResponse } from "../helpers/resposeHelpers.js";
+import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
+import Char from "../Models/Chars.js";
+import { buildCharacter } from "./characterSearchCTRL.js";
 
 dotenv.config({ path: '../../.env' });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -98,8 +100,62 @@ async function onPostList(req, res) {
 }
 
 async function patchMemberList(req, res) {
-    const memberList = await helpFetch.getGuildMembers();
+    
+    try {
+        const memberList = await helpFetch.getGuildMembers();
+        const membersMap = new Map();
+
+        const characterList = await Char.find().lean();
+        
+        for (const { character }  of memberList) {
+            const name = character.name;
+            const realmSlug = character.realm.slug;
+            membersMap.set(character.id, true);
+
+            const char = await Char.findOne({
+                name: name,
+                'playerRealm.slug' : realmSlug
+            });
+
+            if (char && char.guildMember == false) {
+                await Char.findByIdAndUpdate(char._id, {
+                    guildMember : true
+                });
+                continue;
+            } else if (!char) {
+                await buildCharacter("eu", realmSlug, name);
+                await delay(2000); // Delay just in case the services are doing update ATM
+                continue;
+            }
+        }
+
+        for (const character of characterList) {
+            const isItMember = character.guildMember;
+
+            if (isItMember === true) {
+                const exist = membersMap.get(character.blizID);
+
+                if (exist) continue;
+                
+                await Char.findByIdAndUpdate(character._id, {
+                    guildMember: false
+                });
+            }
+        }
+
+        return jsonResponse(res, 201, memberList);
+
+    } catch (error) {
+        console.warn(error);
+
+        return jsonMessage(res, 500, "Internal Server ERROR");        
+    }
 
     return jsonResponse(res, 200, memberList);
 }
 export default memberCtrl;
+
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
