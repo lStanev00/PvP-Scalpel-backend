@@ -63,7 +63,6 @@ const helpFetch = {
 
     },
     getRating: async function(path, headers, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
-        const start = performance.now();
         try {
             const bracketsCheatSheet = {
                 "SHUFFLE": `solo`,
@@ -173,8 +172,7 @@ const helpFetch = {
                 }
             });
             await Promise.all(processBrackets);
-            const end = performance.now(); 
-            console.log(`getRating() took ${(end - start).toFixed(2)} ms`);
+
             return result;
         } catch (error) {
             console.log(error)
