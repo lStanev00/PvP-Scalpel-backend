@@ -162,6 +162,12 @@ async function getAccessToken() {
         console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
       }
     }
+
+    const reqMemUpdate = await fetchDBMS("/member/patch", {
+      method: "PATCH"
+    });
+
+
   };
 
   updateGuildMembersData();
