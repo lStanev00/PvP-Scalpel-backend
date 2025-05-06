@@ -106,7 +106,7 @@ async function patchMemberList(req, res) {
 
         const characterList = await Char.find().lean();
         
-        for (const { character }  of memberList) {
+        for (const { character, rank }  of memberList) {
             const name = character.name;
             const realmSlug = character.realm.slug;
             membersMap.set(character.id, true);
@@ -118,7 +118,8 @@ async function patchMemberList(req, res) {
 
             if (char && char.guildMember == false) {
                 await Char.findByIdAndUpdate(char._id, {
-                    guildMember : true
+                    guildMember : true,
+                    "guildInsight.rank": rank,
                 });
                 continue;
             } else if (!char) {
