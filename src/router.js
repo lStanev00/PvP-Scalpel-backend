@@ -6,7 +6,6 @@ import authController from "./controllers/authentication.js";
 import {authMiddleware} from "./middlewares/authMiddleweare.js";
 import postsCTRL from "./controllers/postsCTRL.js";
 import userActionCTRL from "./controllers/userActionsCTRL.js";
-import LDBControllerTest from "./controllers/LDBController.js";
 
 const router = Router();
 
