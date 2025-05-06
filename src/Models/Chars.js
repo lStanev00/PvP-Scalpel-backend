@@ -74,9 +74,7 @@ const CharSchema = new mongoose.Schema({
         default: [],
     }],
     guildInsight : {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Member",
-        required: false
+        guildRank: { type: String },
     }
 }, { timestamps: true });
 
@@ -95,6 +93,30 @@ CharSchema.virtual("favorite", {
 
 CharSchema.set("toObject", {  virtuals: true  });
 CharSchema.set("toJSON", {  virtuals: true  });
+
+CharSchema.pre('save', function (next) {
+
+    if (!this.isModified("guildInsight")) return next();
+
+    const roleMap = {
+        0: "Warlord",
+        1: "Council",
+        2: "Vanguard",
+        3: "Envoy",
+        4: "Champion",
+        5: "Gladiator",
+        6: "Slayer",
+        7: "Striker",
+        8: "Alt / Twink",
+        9: `Initiate`,
+    };
+
+    const stringedRole = roleMap[this.guildInsight.guildRank];
+
+    this.guildInsight.guildRank = stringedRole;
+    next();
+
+})
 
 const Char = mongoose.model(`Character`, CharSchema);
 export default Char;
