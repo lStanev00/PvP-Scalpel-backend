@@ -5,6 +5,7 @@ This API controls the database and sends requested data to the front-end.
 
 The api returns only JSON format
 
+
 ### At GET /member/list
 
 return Array of OBJECTS that hold guild members with data:
@@ -18,10 +19,12 @@ return Array of OBJECTS that hold guild members with data:
 
 #### sorted by guild rank higher is better
 
+
 ### At PATCH /member/patch
 
 return array of OBJECTS from the Blizzard API containing the members and ranks ( number e.g 0, 1, 2 higher is better)
 and updating the API's local databases with the members and their ranks
+
 
 ### AT GET routes : /LDB/2v2, /LDB/3v3, /LDB/solo, /LDB/blitz, /LDB/BG
 
@@ -38,7 +41,8 @@ for the bracket 3 V 3 end so on..
  - rating ( for the requested bracket )
  - achieves ( for the requested bracket )
  - character media
-        
+
+
 ### At GET route : /checkCharacter/:server/:realm/:name
 
 #### where the dinamic params are:
@@ -77,6 +81,7 @@ for the bracket 3 V 3 end so on..
 (500) Object:
  - messege: Error retrieveing the data
 
+
 ### At PATCH route : /patchCharacter/:server/:realm/:name
 
 #### where the dinamic params are:
@@ -92,6 +97,7 @@ for the bracket 3 V 3 end so on..
 #### return:
 
  - SAME AS GET route : /checkCharacter/:server/:realm/:name
+
 
 ### At PATCH route: /patchPvPData/:server/:realm/:name
 
