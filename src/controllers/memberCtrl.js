@@ -16,19 +16,6 @@ const memberCtrl = Router();
 memberCtrl.post(`/member`, onPost);
 memberCtrl.get(`/member/list`, onGetList)
 memberCtrl.patch(`/member/patch`, patchMemberList)
-memberCtrl.get(`/member/:id`, onGet);
-
-async function onGet(req, res) {
-    const id = req.params.id;
-
-    try {
-        const search = await Member.findById(id);
-        res.status(200).json(search);
-        
-    } catch (error) {
-        res.status(404).json({msg:`Entry's missing.`})
-    }
-}
 
 const roleMap = {
     0: "Warlord",
