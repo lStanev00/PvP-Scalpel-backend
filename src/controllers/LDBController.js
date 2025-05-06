@@ -2,13 +2,13 @@ import { Router } from "express";
 import Char from "../Models/Chars.js";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
 
-const LDBControllerTest = Router();
+const LDBController = Router();
 
-LDBControllerTest.get(`/LDBtest/2v2`, twosGet);
-LDBControllerTest.get(`/LDBtest/3v3`, threesGet);
-LDBControllerTest.get(`/LDBtest/solo`, soloGet);
-LDBControllerTest.get(`/LDBtest/blitz`, blitzGet);
-LDBControllerTest.get(`/LDBtest/BG`, BGGet);
+LDBController.get(`/LDB/2v2`, twosGet);
+LDBController.get(`/LDB/3v3`, threesGet);
+LDBController.get(`/LDB/solo`, soloGet);
+LDBController.get(`/LDB/blitz`, blitzGet);
+LDBController.get(`/LDB/BG`, BGGet);
 
 
 async function twosGet(req, res) {
@@ -64,7 +64,7 @@ async function BGGet(req,res) {
     }
 }
 
-export default LDBControllerTest
+export default LDBController
 
 // Helper for the fetches and sort
 
