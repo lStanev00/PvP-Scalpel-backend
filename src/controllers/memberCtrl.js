@@ -13,7 +13,6 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const memberCtrl = Router();
 
 
-memberCtrl.post(`/member`, onPost);
 memberCtrl.get(`/member/list`, onGetList)
 memberCtrl.patch(`/member/patch`, patchMemberList)
 
@@ -30,34 +29,6 @@ const roleMap = {
     9: `Initiate`,
 };
 
-async function onPost(req, res) {
-    const Authorization = validateToken(req.headers[`in-auth`], JWT_SECRET);
-
-    if(!Authorization) return res.status(401).json({403: `Auth Error`});
-    
-    let mem = Authorization
-    
-    try {
-
-        mem.rank = roleMap[mem.rank]
-
-        const exist = await Member.findOne({ blizID: mem.blizID });
-        if (exist){
-            await Member.findByIdAndUpdate(exist._id, {
-                $set: mem
-              });
-              
-        }else {
-            const memTry = new Member(mem);
-            await memTry.save();
-        }
-        res.status(200).json(mem);
-    } catch (error) {
-        console.log(error);
-        res.status(502).json({msg: `error: ${error}`})
-        
-    }   
-}
 async function onGetList(req,res) {
     try {
         const rosterList = await Char.find({
