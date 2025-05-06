@@ -143,6 +143,11 @@ I (the author) do **not** use this data for advertising or tracking users outsid
 By using this application, you consent to this usage for session and security management.
 
 
-At POST route : /login
+### At POST route : /login
+
+The route expect a json body with the following info:
+ - email : String
+ - password : String ( as is )
+ - fingerprint : Object ( check the image bellow )
 
 ![alt text](./README_ASSETS/fprint.png)
