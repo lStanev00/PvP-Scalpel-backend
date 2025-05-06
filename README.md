@@ -7,15 +7,15 @@ The api returns only JSON format
 
 ### At GET /member/list
 
-    return Array of OBJECTS that hold guild members with data:
+return Array of OBJECTS that hold guild members with data:
 
-        player:
+#### player:
 
-            name
-            realm
-            server
-            guild data 
-            character media
+ - name
+ - realm
+ - server
+ - guild data 
+ - character media
 
     sorted by guild rank higher is better
 
