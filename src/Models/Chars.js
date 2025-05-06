@@ -74,7 +74,7 @@ const CharSchema = new mongoose.Schema({
         default: [],
     }],
     guildInsight : {
-        guildRank: { type: String },
+        rank: { type: String },
     }
 }, { timestamps: true });
 
@@ -111,9 +111,9 @@ CharSchema.pre('save', function (next) {
         9: `Initiate`,
     };
 
-    const stringedRole = roleMap[this.guildInsight.guildRank];
+    const stringedRole = roleMap[this.guildInsight.rank];
 
-    this.guildInsight.guildRank = stringedRole;
+    this.guildInsight.rank = stringedRole;
     next();
 
 })
