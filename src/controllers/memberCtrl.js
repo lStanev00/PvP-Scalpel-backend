@@ -16,7 +16,6 @@ const memberCtrl = Router();
 memberCtrl.post(`/member`, onPost);
 memberCtrl.get(`/member/list`, onGetList)
 memberCtrl.patch(`/member/patch`, patchMemberList)
-memberCtrl.post(`/member/list`, onPostList)
 memberCtrl.get(`/member/:id`, onGet);
 
 async function onGet(req, res) {
@@ -30,6 +29,20 @@ async function onGet(req, res) {
         res.status(404).json({msg:`Entry's missing.`})
     }
 }
+
+const roleMap = {
+    0: "Warlord",
+    1: "Council",
+    2: "Vanguard",
+    3: "Envoy",
+    4: "Champion",
+    5: "Gladiator",
+    6: "Slayer",
+    7: "Striker",
+    8: "Alt / Twink",
+    9: `Initiate`,
+};
+
 async function onPost(req, res) {
     const Authorization = validateToken(req.headers[`in-auth`], JWT_SECRET);
 
@@ -37,26 +50,12 @@ async function onPost(req, res) {
     
     let mem = Authorization
     
-
-    
     try {
-        const roleMap = {
-            0: "Warlord",
-            1: "Council",
-            2: "Vanguard",
-            3: "Envoy",
-            4: "Champion",
-            5: "Gladiator",
-            6: "Slayer",
-            7: "Striker",
-            8: "Alt / Twink",
-            9: `Initiate`,
-        };
+
         mem.rank = roleMap[mem.rank]
 
         const exist = await Member.findOne({ blizID: mem.blizID });
         if (exist){
-            // await Member.findByIdAndUpdate(mem._id, mem);
             await Member.findByIdAndUpdate(exist._id, {
                 $set: mem
               });
@@ -74,19 +73,13 @@ async function onPost(req, res) {
 }
 async function onGetList(req,res) {
     try {
-        const memList = await Member.find().lean();
-        res.status(200).json(memList);
-    } catch (error) {
-        res.status(404).json({msg:`There's no such collection`});
-    }
-}
-async function onPostList(req, res) {
-
-    try {
         const rosterList = await Char.find({
             guildMember : true,
         })
-        .select(`name playerRealm media server`)
+        .select(`name playerRealm media server guildInsight`)
+        .sort({
+            ["guildInsight.rankNumber"]: 1
+        })
         .lean();
     
         return jsonResponse(res, 200, rosterList)
@@ -95,13 +88,13 @@ async function onPostList(req, res) {
         console.warn(error);
         return jsonMessage(res, 500, "Internal server error")
     }
-
 }
 
 async function patchMemberList(req, res) {
     
     try {
         const memberList = await helpFetch.getGuildMembers();
+        jsonResponse(res, 201, memberList);
         const membersMap = new Map();
 
         const characterList = await Char.find().lean();
@@ -109,7 +102,7 @@ async function patchMemberList(req, res) {
         for (const { character, rank }  of memberList) {
             const name = character.name;
             const realmSlug = character.realm.slug;
-            membersMap.set(character.id, true);
+            membersMap.set(character.id, rank);
 
             const char = await Char.findOne({
                 name: name,
@@ -119,31 +112,43 @@ async function patchMemberList(req, res) {
             if (char && char.guildMember == false) {
                 await Char.findByIdAndUpdate(char._id, {
                     guildMember : true,
-                    "guildInsight.rank": rank,
+                    "guildInsight.rank": roleMap[rank],
+                    "guildInsight.rankNumber": rank,
                 });
+                await delay(300)
                 continue;
             } else if (!char) {
                 await buildCharacter("eu", realmSlug, name);
                 await delay(2000); // Delay just in case the services are doing update ATM
                 continue;
             }
+
         }
 
         for (const character of characterList) {
             const isItMember = character.guildMember;
 
             if (isItMember === true) {
-                const exist = membersMap.get(character.blizID);
+                const existingRank = membersMap.get(character.blizID);
 
-                if (exist) continue;
+                if (existingRank) {
+
+                    await Char.findByIdAndUpdate(character._id, {
+                        guildMember: true,
+                        "guildInsight.rank": roleMap[existingRank],
+                        "guildInsight.rankNumber": existingRank,
+                    });
+
+                    continue;
+                }
                 
                 await Char.findByIdAndUpdate(character._id, {
-                    guildMember: false
+                    guildMember: false,
+                    "guildInsight.rank": undefined,
+                    "guildInsight.rankNumber": undefined,
                 });
             }
         }
-
-        return jsonResponse(res, 201, memberList);
 
     } catch (error) {
         console.warn(error);
