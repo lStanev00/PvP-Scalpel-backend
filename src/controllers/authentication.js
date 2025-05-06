@@ -1,11 +1,9 @@
 import User from "../Models/User.js";
 import { Router } from "express";
 import jwt from 'jsonwebtoken'
-import dotenv from 'dotenv';
 import mail from "../mailer.js";
 import { getOptions } from "../helpers/cookieOptions.js";
 import bcrypt from 'bcrypt'
-import { fingerprintsMatch } from "../middlewares/authMiddleweare.js";
 import validateToken from "../helpers/authToken.js";
 const JWT_SECRET = process.env.JWT_SECRET
 
