@@ -81,22 +81,21 @@ async function onGetList(req,res) {
     }
 }
 async function onPostList(req, res) {
-    const QUERY = req.body?.query;
-    if (!QUERY) return res.status(404).json({msg:`Not FOUND!`});
-    const list = {
-        "name": 1,
-        "playerRealmSlug": 1,
-    }
-    for (const qr of QUERY) {
-        list[`${qr}`] = 1
-    }
 
     try {
-        const mgList =  await Member.find({}, list);
-        res.status(200).json(mgList);
+        const rosterList = await Char.find({
+            guildMember : true,
+        })
+        .select(`name playerRealm media server`)
+        .lean();
+    
+        return jsonResponse(res, 200, rosterList)
+        
     } catch (error) {
-        return res.status(404).json({msg:`Not FOUND! ${list}`});
+        console.warn(error);
+        return jsonMessage(res, 500, "Internal server error")
     }
+
 }
 
 async function patchMemberList(req, res) {
