@@ -1,7 +1,5 @@
 import { Router } from "express";
-import Member from "../Models/Member.js"
 import dotenv from 'dotenv';
-import validateToken from "../helpers/authToken.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import Char from "../Models/Chars.js";
