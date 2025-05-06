@@ -189,9 +189,6 @@ Attempt to make a new account
     "fingerprint": { ... }
 }
 ```
-
-```cookie
-ddd
-```
+and a cookie with jwt for auth and session
 
 **400 - 409 bad credentials**
