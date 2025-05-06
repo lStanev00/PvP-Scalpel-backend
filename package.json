@@ -7,7 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dbms",
-    "testPatch": "cd src/querry && node testPatch"
+    "patch": "cd src/querry && node Patch"
   },
   "repository": {
     "type": "git",
