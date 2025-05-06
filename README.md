@@ -134,7 +134,7 @@ By using this application, you consent to this usage for session and security ma
 
 ### At POST route : /login
 
-#### The route expect a json body with the following info:
+#### The route expect a JSON body with the following info:
 
  - email : String
  - password : String ( as is )
