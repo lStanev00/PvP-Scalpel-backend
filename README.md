@@ -145,4 +145,4 @@ By using this application, you consent to this usage for session and security ma
 
 At POST route : /login
 
-    ![alt text](./README_ASSETS/fprint.png)
+![alt text](./README_ASSETS/fprint.png)
