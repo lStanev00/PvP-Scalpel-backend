@@ -4,7 +4,7 @@ This API manages the database and delivers data to the front-end.
 
 ## REST API Routes
 
-All endpoints return data in JSON format.
+All REST endpoints return data in JSON format.
 
 ---
 
@@ -144,3 +144,54 @@ By using this application, you agree to this usage for security and session mana
 - `fingerprint`: Object (see example image below)
 
 ![Fingerprint JSON object example](./README_ASSETS/fprint.png)
+
+#### Response:
+
+**200 OK**
+```json
+{
+    "_id": "string",
+    "email": "string",
+    "username": "string",
+    "isVerified": Boolean,
+    "role": "string",
+    "fingerprint": { ... }
+}
+```
+
+**400 - 409 bad credentials**
+
+---
+
+### POST `/register`
+
+#### Expected JSON body:
+- `email`: String
+- `username`: String
+- `password`: String (plaintext)
+- `fingerprint`: Object (SAME AS `/login`)
+
+#### Logic:
+Attempt to make a new account
+
+---
+
+#### Response:
+
+**200 OK**
+```json
+{
+    "_id": "string",
+    "email": "string",
+    "username": "string",
+    "isVerified": Boolean,
+    "role": "string",
+    "fingerprint": { ... }
+}
+```
+
+```cookie
+ddd
+```
+
+**400 - 409 bad credentials**
