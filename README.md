@@ -1,11 +1,11 @@
 # PvP-Scalpel-backend
 This API controls the database and sends requested data to the front-end.
 
-REST API routes
+## REST API routes
 
 The api returns only JSON format
 
-At GET /member/list
+### At GET /member/list
 
     return Array of OBJECTS that hold guild members with data:
 
@@ -19,12 +19,12 @@ At GET /member/list
 
     sorted by guild rank higher is better
 
-At PATCH /member/patch
+### At PATCH /member/patch
 
     return array of OBJECTS from the Blizzard API containing the members and ranks ( number e.g 0, 1, 2 higher is better)
     and updating the API's local databases with the members and their ranks
 
-AT GET routes : /LDB/2v2, /LDB/3v3, /LDB/solo, /LDB/blitz, /LDB/BG
+### AT GET routes : /LDB/2v2, /LDB/3v3, /LDB/solo, /LDB/blitz, /LDB/BG
 
         returns Aray of Objects sorted by RATING in the current bracket E.G for /LDB/3v3 will return JSON 
         for the bracket 3 V 3 end so on..
@@ -41,7 +41,7 @@ AT GET routes : /LDB/2v2, /LDB/3v3, /LDB/solo, /LDB/blitz, /LDB/BG
             achieves ( for the requested bracket )
             character media
         
-At GET route : /checkCharacter/:server/:realm/:name
+### At GET route : /checkCharacter/:server/:realm/:name
 
     where the dinamic params are:
 
@@ -92,7 +92,7 @@ At GET route : /checkCharacter/:server/:realm/:name
                     Object
                     messege: Error retrieveing the data
 
-At PATCH route : /patchCharacter/:server/:realm/:name
+### At PATCH route : /patchCharacter/:server/:realm/:name
 
     where the dinamic params are:
 
@@ -106,7 +106,7 @@ At PATCH route : /patchCharacter/:server/:realm/:name
 
     return: SAME AS GET route : /checkCharacter/:server/:realm/:name
 
-At PATCH route: /patchPvPData/:server/:realm/:name
+### At PATCH route: /patchPvPData/:server/:realm/:name
 
     where the dinamic params are:
 
