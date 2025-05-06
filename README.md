@@ -71,10 +71,10 @@ for the bracket 3 V 3 end so on..
  - guildInsight: Object
  - posts : Array
 
-404 Object:
+(404) Object:
  - messege: No character with this credentials ( bad parameters )
 
-500 Object:
+(500) Object:
  - messege: Error retrieveing the data
 
 ### At PATCH route : /patchCharacter/:server/:realm/:name
