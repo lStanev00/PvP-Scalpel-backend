@@ -79,31 +79,35 @@ for the bracket 3 V 3 end so on..
 
 ### At PATCH route : /patchCharacter/:server/:realm/:name
 
-    where the dinamic params are:
+#### where the dinamic params are:
 
-        server ( player server )
-        realm ( player realm slugified kebab-case )
-        name ( player name )
+ - server ( player server )
+ - realm ( player realm slugified kebab-case )
+ - name ( player name )
 
-    Logic:
+#### Logic:
 
-        Retrive store and return the fresh data from the Blizzard API
+ - Retrive store and return the fresh data from the Blizzard API
 
-    return: SAME AS GET route : /checkCharacter/:server/:realm/:name
+#### return:
+
+ - SAME AS GET route : /checkCharacter/:server/:realm/:name
 
 ### At PATCH route: /patchPvPData/:server/:realm/:name
 
-    where the dinamic params are:
+#### where the dinamic params are:
 
-        server ( player server )
-        realm ( player realm slugified kebab-case )
-        name ( player name )
+ - server ( player server )
+ - realm ( player realm slugified kebab-case )
+ - name ( player name )
 
-    Logic:
+#### Logic:
 
-        Retrive and store the fresh PVP data from the Blizzard API then return the whole character data
+ - Retrive and store the fresh PVP data from the Blizzard API then return the whole character data
 
-    return: SAME AS GET route : /checkCharacter/:server/:realm/:name
+#### return:
+
+ - SAME AS GET route : /checkCharacter/:server/:realm/:name
 
 
 ## Authentication / session related routes
@@ -130,9 +134,9 @@ By using this application, you consent to this usage for session and security ma
 
 ### At POST route : /login
 
-The route expect a json body with the following info:
+#### The route expect a json body with the following info:
+
  - email : String
  - password : String ( as is )
  - fingerprint : Object ( check the image bellow )
-
 ![alt text](./README_ASSETS/fprint.png)
