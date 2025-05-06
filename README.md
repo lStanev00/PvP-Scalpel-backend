@@ -174,8 +174,6 @@ By using this application, you agree to this usage for security and session mana
 #### Logic:
 Attempt to make a new account
 
----
-
 #### Response:
 
 **200 OK**
