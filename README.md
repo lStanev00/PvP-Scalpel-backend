@@ -121,9 +121,9 @@ At PATCH route: /patchPvPData/:server/:realm/:name
     return: SAME AS GET route : /checkCharacter/:server/:realm/:name
 
 
-Authentication / session related routes
+## Authentication / session related routes
 
-## 🔐 Privacy & Session Tracking Disclaimer
+### 🔐 Privacy & Session Tracking Disclaimer
 
 This application tracks user sessions for authentication, security, and account protection purposes.
 
