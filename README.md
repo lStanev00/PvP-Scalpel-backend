@@ -254,4 +254,77 @@ The provided current Passowrd is not passing the validation (incorect Password)
 
 **500 Internal Server error**
 
+---
+
+### PATCH `/change/username`
+
+#### Expected JSON body:
+```json
+{
+  "newUsername": "String (the new username)" 
+}
+```
+
+#### Expected Signed by the back-end session cookie
+
+
+#### Response
+
+**201 Created**
+
+Successfull attempt to change the username
+
+Returning updated login Object in a JSON same as the `/login` route
+
+**403 Not Authorized**
+
+Failing the JWT validation and clears the cookie
+
+**400 New Username**
+
+The new username is the same as the old one
+
+**409 Conflict**
+
+The new username's already in use
+
+**500 Internal Server Error**
+
+---
+
+### POST `/reset/password`
+
+#### Expected JSON body:
+
+```json
+{
+  "email": "String (the user's email)",
+  "fingerprint": "Object (check the image in the /login path)"
+}
+```
+
+#### Response
+
+**201 Created**
+
+Successfull attempt to rest the user's password next step is confirmation 
+1. GOTO the profile's email
+2. Click the link (contains link to the Front-End with JWT)
+
+```json
+
+{  "message" : "Email send at ${email}!"  }
+
+```
+
+**404 Not Found**
+
+The email does not exist in the database (no user registered with the provided email)
+
+**400 Already send**
+
+The email for the reset is already sent
+
+**500 Internal Server Error**
+
 
