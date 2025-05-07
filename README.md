@@ -136,6 +136,12 @@ By using this application, you agree to this usage for security and session mana
 
 ---
 
+### 🔐 Encryption
+
+The application does not store passwords or tokens in AS IS format they are encrypted and not readable or reversable.
+
+---
+
 ### POST `/login`
 
 #### Expected JSON body:
@@ -327,4 +333,80 @@ The email for the reset is already sent
 
 **500 Internal Server Error**
 
+---
+
+### PATCH `/reset/password`
+    
+#### Logic
+    
+Attempts to store the new password and update it.
+
+#### Expected JSON body:
+
+```json
+  {
+    "JWT": "String (issued by the back-end JWT)",
+    "newPassword": "String (the new password)"
+  }
+```
+
+#### Response
+
+**201 Created**
+
+Successfull password update
+
+**403 Forbiden**
+
+JWT validation fails or bad JWT body 
+
+**500 Internal Server Error**
+
+---
+
+### PATCH `/validate/token`
+
+#### Logic
+
+This route is for validationg e-mail vaidations with the 6-digit method
+
+#### Expected JSON body:
+
+```json
+  {
+    "token": "Number (6-digits from the email)",
+    "option": "String (`verify` for email verification after registration or `email` for email change)"
+  }
+```
+
+#### Case `verify`
+
+##### => Response
+
+**201 Created**
+
+A login JSON with object same as in the route `/login` and a session cookie. The user status is now verified.
+
+#### Case `email`
+
+##### => Response
+
+**201 Created**
+
+Successfull attempt on e-mail change returning a signed JWT cookie and a login object in a JSON same as in the route `/login`
+
+#### General Responses (same for both cases)
+
+**401 Bad Token**
+
+The issued token and the provided one differs
+
+**400 Bad option**
+
+The route's supported options are:
+
+1. `verifiy`
+2. `email` 
+
+**500 Internal Server Error**
 
