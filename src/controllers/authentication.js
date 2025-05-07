@@ -276,7 +276,7 @@ async function valdiateTokenPatch(req, res) {
         if (option == `verify`) {
             const tokenToCheck = user.verifyTokens?.email?.token || undefined
             const JWTToCheck = user?.verifyTokens?.email?.JWT || undefined
-            console.log(tokenToCheck)
+            
             if (!tokenToCheck) return res.status(401).end();
             if (true) {
                 if (!(await bcrypt.compare(token, tokenToCheck))) {return res.status(401).end()};
