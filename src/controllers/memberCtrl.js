@@ -50,14 +50,14 @@ async function patchMemberList(req, res) {
     
     try {
         const memberList = await helpFetch.getGuildMembers();
-        jsonResponse(res, 201, memberList);
         const membersMap = new Map();
 
-        memberCtrl.set(86847735, true)
+        // memberCtrl.set(86847735, true)
         const characterList = await Char.find().lean();
         
         for (const { character, rank }  of memberList) {
             const name = character.name;
+            if (name == "Lychezar") debugger;
             const realmSlug = character.realm.slug;
             membersMap.set(character.id, rank);
 
@@ -88,7 +88,7 @@ async function patchMemberList(req, res) {
             if (isItMember === true) {
                 const existingRank = membersMap.get(character.blizID);
 
-                if (existingRank) {
+                if (existingRank !== undefined && existingRank !== null) {
 
                     await Char.findByIdAndUpdate(character._id, {
                         guildMember: true,
@@ -106,6 +106,8 @@ async function patchMemberList(req, res) {
                 });
             }
         }
+        jsonResponse(res, 201, memberList);
+
 
     } catch (error) {
         console.warn(error);
