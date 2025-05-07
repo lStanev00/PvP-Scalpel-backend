@@ -190,3 +190,44 @@ Attempt to make a new account
 and a cookie with jwt for auth and session, sending verification e-mail on the provided one
 
 **400 - 409 bad credentials**
+
+---
+
+### PATCH `/change/email`
+
+#### Expected JSON body:
+```json 
+{ "newEmail": "String" } 
+```
+
+#### Expected Signed by the back-end session cookie
+
+#### Logic:
+
+Attempts to change the user email
+
+#### Response:
+
+**201 Created**
+The same JSON as the login request + 
+```json
+{ "newEmail": "String" } 
+```
+
+and sends email with 6 digit code to the provided new email.
+
+**400 Not Valid Email**
+
+The provided new email's invalid
+
+**409 Conflict**
+
+The provided email already exists / being used
+
+**403 Forbiden**
+
+No access due to missing a signed or failing JWT
+
+**500 Internal Server Error**
+
+### PATCH `/change/password`
