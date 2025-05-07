@@ -113,7 +113,8 @@ async function changePassowordPatch(req, res) {
          res.status(201).end();
 
     } catch (error) {
-        
+        console.warn(error)
+        res.status(500).end();
     }
 }
 
