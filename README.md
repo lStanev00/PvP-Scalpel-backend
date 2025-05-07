@@ -410,3 +410,19 @@ The route's supported options are:
 
 **500 Internal Server Error**
 
+---
+
+### GET `/verify/me`
+
+#### Logic
+
+Check if there's a valid signed session with a JWT issued by the back-end and returns a valid
+login object if all the checkup passes
+
+---
+
+### GET `/logout`
+
+### Logic
+
+Delete any existing session cookie and return **Status 200**
