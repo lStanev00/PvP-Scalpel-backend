@@ -36,8 +36,6 @@ async function changeUsernamePatch(req, res) {
     const user = req?.user;
     const {newUsername} = req.body;
 
-    console.log(user)
-    
     if (!user) {
         if (req.cookies) {
             let options = getOptions(req);
