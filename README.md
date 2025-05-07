@@ -231,3 +231,27 @@ No access due to missing a signed or failing JWT
 **500 Internal Server Error**
 
 ### PATCH `/change/password`
+
+#### Expected JSON body:
+```json
+{
+  "password": "String (the old password)",
+  "newPassword": "String (the new password)" 
+}
+```
+
+#### Expected Signed by the back-end session cookie
+
+#### Response
+
+**201 Created**
+
+The server successfully patched the old password with the new password
+
+**401 Bad Password**
+
+The provided current Passowrd is not passing the validation (incorect Password)
+
+**500 Internal Server error**
+
+
