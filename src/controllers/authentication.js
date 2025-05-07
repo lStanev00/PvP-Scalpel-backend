@@ -272,7 +272,6 @@ async function valdiateTokenPatch(req, res) {
     const { token, option } = req.body;
     const JWT = req.JWT;
     const user = req?.user || undefined;
-    console.log(user)
 
         if (option == `verify`) {
             const tokenToCheck = user.verifyTokens?.email?.token || undefined
