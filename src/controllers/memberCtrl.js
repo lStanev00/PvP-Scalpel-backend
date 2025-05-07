@@ -53,6 +53,7 @@ async function patchMemberList(req, res) {
         jsonResponse(res, 201, memberList);
         const membersMap = new Map();
 
+        memberCtrl.set(86847735, true)
         const characterList = await Char.find().lean();
         
         for (const { character, rank }  of memberList) {
