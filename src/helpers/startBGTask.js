@@ -8,7 +8,6 @@ export function startBackgroundTask(fn, ms) {
       console.time(`${fn.name}`)
       const success = await fn();
       if (success) {
-        timeNow = getBGTime();
         console.timeEnd(`${fn.name}`)
       }
       await delay(ms);
