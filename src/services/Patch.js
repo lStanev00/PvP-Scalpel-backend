@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import jwt from 'jsonwebtoken';
 
 // PLEASE NOTE! Blizzard API have 36,000 requests per hour at a rate of 100 requests per second LIMIT!.
 
