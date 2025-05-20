@@ -4,9 +4,11 @@ import { DBconnect } from "./src/helpers/mongoHelper.js";
 import router from "./src/router.js";
 import cors from 'cors'
 import cookieParser from "cookie-parser";
+import { startBackgroundTask } from "./src/helpers/startBGTask.js";
+import { updateGuildMembersData } from "./src/services/Patch.js";
 
 const app = express();
-const port = 59534;
+const port = 59533;
 
 app.disable("x-powered-by");
 app.set('trust proxy', true);
@@ -42,3 +44,5 @@ app.use(`/`, router);
 
 
 app.listen(port, console.log(`Server's running at http://localhost:${port} or https://api.pvpscalpel.com`));
+
+await startBackgroundTask(updateGuildMembersData, 3600000);

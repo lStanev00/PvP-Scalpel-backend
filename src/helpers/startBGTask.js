@@ -2,7 +2,7 @@ export function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function startBackgroundTask(fn, ms) {
+export async function startBackgroundTask(fn, ms) {
   (async () => {
     while (true) {
       console.time(`${fn.name}`)

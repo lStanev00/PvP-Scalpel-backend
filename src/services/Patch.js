@@ -1,9 +1,8 @@
 import dotenv from 'dotenv';
-
-// PLEASE NOTE! Blizzard API have 36,000 requests per hour at a rate of 100 requests per second LIMIT!.
-
 dotenv.config({ path: '../../../../.env' });
-const JWT_SECRET = process.env.JWT_SECRET;
+
+// PLEASE NOTE! Blizzard API have 36,000 requests per hour at a rate of 100 requests per second LIMIT!
+
 // Token storing
 let accessToken = null;
 let tokenExpiry = null; // Store the expiration timestamp
@@ -148,18 +147,23 @@ async function getAccessToken() {
       const realmSlug = member?.character.realm?.slug;
       const playerName = member?.character.name;
       console.log(realmSlug, playerName)
-      await delay(delayMS)
+      await delay(delayMS);
 
-      const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
-        method: "PATCH"
-      });
-
-      if (req.status == 201) delayMS = 2000
-      else if (req.status == 200) delayMS = 500
-      else if (req.status != 200) {
-        delayMS = 1000
-        console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
+      try {
+          const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
+            method: "PATCH"
+          });
+            if (req.status == 201) delayMS = 2000
+            else if (req.status == 200) delayMS = 500
+            else if (req.status != 200) {
+              delayMS = 1000
+              console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
+            }
+          
+      } catch (error) {
+        console.warn(error);
       }
+
     }
 
     const reqMemUpdate = await fetchDBMS("/member/patch", {
@@ -169,8 +173,8 @@ async function getAccessToken() {
 
   };
 
-  updateGuildMembersData();
-  setInterval(updateGuildMembersData, 3600000); // Runs every hour
+  // updateGuildMembersData();
+  // setInterval(updateGuildMembersData, 3600000); // Runs every hour
 
 // TEST WITH 1 FETCH
   async function getOneMemberPvPData(server, realmSlug, playerName) {
