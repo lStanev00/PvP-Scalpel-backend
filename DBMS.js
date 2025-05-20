@@ -8,7 +8,7 @@ import { startBackgroundTask } from "./src/helpers/startBGTask.js";
 import { updateGuildMembersData } from "./src/services/Patch.js";
 
 const app = express();
-const port = 59533;
+const port = 59534;
 
 app.disable("x-powered-by");
 app.set('trust proxy', true);
