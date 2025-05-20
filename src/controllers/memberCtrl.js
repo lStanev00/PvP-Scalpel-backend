@@ -6,7 +6,6 @@ import Char from "../Models/Chars.js";
 import { buildCharacter } from "./characterSearchCTRL.js";
 
 dotenv.config({ path: '../../.env' });
-const JWT_SECRET = process.env.JWT_SECRET;
 
 const memberCtrl = Router();
 
