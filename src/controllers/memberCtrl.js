@@ -51,7 +51,7 @@ async function patchMemberList(req, res) {
         const memberList = await helpFetch.getGuildMembers();
         const membersMap = new Map();
 
-        // memberCtrl.set(86847735, true)
+        // memberCtrl.set(86847735, true) // Test with Lychezar's ID
         const characterList = await Char.find().lean();
         
         for (const { character, rank }  of memberList) {
