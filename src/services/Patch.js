@@ -116,7 +116,7 @@ async function getAccessToken() {
         accessToken = data.access_token;
         tokenExpiry = now + data.expires_in * 1000;
 
-        console.log('>> New token fetched:', accessToken);
+        // console.log('>> New token fetched:', accessToken);
         return accessToken;
     } catch (error) {
         console.error('Error fetching access token:', error);
@@ -127,7 +127,7 @@ async function getAccessToken() {
   export async function updateGuildMembersData() {
     // Get and store access token and season
     accessToken = await getAccessToken()
-    const now = new Date(); 
+    let now = new Date(); 
     console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
     console.log("Fetching guild roster...");
@@ -146,7 +146,7 @@ async function getAccessToken() {
 
       const realmSlug = member?.character.realm?.slug;
       const playerName = member?.character.name;
-      console.log(realmSlug, playerName)
+      // console.log(realmSlug, playerName)
       await delay(delayMS);
 
       try {
@@ -169,6 +169,9 @@ async function getAccessToken() {
     const reqMemUpdate = await fetchDBMS("/member/patch", {
       method: "PATCH"
     });
+
+    now = new Date();
+    console.log(`Update succeed: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
 
   };
