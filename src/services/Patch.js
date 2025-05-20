@@ -125,7 +125,7 @@ async function getAccessToken() {
     }
 }
 
-  async function updateGuildMembersData() {
+  export async function updateGuildMembersData() {
     // Get and store access token and season
     accessToken = await getAccessToken()
     const now = new Date(); 
