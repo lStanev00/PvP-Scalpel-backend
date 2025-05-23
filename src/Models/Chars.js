@@ -76,7 +76,8 @@ const CharSchema = new mongoose.Schema({
     guildInsight : {
         rank: { type: mongoose.Schema.Types.Mixed, default: undefined },
         rankNumber : { type: mongoose.Schema.Types.Mixed, default: undefined },
-    }
+    },
+    talentCode: {type: String, default: null},
 }, { timestamps: true });
 
 CharSchema.virtual("posts", {
