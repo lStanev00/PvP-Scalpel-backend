@@ -1,5 +1,6 @@
 import achievesData from "./achievesData.js";
 import { setToken, getToken } from "./tokenCache.js"
+import {delay} from "../startBGTask.js";
 
 const helpFetch = {
     getAccessToken : async function (clientId, clientSecret) {
@@ -46,7 +47,19 @@ const helpFetch = {
     getMedia : async function (data, path, headers) {
         if (data?.code === 404 ) return null;
         try {
-            const data1 = await(await fetch(data[path].key.href, headers)).json();
+            let data1;
+
+            try {
+                data1 = await(await fetch(data[path].key.href, headers)).json();
+            } catch (error) {
+                await delay(500);
+                try {
+                    data1 = await(await fetch(data[path].key.href, headers)).json();
+                } catch (error) {
+                    await delay(200);
+                    data1 = await(await fetch(data[path].key.href, headers)).json();
+                }
+            }
             try {
                 const data2 = await ( await fetch(data1.media.key.href, headers)).json();
                 return data2 ? data2.assets[0].value : undefined
