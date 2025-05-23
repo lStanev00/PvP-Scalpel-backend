@@ -86,6 +86,9 @@ async function fetchData(server, realm, name) {
         const end = performance.now(); 
         console.log(`blizFetch() took ${(end - start).toFixed(2)} ms`);
         console.log(result.guildMember)
+        const talentsCode = await helpFetch.getActiveTalentsCode(data.specializations.href, headers);
+        result.talentCode = talentsCode;
+
 
         return result;
     } catch (error) {
@@ -95,4 +98,4 @@ async function fetchData(server, realm, name) {
 }
 export default fetchData
 // Example usage
-// fetchData(`eu`, `chamber-of-aspects`, `Lychezar`)
+fetchData(`eu`, `chamber-of-aspects`, `Lychezar`)
