@@ -363,18 +363,22 @@ const helpFetch = {
     },
     getActiveTalentsCode: async function (href, headers) {
 
-        if (href != String) return undefined;
-        
         try {
 
             const req = await this.fetchWithLocale(href, headers);
 
             if (req.ok) {
                 const data = await req.json();
-                return data
-                
+                const specId = data.active_specialization.id;
+                const activeSpecData = data.specializations.find(specDetails => specDetails.id == specId);
+                const activeLoadout = activeSpecData.find(loadout => loadout.is_active == true);
+
+                if (activeLoadout) return activeLoadout.talent_loadout_code;
+
             }
         } catch (error) {
+            console.warn(error);
+            return undefined
             
         }
     }
