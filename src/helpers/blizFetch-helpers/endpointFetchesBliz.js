@@ -360,6 +360,23 @@ const helpFetch = {
         const memberList = data.members;
 
         return memberList
+    },
+    getActiveTalentsCode: async function (href, headers) {
+
+        if (href != String) return undefined;
+        
+        try {
+
+            const req = await this.fetchWithLocale(href, headers);
+
+            if (req.ok) {
+                const data = await req.json();
+                return data
+                
+            }
+        } catch (error) {
+            
+        }
     }
 }
 
