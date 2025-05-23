@@ -46,8 +46,8 @@ const helpFetch = {
     },
     getMedia : async function (data, path, headers) {
         if (data?.code === 404 ) return null;
+        let data1;
         try {
-            let data1;
 
             try {
                 data1 = await(await fetch(data[path].key.href, headers)).json();
@@ -70,7 +70,7 @@ const helpFetch = {
             }
             
         } catch (error) {
-            console.log(error);
+            console.log(`getMedia crashing!\nThe data1 is: ${data1}\nThe ERROR message is: ${error}`);
             return undefined
         }
 
