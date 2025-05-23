@@ -370,8 +370,8 @@ const helpFetch = {
             if (req.ok) {
                 const data = await req.json();
                 const specId = data.active_specialization.id;
-                const activeSpecData = data.specializations.find(specDetails => specDetails.id == specId);
-                const activeLoadout = activeSpecData.find(loadout => loadout.is_active == true);
+                const activeSpecData = data.specializations.find(specDetails => specDetails.specialization.id == specId);
+                const activeLoadout = activeSpecData.loadouts.find(loadout => loadout.is_active == true);
 
                 if (activeLoadout) return activeLoadout.talent_loadout_code;
 
