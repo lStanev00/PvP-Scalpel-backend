@@ -6,6 +6,6 @@ const achSchema = new mongoose.Schema({
     key: String
 });
 
-const AchModel = mongoose.model('Achievement', achSchema);
+const Achievements = mongoose.model('Achievement', achSchema);
 
-export default AchModel;
+export default Achievements;
