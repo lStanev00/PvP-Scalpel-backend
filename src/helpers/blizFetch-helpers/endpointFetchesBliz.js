@@ -289,7 +289,7 @@ const helpFetch = {
             const result = await filterAchiev(achievementsMAP, points, headers);
             return result
         } catch (error) {
-            console.log(error)
+            console.warn(error)
             const result = await filterAchiev(undefined, undefined, undefined);
             return result
         }
