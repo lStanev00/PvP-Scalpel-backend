@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const achSchema = new mongoose.Schema({
     _id: Number, 
     name: String,
-    key: String
+    href: String
 });
 
 const Achievement = mongoose.model('Achievement', achSchema);
