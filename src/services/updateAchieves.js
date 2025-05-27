@@ -15,4 +15,30 @@ const buildHeaders = async () => {
         },
     }
 
+    return headers
+
+}
+
+export default async function updateDBAchieves() {
+    const headers = await buildHeaders();
+
+    const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.5_60179-eu`;
+
+    
+    try {
+        const req = await helpFetch.fetchWithLocale(feastOfStrengthURL, headers);
+
+        if (req.status == 200){
+            const data = await req.json();
+            const achievements = data?.achievements;
+
+            if (achievements) {
+                
+            }
+        }
+        
+    } catch (error) {
+        
+    }
+
 }
