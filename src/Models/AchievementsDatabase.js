@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const achSchema = new mongoose.Schema({
-    _id: Number, // or ObjectId, Number, etc., depending on your custom ID type
+    _id: Number, 
     name: String,
     key: String
 });
