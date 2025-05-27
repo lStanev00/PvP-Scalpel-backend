@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import User from './User.js';
+import Achievements from './AchievementsDatabase.js';
 
 const achievementsSchema = new mongoose.Schema({
     points: { type: mongoose.Schema.Types.Mixed }, // Collected
@@ -70,6 +71,12 @@ const CharSchema = new mongoose.Schema({
     likes: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: User,
+        required: false,
+        default: [],
+    }],
+    listAchievements: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: Achievements,
         required: false,
         default: [],
     }],
