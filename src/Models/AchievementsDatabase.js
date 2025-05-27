@@ -7,3 +7,5 @@ const achSchema = new mongoose.Schema({
 });
 
 const AchModel = mongoose.model('Achievement', achSchema);
+
+export default AchModel;
