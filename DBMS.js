@@ -6,6 +6,7 @@ import cors from 'cors'
 import cookieParser from "cookie-parser";
 import { startBackgroundTask } from "./src/helpers/startBGTask.js";
 import { updateGuildMembersData } from "./src/services/Patch.js";
+import updateDBAchieves from "./src/services/updateAchieves.js";
 
 const app = express();
 const port = 59534;
@@ -46,3 +47,5 @@ app.use(`/`, router);
 app.listen(port, console.log(`Server's running at http://localhost:${port} or https://api.pvpscalpel.com`));
 
 await startBackgroundTask(updateGuildMembersData, 3600000);
+
+await startBackgroundTask(updateDBAchieves, 3600000);
