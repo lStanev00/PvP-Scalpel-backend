@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
-import helpFetch from '../helpers/blizFetch-helpers/endpointFetchesBliz';
-import Achievement from '../Models/Achievements';
+import helpFetch from '../helpers/blizFetch-helpers/endpointFetchesBliz.js';
+import Achievement from '../Models/Achievements.js';
 
 const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
