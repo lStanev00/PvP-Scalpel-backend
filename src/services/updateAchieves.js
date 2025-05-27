@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import helpFetch from '../helpers/blizFetch-helpers/endpointFetchesBliz';
+import Achievement from '../Models/Achievements';
 
 const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
@@ -33,11 +34,42 @@ export default async function updateDBAchieves() {
             const achievements = data?.achievements;
 
             if (achievements) {
-                
+                for (const achievement of achievements) {
+
+                    const exist = await Achievement.findById(achievement.id);
+
+                    if (exist) {
+
+                        if (exist.name != achievement?.name || exist.href != achievement?.key?.href) {
+    
+                            exist.name = achievement?.name;;
+                            exist.href = achievement?.key?.href;
+                            
+                            await exist.save();
+                        }
+
+                        continue;
+
+                    }
+
+                    if(achievement.id && achievement.name && achievement.key.href) {
+
+                        const newAch = new Achievement({
+                            _id: achievement.id,
+                            name: achievement.name,
+                            href: achievement.key.href
+                        })
+    
+                        await newAch.save();
+
+                    }
+
+                }
             }
         }
         
     } catch (error) {
+        console.warn(error)
         
     }
 
