@@ -5,10 +5,8 @@ export function delay(ms) {
 export async function startBackgroundTask(fn, ms) {
   (async () => {
     while (true) {
-      console.time(`${fn.name}`)
       const success = await fn();
       if (success) {
-        console.timeEnd(`${fn.name}`)
       }
       await delay(ms);
     }
