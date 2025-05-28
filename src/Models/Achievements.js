@@ -7,10 +7,7 @@ const achSchema = new mongoose.Schema({
     media: String,
     description: String,
     displayOrder: { type: Number, index: true },
-    category: {
-        id: { type: Number, index: true },
-        name: String,
-    },
+    category: { type: Number, index: true },
     criteria: { type: Number, index: true, unique: true },
     expansion: {
         name: String,
