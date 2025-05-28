@@ -12,8 +12,6 @@ const achSchema = new mongoose.Schema({
     expansion: {
         name: String,
         season: Number,
-        required: false,
-        default: null
     }
 
 });
