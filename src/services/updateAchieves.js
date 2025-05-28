@@ -44,10 +44,45 @@ export default async function updateDBAchieves() {
     
                             exist.name = achievement?.name;;
                             exist.href = achievement?.key?.href;
+
                             
+                            const achDataReq = await helpFetch.fetchWithLocale(achievement.key.href, headers);
+
+                            const achData = await achDataReq.json();
+
+                            const mediaString = await helpFetch.getMedia(achData.media);
+                            
+                            if(mediaString) exist.media = mediaString;
+                            if(achData.description) exist.description = achData.description;
+                            if(achData.display_order) exist.displayOrder = achData.display_order;
+                            if(achData.category) exist.category = achData.category.id;
+                            if(achData.criteria) exist.criteria = achData.criteria.id;
+
+                            let name = achData?.name;
+
+                            if(name) {
+
+                                try {
+
+                                    const [ title, expansion ] = name.split(`: `)
+                                    const [ expName, seasonIndex ] = expansion.split(` Season `);
+
+                                    const season = Number(seasonIndex);
+    
+                                    exist.expansion.name = expName;
+                                    exist.expansion.season = season;
+                                    
+                                } catch (error) {
+
+                                    console.warn(error)
+                                    
+                                }
+
+                            }
+
                             await exist.save();
                         }
-
+                        
                         continue;
 
                     }
