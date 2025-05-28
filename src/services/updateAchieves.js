@@ -50,7 +50,7 @@ export default async function updateDBAchieves() {
 
                             const achData = await achDataReq.json();
 
-                            const mediaString = await helpFetch.getMedia(achData.media);
+                            const mediaString = await helpFetch.getMedia(achData, "media", headers);
                             
                             if(mediaString) exist.media = mediaString;
                             if(achData.description) exist.description = achData.description;
@@ -60,17 +60,28 @@ export default async function updateDBAchieves() {
 
                             let name = achData?.name;
 
-                            if(name) {
+                            if(name && name.includes(`: `) && name.includes(` Season `)) {
 
                                 try {
 
-                                    const [ title, expansion ] = name.split(`: `)
-                                    const [ expName, seasonIndex ] = expansion.split(` Season `);
+                                    const [ title, expansion ] = name.split(`: `);
 
-                                    const season = Number(seasonIndex);
-    
-                                    exist.expansion.name = expName;
-                                    exist.expansion.season = season;
+                                    let expName;
+                                    let seasonIndex;
+                                    [ expName, seasonIndex ] = expansion.split(` Season `);
+
+                                    if(seasonIndex) {
+                                        const season = Number(seasonIndex);
+        
+                                        exist.expansion.name = expName;
+                                        exist.expansion.season = season;
+
+                                    } else {
+                                        seasonIndex = expName.replace(`Season `, "");
+                                        const season = Number(seasonIndex);
+                                        exist.expansion.season = season;
+                                    }
+
                                     
                                 } catch (error) {
 
