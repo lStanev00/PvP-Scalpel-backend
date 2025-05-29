@@ -86,6 +86,8 @@ const helpFetch = {
               }
             let result = {};
             if (server != undefined && realm != undefined && name != undefined) {
+            // if (name == "Lychezar") debugger;
+
                 name = name.toLowerCase();
                 path = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}/pvp-summary?namespace=profile-${server}`;
 
@@ -137,7 +139,7 @@ const helpFetch = {
                 }
             }
             const bracketFetches = brackets.map(bracket =>
-                fetch(bracket.href, headers).then(res => res.json())
+                fetch(bracket.href, headers).then(res => { return  res.json()})
             );
             const allBracketsData = await Promise.all(bracketFetches);
 
@@ -185,6 +187,7 @@ const helpFetch = {
                 }
             });
             await Promise.all(processBrackets);
+            // if(name == "Lychezar" || name == `lychezar`) debugger;
 
             return result;
         } catch (error) {

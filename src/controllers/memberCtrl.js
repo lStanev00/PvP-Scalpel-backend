@@ -56,9 +56,9 @@ async function patchMemberList(req, res) {
         
         for (const { character, rank }  of memberList) {
             const name = character.name;
-            if (name == "Lychezar") debugger;
             const realmSlug = character.realm.slug;
             membersMap.set(character.id, rank);
+            // if (name == "Lychezar") debugger;
 
             const char = await Char.findOne({
                 name: name,
@@ -106,6 +106,7 @@ async function patchMemberList(req, res) {
             }
         }
         jsonResponse(res, 201, memberList);
+
 
 
     } catch (error) {
