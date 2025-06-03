@@ -227,6 +227,7 @@ const helpFetch = {
     getPvPTitle: async function (href, headers) {
         try {
             const data = await (await fetch(href, headers)).json();
+            if (data?.code == 404 ) return undefined;
             let result = {
                 name: data.name.en_GB,
                 media: await helpFetch.getMedia(data, `media`, headers)
@@ -281,8 +282,9 @@ const helpFetch = {
         return 0 // Keep 0 if not found
     },
     getAchievXP: async function (href, headers, points) {
+        let data;
         try {
-            const data = await (await helpFetch.fetchWithLocale(href, headers)).json();
+            data = await (await helpFetch.fetchWithLocale(href, headers)).json();
 
             const achievementsMAP = new Map();
 
@@ -292,6 +294,7 @@ const helpFetch = {
             const result = await filterAchiev(achievementsMAP, points, headers);
             return result
         } catch (error) {
+            console.log(data)
             console.warn(error)
             const result = await filterAchiev(undefined, undefined, undefined);
             return result
@@ -518,41 +521,43 @@ async function filterAchiev (achievements, points, headers) {
         }
     }
 
-    let strategistChecker = undefined;
-    try {
-        const URI = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.0_59095-eu&locale=en_US`
-        strategistChecker = await(await fetch(URI, headers)).json();
-        strategistChecker = (strategistChecker.achievements)
-            .filter(ach => ach.name.startsWith("Strategist: "))
-            .sort((a, b) => {
-                const aCheck = Number(a.name.replace("Strategist: The War Within Season ", ""));
-                const bCheck = Number(b.name.replace("Strategist: The War Within Season ", ""));
+    // let strategistChecker = undefined;
+    // try {
+    //     const URI = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.0_59095-eu&locale=en_US`
+    //     strategistChecker = await(await fetch(URI, headers)).json();
+    //     strategistChecker = (strategistChecker.achievements)
+    //         .filter(ach => ach.name.startsWith("Strategist: "))
+    //         .sort((a, b) => {
+    //             const aCheck = Number(a.name.replace("Strategist: The War Within Season ", ""));
+    //             const bCheck = Number(b.name.replace("Strategist: The War Within Season ", ""));
                 
-                return bCheck - aCheck;
-            });
-    } catch (error) {
-        console.log(error);
-    }
-    if (strategistChecker) {
-        for (const {  key, name, id: dataID  } of strategistChecker) {
-            let match = achievements.get(dataID);
+    //             return bCheck - aCheck;
+    //         });
+    // } catch (error) {
+    //     console.log(error);
+    //     console.log(strategistChecker)
+    // }
 
-            if(match && match?.completed_timestamp) {
-                try {
-                    const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
-                    const BlitzWinsResult = {
-                        name: data.name,
-                        description: data.description,
-                        media: await helpFetch.getMedia(data, "media", headers)
-                    }
-                    result["Blitz"].WINS = BlitzWinsResult;
-                    return result // Return to bypass the next check
-                } catch (error) {
-                    console.log(error); break;
-                }
-            }
-        }
-    }
+    // if (strategistChecker) {
+    //     for (const {  key, name, id: dataID  } of strategistChecker) {
+    //         let match = achievements.get(dataID);
+
+    //         if(match && match?.completed_timestamp) {
+    //             try {
+    //                 const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+    //                 const BlitzWinsResult = {
+    //                     name: data.name,
+    //                     description: data.description,
+    //                     media: await helpFetch.getMedia(data, "media", headers)
+    //                 }
+    //                 result["Blitz"].WINS = BlitzWinsResult;
+    //                 return result // Return to bypass the next check
+    //             } catch (error) {
+    //                 console.log(error); break;
+    //             }
+    //         }
+    //     }
+    // }
     // Get the Blitz WINS
     for (const {key, name, id: dataID} of achievesData["BlitzWins"]) {
         let match = achievements.get(dataID);
