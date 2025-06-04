@@ -4,7 +4,6 @@ import Char from "../Models/Chars.js"; // Model
 import fetchData from "../helpers/blizFetch.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-import mongoose from "mongoose";
 
 export const characterSearchCTRL = Router();
 
