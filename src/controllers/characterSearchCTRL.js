@@ -93,16 +93,6 @@ async function updateCharacterPatch(req, res) {
             { $inc: { checkedCount: 1 } }, 
             { new: true, upsert: false, timestamps: false }
         )
-          await character.populate({
-            path: "posts", 
-            populate: {
-              path: "author",          
-              select: "username _id"   
-            }
-          })
-
-          await character.populate("listAchievements");
-          character = character.toObject();
         
     } catch (error) {
         return res.status(404).json({
@@ -133,8 +123,18 @@ async function updateCharacterPatch(req, res) {
           }, {
             new: true
           });
+
+            await patchedData.populate({
+            path: "posts", 
+            populate: {
+              path: "author",          
+              select: "username _id"   
+            }
+          })
+
+          await patchedData.populate("listAchievements");
         
-        return res.status(200).json(patchedData);
+        return res.status(200).json(patchedData.toObject());
 
     } catch (error) {
         res.status(500).json({
