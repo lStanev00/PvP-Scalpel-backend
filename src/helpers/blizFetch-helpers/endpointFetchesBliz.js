@@ -1,6 +1,7 @@
 import achievesData from "./achievesData.js";
 import { setToken, getToken } from "./tokenCache.js"
 import {delay} from "../startBGTask.js";
+import Achievement from "../../Models/Achievements.js";
 
 const helpFetch = {
     getAccessToken : async function (clientId, clientSecret) {
@@ -405,7 +406,7 @@ const helpFetch = {
 
 
 async function filterAchiev (achievements, points, headers) {
-    const start = performance.now();
+    // const start = performance.now();
     let result = {
         points: points.points, // Collected
         "2s": {
@@ -521,43 +522,30 @@ async function filterAchiev (achievements, points, headers) {
         }
     }
 
-    // let strategistChecker = undefined;
-    // try {
-    //     const URI = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.0_59095-eu&locale=en_US`
-    //     strategistChecker = await(await fetch(URI, headers)).json();
-    //     strategistChecker = (strategistChecker.achievements)
-    //         .filter(ach => ach.name.startsWith("Strategist: "))
-    //         .sort((a, b) => {
-    //             const aCheck = Number(a.name.replace("Strategist: The War Within Season ", ""));
-    //             const bCheck = Number(b.name.replace("Strategist: The War Within Season ", ""));
-                
-    //             return bCheck - aCheck;
-    //         });
-    // } catch (error) {
-    //     console.log(error);
-    //     console.log(strategistChecker)
-    // }
+    let strategistChecker = undefined;
+    try {
+        strategistChecker = await Achievement.find( { name: { $regex: "strategist", $options: "i" } });
+    } catch (error) {
+        console.log(error);
+        console.log(strategistChecker)
+    }
 
-    // if (strategistChecker) {
-    //     for (const {  key, name, id: dataID  } of strategistChecker) {
-    //         let match = achievements.get(dataID);
+    if (strategistChecker) {
+        for (const {  key, name, id: dataID, description, media  } of strategistChecker) {
+            let match = achievements.get(dataID);
 
-    //         if(match && match?.completed_timestamp) {
-    //             try {
-    //                 const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
-    //                 const BlitzWinsResult = {
-    //                     name: data.name,
-    //                     description: data.description,
-    //                     media: await helpFetch.getMedia(data, "media", headers)
-    //                 }
-    //                 result["Blitz"].WINS = BlitzWinsResult;
-    //                 return result // Return to bypass the next check
-    //             } catch (error) {
-    //                 console.log(error); break;
-    //             }
-    //         }
-    //     }
-    // }
+            if(match && match?.completed_timestamp) {
+                // const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+                const BlitzWinsResult = {
+                    name: name,
+                    description: description,
+                    media: media
+                }
+                result["Blitz"].WINS = BlitzWinsResult;
+                return result // Return to bypass the next check
+            }
+        }
+    }
     // Get the Blitz WINS
     for (const {key, name, id: dataID} of achievesData["BlitzWins"]) {
         let match = achievements.get(dataID);
@@ -575,8 +563,8 @@ async function filterAchiev (achievements, points, headers) {
                 console.log(error); break;
             }
     }
-    const end = performance.now();
-    console.log(`filterAchiev() took ${(end - start).toFixed(2)} ms`);
+    // const end = performance.now();
+    // console.log(`filterAchiev() took ${(end - start).toFixed(2)} ms`);
 
     return result
 }
