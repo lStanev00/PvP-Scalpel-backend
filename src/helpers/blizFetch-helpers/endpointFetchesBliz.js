@@ -288,16 +288,22 @@ const helpFetch = {
             data = await (await helpFetch.fetchWithLocale(href, headers)).json();
 
             const achievementsMAP = new Map();
+            const seasonalAchieves = [];
 
             for (const element of data.achievements) {
                 achievementsMAP.set(element.id, element)
-            }            
-            const result = await filterAchiev(achievementsMAP, points, headers);
+                const exist = await Achievement.findById(element.id);
+                if(exist) {
+                    const id = Number(exist.id)
+                    seasonalAchieves.push(id);
+                }
+            }
+            const result = [await filterAchiev(achievementsMAP, points, headers), seasonalAchieves];
             return result
         } catch (error) {
             console.log(data)
             console.warn(error)
-            const result = await filterAchiev(undefined, undefined, undefined);
+            const result = [await filterAchiev(undefined, undefined, undefined)];
             return result
         }
     },

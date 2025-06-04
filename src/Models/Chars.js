@@ -75,7 +75,7 @@ const CharSchema = new mongoose.Schema({
         default: [],
     }],
     listAchievements: [{
-        type: mongoose.Schema.Types.ObjectId,
+        type: Number,
         ref: Achievement,
         required: false,
     }],

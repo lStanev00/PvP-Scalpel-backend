@@ -78,7 +78,8 @@ async function fetchData(server, realm, name) {
         if (!result.rating["2v2"].record) result.rating["2v2"].record = null;
         result.rating["2v2"].record = rating2v2Record;
         result.rating["3v3"].record = rating3v3Record;
-        result.achieves = achievements;
+        result.achieves = achievements[0];
+        result.listAchievements = achievements[1];
         result.media = media;
         result.gear = gear;
         result.equipmentStats = equipmentStats;
@@ -98,4 +99,4 @@ async function fetchData(server, realm, name) {
 }
 export default fetchData
 // Example usage
-// fetchData(`eu`, `chamber-of-aspects`, `Lychezar`)
+fetchData(`eu`, `chamber-of-aspects`, `Lychezar`)
