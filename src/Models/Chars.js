@@ -78,7 +78,6 @@ const CharSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: Achievement,
         required: false,
-        default: [],
     }],
     guildInsight : {
         rank: { type: mongoose.Schema.Types.Mixed, default: undefined },
