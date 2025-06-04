@@ -388,7 +388,8 @@ const achievesData = {
             "name": "Battleground Blitz Novice",
             "id": 19411
           }
-    ]
+    ],
+    "seasonal": [`Elite`, `Duelist`, `Rival II`, "Rival I", `Challenger II`, `Challenger I`, `Combatant II`, `Combatant I`]
       
 }
 
