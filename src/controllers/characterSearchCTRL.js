@@ -4,6 +4,7 @@ import Char from "../Models/Chars.js"; // Model
 import fetchData from "../helpers/blizFetch.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
+import mongoose from "mongoose";
 
 export const characterSearchCTRL = Router();
 
@@ -25,13 +26,17 @@ async function checkCharacterGet(req, res) {
             },
             { $inc: { checkedCount: 1 } }, 
             { new: true, upsert: false, timestamps: false }
-        ).populate({
+        )
+          await character.populate({
             path: "posts", 
             populate: {
               path: "author",          
               select: "username _id"   
             }
-          }).lean();
+          })
+
+          await character.populate("listAchievements");
+          character = character.toObject();
 
         if(!character) {
             character = buildCharacter(server, realm, name, character, res);
@@ -47,13 +52,25 @@ async function checkCharacterGet(req, res) {
 
             while (patchingIDs[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
              
-            character = await Char.findById(character.id).populate({
+            let character = await Char.findOneAndUpdate(
+                {
+                    name: name,
+                    "playerRealm.slug": realm,
+                    server: server
+                },
+                { $inc: { checkedCount: 1 } }, 
+                { new: true, upsert: false, timestamps: false }
+            )
+            await character.populate({
                 path: "posts", 
                 populate: {
-                  path: "author",          
-                  select: "username _id"   
+                path: "author",          
+                select: "username _id"   
                 }
-              }).lean();
+            })
+
+            await character.populate("listAchievements");
+            character = character.toObject();
         }
         return res.status(200).json(character)
     
@@ -76,7 +93,17 @@ async function updateCharacterPatch(req, res) {
             },
             { $inc: { checkedCount: 1 } }, 
             { new: true, upsert: false, timestamps: false }
-        ).lean();
+        )
+          await character.populate({
+            path: "posts", 
+            populate: {
+              path: "author",          
+              select: "username _id"   
+            }
+          })
+
+          await character.populate("listAchievements");
+          character = character.toObject();
         
     } catch (error) {
         return res.status(404).json({
@@ -184,7 +211,7 @@ export async function buildCharacter(server, realm, name, character) { // If no 
     buildingEntries[key] = true;
     character = await fetchData(server, realm, name);
     if (character == false) return console.log(server,realm,name)
-    character.checkedCount = Number(1);
+    character.checkedCount = 1;
     try {
         const newCharacter = new Char(character);
         await newCharacter.save();
