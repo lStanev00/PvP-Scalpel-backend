@@ -3,6 +3,9 @@ dotenv.config({ path: '../../../../.env' });
 
 // PLEASE NOTE! Blizzard API have 36,000 requests per hour at a rate of 100 requests per second LIMIT!
 
+// Saving the execution time for a full update to later check if the 24hrs mark pass and make full update again
+let lastFullExecution = null;
+
 // Token storing
 let accessToken = null;
 let tokenExpiry = null; // Store the expiration timestamp
@@ -127,7 +130,8 @@ async function getAccessToken() {
   export async function updateGuildMembersData() {
     // Get and store access token and season
     accessToken = await getAccessToken()
-    let now = new Date(); 
+    const now = new Date(); 
+    const fullUpdate = checkIfShouldUpdateFull(now);
     console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
     console.log("Fetching guild roster...");
@@ -141,6 +145,7 @@ async function getAccessToken() {
   
     console.log("Fetching PvP data for each guild member...");
     let delayMS = 500;
+    if(fullUpdate) console.info(`Starting full update`);
 
     for (const member of members) {
 
@@ -149,20 +154,43 @@ async function getAccessToken() {
       // console.log(realmSlug, playerName)
       await delay(delayMS);
 
-      try {
-          const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
-            method: "PATCH"
-          });
-            if (req.status == 201) delayMS = 2000
-            else if (req.status == 200) delayMS = 500
-            else if (req.status != 200) {
-              delayMS = 1000
-              console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
-            }
-          
-      } catch (error) {
-        console.warn(error);
+      if(fullUpdate) {
+
+          try {
+              const req = await fetchDBMS(`/patchCharacter/eu/${realmSlug}/${playerName}`,{
+                method: "PATCH"
+              });
+                if (req.status == 201) delayMS = 5000
+                else if (req.status == 200) delayMS = 5000
+                else if (req.status != 200) {
+                  delayMS = 1000
+                  console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
+                }
+              
+          } catch (error) {
+            console.warn(error);
+          }
+
+
+      } else {
+
+          try {
+              const req = await fetchDBMS(`/patchPvPData/eu/${realmSlug}/${playerName}`,{
+                method: "PATCH"
+              });
+                if (req.status == 201) delayMS = 2000
+                else if (req.status == 200) delayMS = 500
+                else if (req.status != 200) {
+                  delayMS = 1000
+                  console.warn(`ERROR IN THE FETCH! RESPONSE CODE : \n ${req.status}`)
+                }
+              
+          } catch (error) {
+            console.warn(error);
+          }
+
       }
+
 
     }
 
@@ -170,8 +198,8 @@ async function getAccessToken() {
       method: "PATCH"
     });
 
-    now = new Date();
-    console.log(`Update succeed: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
+    const endNow = new Date();
+    console.log(`Update succeed: ${endNow.toLocaleDateString()} ${endNow.toLocaleTimeString()}`);
 
 
   };
@@ -195,3 +223,14 @@ async function getAccessToken() {
   // For testing, call the function that fetches data for one member only
   // getOneMemberPvPData();
   
+
+  function checkIfShouldUpdateFull (now) {
+    const twentyFourHours = 24 * 60 * 60 * 1000; // in milliseconds
+
+    if (now - lastFullExecution >= twentyFourHours || lastFullExecution === null) {
+        return true
+    } else {
+        return false
+    }
+
+  }

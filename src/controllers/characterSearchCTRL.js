@@ -95,16 +95,16 @@ async function updateCharacterPatch(req, res) {
         )
         
     } catch (error) {
-        return res.status(404).json({
-            messege: `The entry does not exist, try get on:\n/checkCharacter/${server}/${realm}/${name}`,
-        });
+        // return res.status(404).json({
+        //     messege: `The entry does not exist, try get on:\n/checkCharacter/${server}/${realm}/${name}`,
+        // });
     }
 
     if(!character) {
         character = buildCharacter(server, realm, name, character, res);
 
         if (!character) return jsonMessage(res, 404, "No character with this credentials");
-        return jsonMessage (res, 200, character);
+        return jsonResponse(res, 200, character);
 
 
     }

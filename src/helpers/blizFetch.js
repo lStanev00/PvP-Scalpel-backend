@@ -85,8 +85,6 @@ async function fetchData(server, realm, name) {
         result.equipmentStats = equipmentStats;
 
         const end = performance.now(); 
-        console.log(`blizFetch() took ${(end - start).toFixed(2)} ms`);
-        console.log(result.guildMember)
         const talentsCode = await helpFetch.getActiveTalentsCode(data.specializations.href, headers);
         result.talentCode = talentsCode;
 
