@@ -19,7 +19,7 @@ async function checkCharacterGet(req, res) {
         let character = await getCharacter(server, realm, name);
 
         if(!character) {
-            character = buildCharacter(server, realm, name, character, res);
+            character = await buildCharacter(server, realm, name, character, res);
             console.log(character)
     
             if (!character) return jsonMessage(res, 404, "No character with this credentials");
