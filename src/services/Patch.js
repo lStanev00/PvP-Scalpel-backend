@@ -168,7 +168,12 @@ async function getAccessToken() {
                 }
               
           } catch (error) {
-            console.warn(error);
+            if(error?.code !== "ECONNRESET") console.warn(error);
+            delayMS = 0;
+            await delay(60000)
+            const req = await fetchDBMS(`/patchCharacter/eu/${realmSlug}/${playerName}`,{
+                method: "PATCH"
+            });
           }
 
 
