@@ -16,33 +16,15 @@ const buildingEntries = {}
 async function checkCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
-    
-        let character = await Char.findOneAndUpdate(
-            {
-                name: name,
-                "playerRealm.slug": realm,
-                server: server
-            },
-            { $inc: { checkedCount: 1 } }, 
-            { new: true, upsert: false, timestamps: false }
-        )
-          await character.populate({
-            path: "posts", 
-            populate: {
-              path: "author",          
-              select: "username _id"   
-            }
-          })
-
-          await character.populate("listAchievements");
-          character = character.toObject();
+        let character = await getCharacter(server, realm, name);
 
         if(!character) {
             character = buildCharacter(server, realm, name, character, res);
             console.log(character)
     
             if (!character) return jsonMessage(res, 404, "No character with this credentials");
-            return jsonMessage (res, 200, character);
+            character = await getCharacter(server, realm, name);
+            return jsonResponse(res, 200, character);
     
     
         }
@@ -51,25 +33,7 @@ async function checkCharacterGet(req, res) {
 
             while (patchingIDs[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
              
-            let character = await Char.findOneAndUpdate(
-                {
-                    name: name,
-                    "playerRealm.slug": realm,
-                    server: server
-                },
-                { $inc: { checkedCount: 1 } }, 
-                { new: true, upsert: false, timestamps: false }
-            )
-            await character.populate({
-                path: "posts", 
-                populate: {
-                path: "author",          
-                select: "username _id"   
-                }
-            })
-
-            await character.populate("listAchievements");
-            character = character.toObject();
+            let character = await getCharacter(server, realm, name);
         }
         return res.status(200).json(character)
     
@@ -104,9 +68,10 @@ async function updateCharacterPatch(req, res) {
         character = buildCharacter(server, realm, name, character, res);
 
         if (!character) return jsonMessage(res, 404, "No character with this credentials");
+
+        character = await getCharacter(server, realm, name);
+
         return jsonResponse(res, 200, character);
-
-
     }
 
     const checkedCount = character.checkedCount;
@@ -221,4 +186,34 @@ export async function buildCharacter(server, realm, name, character) { // If no 
         console.log(error)
         return null;
     }
+}
+
+async function getCharacter(server, realm, name) {
+
+    let character = null;
+
+    try {
+        character = await Char.findOneAndUpdate(
+            {
+                name: name,
+                "playerRealm.slug": realm,
+                server: server
+            },
+            { $inc: { checkedCount: 1 } }, 
+            { new: true, upsert: false, timestamps: false }
+        )
+        await character.populate({
+            path: "posts", 
+            populate: {
+              path: "author",          
+              select: "username _id"   
+            }
+        })
+        await character.populate("listAchievements");
+        character = character.toObject();
+
+        
+    } catch (error) {
+    }
+    return character
 }
