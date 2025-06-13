@@ -85,8 +85,8 @@ async function fetchData(server, realm, name) {
         result.equipmentStats = equipmentStats;
 
         const end = performance.now(); 
-        const talentsCode = await helpFetch.getActiveTalentsCode(data.specializations.href, headers);
-        result.talentCode = talentsCode;
+        const talent = await helpFetch.getActiveTalentsCode(data.specializations.href, headers);
+        result.talents = talent;
 
 
         return result;

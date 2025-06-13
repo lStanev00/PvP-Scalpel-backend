@@ -82,7 +82,10 @@ const CharSchema = new mongoose.Schema({
         rank: { type: mongoose.Schema.Types.Mixed, default: undefined },
         rankNumber : { type: mongoose.Schema.Types.Mixed, default: undefined },
     },
-    talentCode: {type: String, default: null},
+    talents: {
+        talentsCode: {type: String, default: null},
+        talentsSpec: {type: String, default: null},
+    },
 }, { timestamps: true });
 
 CharSchema.virtual("posts", {
