@@ -395,12 +395,17 @@ const helpFetch = {
 
             if (req.ok) {
                 const data = await req.json();
+                const activeSpecTalent = data?.active_hero_talent_tree?.name;
                 const specId = data.active_specialization.id;
                 const activeSpecData = data.specializations.find(specDetails => specDetails.specialization.id == specId);
                 const activeLoadout = activeSpecData.loadouts.find(loadout => loadout.is_active == true);
 
-                if (activeLoadout) return activeLoadout.talent_loadout_code;
+                const result = {};
 
+                result.talentsCode = activeLoadout ? activeLoadout.talent_loadout_code : null;
+                result.talentsSpec = activeSpecTalent ? activeSpecTalent : null;
+
+                return result
             }
         } catch (error) {
             console.warn(error);
