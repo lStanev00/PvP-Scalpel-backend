@@ -407,6 +407,22 @@ const helpFetch = {
             return undefined
             
         }
+    },
+    getTalentSpec: async function (href, headers) {
+        try {
+            const req = await this.fetchWithLocale(href, headers);
+            
+            if(req.ok){
+                const data = await req.json();
+                const talentString = data?.active_hero_talent_tree?.name;
+                
+                return talentString ? talentString : null;
+
+            }
+        } catch (error) {
+            console.warn(error);
+        }
+        return null;
     }
 }
 
