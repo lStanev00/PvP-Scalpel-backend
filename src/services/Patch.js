@@ -133,6 +133,7 @@ async function getAccessToken() {
     accessToken = await getAccessToken()
     const now = new Date(); 
     const fullUpdate = checkIfShouldUpdateFull(now);
+    console.info(`Full update? = ${fullUpdate}`)
     console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
     console.log("Fetching guild roster...");
@@ -230,13 +231,11 @@ async function getAccessToken() {
   // getOneMemberPvPData();
   
 
-  function checkIfShouldUpdateFull (now) {
-    const twentyFourHours = 24 * 60 * 60 * 1000; // in milliseconds
+function checkIfShouldUpdateFull(now) {
+    const twentyFourHours = 24 * 60 * 60 * 1000;
 
-    if (now - lastFullExecution >= twentyFourHours || lastFullExecution === null) {
-        return true
-    } else {
-        return false
-    }
+    const nowMS = now.getTime();
+    const lastMS = lastFullExecution ? lastFullExecution.getTime() : 0;
 
-  }
+    return (nowMS - lastMS >= twentyFourHours);
+}

@@ -46,6 +46,6 @@ app.use(`/`, router);
 
 app.listen(port, console.info(`Server's running at http://localhost:${port} or https://api.pvpscalpel.com`));
 
-await startBackgroundTask(updateGuildMembersData, 3600000);
+await startBackgroundTask(updateGuildMembersData, 10800000);
 await delay(1000);
 await startBackgroundTask(updateDBAchieves, 604800000); // 1 week
