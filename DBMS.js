@@ -9,7 +9,7 @@ import { updateGuildMembersData } from "./src/services/Patch.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
 
 const app = express();
-const port = 59534;
+const port = process.env.PORT || 8080;
 
 app.disable("x-powered-by");
 app.set('trust proxy', true);
