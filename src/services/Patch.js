@@ -71,7 +71,8 @@ async function blizzFetch(endpoint, playerName, bracket, retries = 3) {
 
   async function fetchDBMS(endpoint, options = {}) {
     // const apiDomain = "https://api.pvpscalpel.com";
-    const url = `http://localhost:59534`
+    const port = process.env.PORT || 8080;
+    const url = `http://localhost:${port}`
     const defaultOptions = {
   
         // credentials: "include", // always include cookies
