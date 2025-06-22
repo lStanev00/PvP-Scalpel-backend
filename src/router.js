@@ -10,7 +10,7 @@ import userActionCTRL from "./controllers/userActionsCTRL.js";
 const router = Router();
 
 // router.use(`*`, (req,res, next) => {console.log(`ROUTING`); next()});
-router.use(`*`, authMiddleware);
+router.use('/', authMiddleware);
 router.use(`/`, authController);
 router.use(`/`, memberCtrl);
 router.use(`/`, LDBController);

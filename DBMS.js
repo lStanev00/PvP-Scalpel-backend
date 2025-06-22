@@ -38,7 +38,7 @@ app.use(cors({
   origin: true,
   credentials: true
 }));
-app.options('*', cors()); // enable pre-flight for all routes
+app.options(/^\/(.*)/, cors()); // enable pre-flight for all routes
 app.use(cookieParser());
 app.use(express.json({ extended: false }));
 app.use(`/`, router);
