@@ -44,7 +44,7 @@ app.use(express.json({ extended: false }));
 app.use(`/`, router);
 
 
-app.listen(port, console.log(`Server's running at http://localhost:${port} or https://api.pvpscalpel.com`));
+app.listen(port, console.info(`Server's running at http://localhost:${port} or https://api.pvpscalpel.com`));
 
 await startBackgroundTask(updateGuildMembersData, 3600000);
 await delay(1000);
