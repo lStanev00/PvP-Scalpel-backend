@@ -32,7 +32,7 @@ async function checkCharacterGet(req, res) {
 
             while (patchingIDs[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
              
-            let character = await getCharacter(server, realm, name);
+            character = await getCharacter(server, realm, name);
         }
         return res.status(200).json(character)
     
