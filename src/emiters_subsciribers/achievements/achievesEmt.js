@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import Achievement from "../../Models/Achievements";
+import Achievement from "../../Models/Achievements.js";
 
 const emitter = new EventEmitter();
 
