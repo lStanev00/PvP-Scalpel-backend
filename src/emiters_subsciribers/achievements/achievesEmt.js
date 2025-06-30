@@ -9,7 +9,7 @@ export function getSeasonalIds() {
     return seasonalIdsMap
 }
 
-export async function setSeasonalIds() {
+export async function setSeasonalIdsMap() {
     const newMap = await mapDBAchieves()
 
     if(newMap !== null){
