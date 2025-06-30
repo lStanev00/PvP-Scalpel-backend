@@ -198,9 +198,9 @@ export async function findChar(server, realm, name) {
                     console.warn(error)
                 }
             }
-            if (character.name == name) {
-                console.info(name)
-            }
+            // if (character.name == name) {
+            //     console.info(name)
+            // }
             continue
         } else {
             
