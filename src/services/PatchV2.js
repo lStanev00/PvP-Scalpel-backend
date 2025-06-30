@@ -166,7 +166,6 @@ export async function findChar(server, realm, name) {
   
     console.log("Fetching PvP data for each guild member...");
     let delayMS = 500;
-    if(fullUpdate) console.info(`Starting full update`);
 
     for (const member of members) {
         
