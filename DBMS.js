@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import { delay, startBackgroundTask } from "./src/helpers/startBGTask.js";
 import { updateGuildMembersData } from "./src/services/PatchV2.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
+import { setSeasonalIdsMap } from "./src/emiters_subsciribers/achievements/achievesEmt.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -46,6 +47,6 @@ app.use(`/`, router);
 
 app.listen(port, console.info(`Server's running at http://localhost:${port} or https://api.pvpscalpel.com`));
 
-await startBackgroundTask(updateGuildMembersData, 10800000);
-await delay(1000);
-await startBackgroundTask(updateDBAchieves, 604800000); // 1 week
+await setSeasonalIdsMap();
+startBackgroundTask(updateGuildMembersData, 10800000);
+startBackgroundTask(updateDBAchieves, 604800000); // 1 week
