@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js';
 import { performance } from 'perf_hooks';
+import measure from './mesure.js';
 
 dotenv.config({ path: '../../.env' });
 
@@ -46,27 +47,69 @@ async function fetchData(server, realm, name) {
         
         if (data?.guild?.name == "PvP Scalpel") result.guildMember = true;
         // Fetch dependent data in parallel
-        const [
-            classMedia,
-            activeSpecMedia,
-            rating,
-            rating2v2Record,
-            rating3v3Record,
-            achievements,
-            media,
-            gear,
-            equipmentStats
-        ] = await Promise.all([
-            helpFetch.getMedia(data, 'character_class', headers),
-            helpFetch.getMedia(data, 'active_spec', headers),
-            helpFetch.getRating(data.pvp_summary.href, headers, currentSeasonIndex),
-            helpFetch.getAchievById(data.achievements_statistics.href, headers, 370),
-            helpFetch.getAchievById(data.achievements_statistics.href, headers, 595),
-            helpFetch.getAchievXP(data.achievements.href, headers, result.achieves),
-            helpFetch.getCharMedia(data.media.href, headers),
-            helpFetch.getCharGear(data.equipment.href, headers),
-            helpFetch.getStats(data.statistics.href, headers)
-        ]);
+        // const [
+        //     classMedia,
+        //     activeSpecMedia,
+        //     rating,
+        //     rating2v2Record,
+        //     rating3v3Record,
+        //     achievements,
+        //     media,
+        //     gear,
+        //     equipmentStats
+        // ] = await Promise.all([
+        //     helpFetch.getMedia(data, 'character_class', headers),
+        //     helpFetch.getMedia(data, 'active_spec', headers),
+        //     helpFetch.getRating(data.pvp_summary.href, headers, currentSeasonIndex),
+        //     helpFetch.getAchievById(data.achievements_statistics.href, headers, 370),
+        //     helpFetch.getAchievById(data.achievements_statistics.href, headers, 595),
+        //     helpFetch.getAchievXP(data.achievements.href, headers, result.achieves),
+        //     helpFetch.getCharMedia(data.media.href, headers),
+        //     helpFetch.getCharGear(data.equipment.href, headers),
+        //     helpFetch.getStats(data.statistics.href, headers)
+        // ]);
+
+    const classMedia       = await measure(
+        "getMedia(character_class)",
+        () => helpFetch.getMedia(data, 'character_class', headers)
+    );
+    const activeSpecMedia  = await measure(
+        "getMedia(active_spec)",
+        () => helpFetch.getMedia(data, 'active_spec', headers)
+    );
+    const rating           = await measure(
+        "getRating(pvp_summary)",
+        () => helpFetch.getRating(data.pvp_summary.href, headers, currentSeasonIndex)
+    );
+    const rating2v2Record  = await measure(
+        "getAchievById(370)",
+        () => helpFetch.getAchievById(data.achievements_statistics.href, headers, 370)
+    );
+    const rating3v3Record  = await measure(
+        "getAchievById(595)",
+        () => helpFetch.getAchievById(data.achievements_statistics.href, headers, 595)
+    );
+    const achievements     = await measure(
+        "getAchievXP",
+        () => helpFetch.getAchievXP(data.achievements.href, headers, result.achieves)
+    );
+    const media            = await measure(
+        "getCharMedia",
+        () => helpFetch.getCharMedia(data.media.href, headers)
+    );
+    const gear             = await measure(
+        "getCharGear",
+        () => helpFetch.getCharGear(data.equipment.href, headers)
+    );
+    const equipmentStats   = await measure(
+        "getStats",
+        () => helpFetch.getStats(data.statistics.href, headers)
+);
+
+
+
+
+        
 
         // Assign fetched values to result
         result.class.media = classMedia;
@@ -87,6 +130,7 @@ async function fetchData(server, realm, name) {
         const end = performance.now(); 
         const talent = await helpFetch.getActiveTalentsCode(data.specializations.href, headers);
         result.talents = talent;
+        console.log(`Elapsed: ${end - start} ms`);
 
 
         return result;
