@@ -64,7 +64,7 @@ async function updateCharacterPatch(req, res) {
     }
 
     if(!character) {
-        character = buildCharacter(server, realm, name, character, res);
+        character = await buildCharacter(server, realm, name, character, res);
 
         if (!character) return jsonMessage(res, 404, "No character with this credentials");
 
@@ -151,6 +151,7 @@ async function patchPvPData(req, res) {
 
 export async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
     const key = `${server + realm + name}`;
+    console.log(`Hello ${name}`)
     if (buildingEntries[key]) {
 
         while (buildingEntries[key]) {
@@ -174,7 +175,7 @@ export async function buildCharacter(server, realm, name, character) { // If no 
     buildingEntries[key] = true;
     character = await fetchData(server, realm, name);
     if (character == false) return console.log(server,realm,name)
-    character.checkedCount = 1;
+    character.checkedCount = 0;
     try {
         const newCharacter = new Char(character);
         await newCharacter.save();
@@ -187,7 +188,7 @@ export async function buildCharacter(server, realm, name, character) { // If no 
     }
 }
 
-async function getCharacter(server, realm, name) {
+export async function getCharacter(server, realm, name) {
 
     let character = null;
 
