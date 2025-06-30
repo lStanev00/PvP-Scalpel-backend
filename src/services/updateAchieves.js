@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
 import helpFetch from '../helpers/blizFetch-helpers/endpointFetchesBliz.js';
 import Achievement from '../Models/Achievements.js';
+import { getSeasonalIdsMap, setSeasonalIdsMap } from '../emiters_subsciribers/achievements/achievesEmt.js';
+import { delay } from '../helpers/startBGTask.js';
 
 const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
@@ -22,21 +24,23 @@ const buildHeaders = async () => {
 
 export default async function updateDBAchieves() {
     const headers = await buildHeaders();
-
+    
+    
     const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.5_60179-eu`;
-
     
     try {
+        await setSeasonalIdsMap()
         const req = await helpFetch.fetchWithLocale(feastOfStrengthURL, headers);
 
         if (req.status == 200){
             const data = await req.json();
             const achievements = data?.achievements;
+            const storedAches = getSeasonalIdsMap();
 
             if (achievements) {
                 for (const achievement of achievements) {
-
-                    const exist = await Achievement.findById(achievement.id);
+                    const stringId = String(achievement.id);
+                    const exist = storedAches.get(stringId);
 
                     if (exist) {
 
@@ -112,6 +116,8 @@ export default async function updateDBAchieves() {
 
                 }
             }
+            await delay(2000);
+            await setSeasonalIdsMap()
         }
         
     } catch (error) {
