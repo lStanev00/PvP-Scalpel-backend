@@ -165,9 +165,8 @@ export async function findChar(server, realm, name) {
   
     let delayMS = 500;
     const updateDoc = {
-        $set: {
-            running: false
-        }
+        $set:  { running: false },
+        $push: {}
     };
 
     for (const member of members) {
@@ -233,11 +232,11 @@ export async function findChar(server, realm, name) {
         updateDoc.$push.msRecords = runtimeMS
 
         const serviceUpdate = await Service.findOneAndUpdate( { service: "PatchPvP" }, updateDoc, { new: true } )
-        console.log(`Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()}`);
+        console.log(`[PatchPvP] Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()}`);
     
         return serviceUpdate;
     } catch (error) {
-
+        console.warn(error)
         return null;
         
     }
