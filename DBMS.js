@@ -5,7 +5,7 @@ import router from "./src/router.js";
 import cors from 'cors'
 import cookieParser from "cookie-parser";
 import { delay, startBackgroundTask } from "./src/helpers/startBGTask.js";
-import { updateGuildMembersData } from "./src/services/Patch.js";
+import { updateGuildMembersData } from "./src/services/PatchV2.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
 
 const app = express();
