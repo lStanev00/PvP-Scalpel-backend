@@ -3,17 +3,17 @@ import Achievement from "../../Models/Achievements";
 
 const emitter = new EventEmitter();
 
-let seasonalIds = null;
+let seasonalIdsMap = null;
 
 export function getSeasonalIds() {
-    return seasonalIds
+    return seasonalIdsMap
 }
 
 export async function setSeasonalIds() {
     const newMap = await mapDBAchieves()
 
     if(newMap !== null){
-        seasonalIds = newMap;
+        seasonalIdsMap = newMap;
         emitter.emit('update', newMap);
     }
 
