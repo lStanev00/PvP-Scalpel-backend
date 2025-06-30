@@ -2,6 +2,7 @@ import achievesData from "./achievesData.js";
 import { setToken, getToken } from "./tokenCache.js"
 import {delay} from "../startBGTask.js";
 import Achievement from "../../Models/Achievements.js";
+import { getSeasonalIdsMap } from "../../emiters_subsciribers/achievements/achievesEmt.js";
 
 const helpFetch = {
     getAccessToken : async function (clientId, clientSecret) {
@@ -289,12 +290,14 @@ const helpFetch = {
 
             const achievementsMAP = new Map();
             const seasonalAchieves = [];
+            const cachedMap = getSeasonalIdsMap();
 
             for (const element of data.achievements) {
                 achievementsMAP.set(element.id, element)
-                const exist = await Achievement.findById(element.id);
+                const stringID = String(element.id)
+                const exist = cachedMap.get(stringID)
                 if(exist) {
-                    const id = Number(exist.id)
+                    const id = Number(exist._id)
                     seasonalAchieves.push(id);
                 }
             }
