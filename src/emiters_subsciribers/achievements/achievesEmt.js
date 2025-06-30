@@ -5,7 +5,7 @@ const emitter = new EventEmitter();
 
 let seasonalIdsMap = null;
 
-export function getSeasonalIds() {
+export function getSeasonalIdsMap() {
     return seasonalIdsMap
 }
 
