@@ -14,6 +14,7 @@ export async function setSeasonalIdsMap() {
 
     if(newMap !== null){
         seasonalIdsMap = newMap;
+        console.info("[Achieves Cache] Achieves just got cached")
         emitter.emit('update', newMap);
     }
 
