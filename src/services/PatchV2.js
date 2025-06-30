@@ -152,20 +152,23 @@ export async function findChar(server, realm, name) {
     accessToken = await getAccessToken()
     const now = new Date(); 
     const fullUpdate = await checkIfShouldUpdateFull();
-    console.info(`Full update? = ${fullUpdate}`)
-    console.log(`Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
+    console.info(`[PatchPvP] Full update? = ${fullUpdate}`)
+    console.log(`[PatchPvP] Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
-    console.log("Fetching guild roster...");
     const guildRoster = await blizzFetch(`/data/wow/guild/${GUILD_REALM}/${GUILD_NAME}/roster?`, "Guild", "Roster");
   
     if (!guildRoster || !guildRoster.members) {
-      throw new Error("Failed to fetch guild roster.");
+      throw new Error("[PatchPvP] Failed to fetch guild roster.");
     }
   
     const members = guildRoster.members;
   
-    console.log("Fetching PvP data for each guild member...");
     let delayMS = 500;
+    const updateDoc = {
+        $set: {
+            running: false
+        }
+    };
 
     for (const member of members) {
         
@@ -179,7 +182,7 @@ export async function findChar(server, realm, name) {
         
         if(fullUpdate) {
             if(!character) {
-                console.warn(`The character update failed with credentials:\n${server} ${realm} ${name}`)
+                console.warn(`[PatchPvP] The character update failed with credentials:\n${server} ${realm} ${name}`)
             } else {
     
                 const checkedCount = character.checkedCount;
@@ -223,22 +226,13 @@ export async function findChar(server, realm, name) {
     const runtimeMS  = endNow.getTime() - now.getTime();
 
     try {
-        
-        const serviceUpdate = await Service.findOneAndUpdate(
-            {
-                service: "PatchPvP"
-            }, {
-                $set: {
-                    lastRun: endNow,
-                    running: false
-                },
-                $push: {
-                    msRecords: runtimeMS
-                }
-            }, {
-                new: true
-            }
-        )
+
+        if (fullUpdate) {
+            updateDoc.$set.lastRun = endNow;
+        }
+        updateDoc.$push.msRecords = runtimeMS
+
+        const serviceUpdate = await Service.findOneAndUpdate( { service: "PatchPvP" }, updateDoc, { new: true } )
         console.log(`Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()}`);
     
         return serviceUpdate;
