@@ -263,7 +263,7 @@ export async function findChar(server, realm, name) {
   
 
 async function checkIfShouldUpdateFull() {
-    const twentyFourHours = 24 * 60 * 60 * 1000;
+    const twentyFourHours = 12 * 60 * 60 * 1000;
     const nowMS = new Date().getTime();
     let serviceData = undefined;
 
