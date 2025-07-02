@@ -607,7 +607,7 @@ async function formatGearData(apiResponse, headers) {
 
         // Handle mismatches in slot names between API and schema
         const slotMap = {
-            "cloak": "clock",
+            "back": "back",
             "main_hand": "wep",
             "off_hand": "offHand",
             "finger_1": "ring1",
