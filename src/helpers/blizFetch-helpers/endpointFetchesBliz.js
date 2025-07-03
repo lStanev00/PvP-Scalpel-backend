@@ -2,7 +2,7 @@ import achievesData from "./achievesData.js";
 import { setToken, getToken } from "./tokenCache.js"
 import {delay} from "../startBGTask.js";
 import Achievement from "../../Models/Achievements.js";
-import { getSeasonalIdsMap } from "../../emiters_subsciribers/achievements/achievesEmt.js";
+import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../emiters_subsciribers/achievements/achievesEmt.js";
 
 const helpFetch = {
     getAccessToken : async function (clientId, clientSecret) {
@@ -290,7 +290,13 @@ const helpFetch = {
 
             const achievementsMAP = new Map();
             const seasonalAchieves = [];
-            const cachedMap = getSeasonalIdsMap();
+            let cachedMap = getSeasonalIdsMap();
+
+            if(cachedMap === null) {
+                await setSeasonalIdsMap()
+                await delay(2000);
+                cachedMap = getSeasonalIdsMap();
+            }
 
             for (const element of data.achievements) {
                 achievementsMAP.set(element.id, element)
@@ -651,6 +657,10 @@ async function formatGearData(apiResponse, headers) {
                   }
                 : null,
         };
+        if (item.spells) {
+            gear[slot].spells = item.spells
+        }
+
     }
 
     return gear;
