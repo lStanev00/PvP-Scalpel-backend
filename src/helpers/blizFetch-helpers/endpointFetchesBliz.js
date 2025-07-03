@@ -662,10 +662,6 @@ async function formatGearData(apiResponse, headers) {
             gear[slot].spells = item.spells
         }
 
-        if (item.enchantments) {
-            console.log(item.enchantments)
-        }
-
     }
 
     return gear;
