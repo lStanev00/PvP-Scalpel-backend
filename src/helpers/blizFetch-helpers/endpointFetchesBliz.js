@@ -607,66 +607,83 @@ async function filterAchiev (achievements, points, headers) {
 
 async function formatGearData(apiResponse, headers) {
     const gear = {};
-    console.log(apiResponse.equipped_items)
+    // console.log(apiResponse.equipped_items)
 
     for (const item of apiResponse.equipped_items) {
-        let slot = item.slot.type.toLowerCase();
+        try {
+            
+            let slot = item.slot.type.toLowerCase();
+    
+            // Handle mismatches in slot names between API and schema
+            const slotMap = {
+                "back": "back",
+                "main_hand": "wep",
+                "off_hand": "offHand",
+                "finger_1": "ring1",
+                "finger_2": "ring2",
+                "trinket_1": "trinket1",
+                "trinket_2": "trinket2",
+            };
+            slot = slotMap[slot] || slot;
+    
+            const media = await helpFetch.getMedia(item, "media", headers);
 
-        // Handle mismatches in slot names between API and schema
-        const slotMap = {
-            "back": "back",
-            "BACK": "back",
-            "Back": "back",
-            "main_hand": "wep",
-            "off_hand": "offHand",
-            "finger_1": "ring1",
-            "finger_2": "ring2",
-            "trinket_1": "trinket1",
-            "trinket_2": "trinket2",
-        };
-        slot = slotMap[slot] || slot;
+            let sockets = [];
 
-        const media = await helpFetch.getMedia(item, "media", headers);
+            try {
+                sockets = item.sockets
+                    ? await Promise.all(
+                        item.sockets.map(async (socket) => {
+                            if (!socket?.item) {
+                                return undefined;
+                            }
 
-        const sockets = item.sockets
-            ? await Promise.all(
-                  item.sockets.map(async (socket) => ({
-                      gemName: socket.item.name,
-                      gemId: socket.item.id,
-                      media: await helpFetch.getMedia(socket, "media", headers),
-                      bonus: socket.display_string,
-                  }))
-              )
-            : [];
-
-        gear[slot] = {
-            name: item.name,
-            id: item.item.id,
-            media,
-            level: item.level?.value || 0,
-            stats: item.stats?.map((stat) => ({
-                type: stat.type.name,
-                value: stat.value,
-            })) || [],
-            sockets,
-            enchantments: item.enchantments?.map((enchant) => ({
-                name: enchant?.source_item?.name,
-                description: enchant.display_string,
-                id: enchant.enchantment_id,
-            })) || [],
-            transmog: item.transmog
-                ? {
-                      name: item.transmog.item.name,
-                      id: item.transmog.item.id,
-                  }
-                : null,
-        };
-        if (item.spells) {
-            gear[slot].spells = item.spells
+                            return {
+                                gemName: socket.item.name,
+                                gemId: socket.item.id,
+                                media: await helpFetch.getMedia(socket, "media", headers),
+                                bonus: socket.display_string,
+                            };
+                        })
+                    )
+                    : [];
+            } catch (error) {
+                
+            }
+    
+    
+            gear[slot] = {
+                name: item.name,
+                id: item.item.id,
+                media,
+                level: item.level?.value || 0,
+                stats: item.stats?.map((stat) => ({
+                    type: stat.type.name,
+                    value: stat.value,
+                })) || [],
+                sockets,
+                enchantments: item.enchantments?.map((enchant) => ({
+                    name: enchant?.source_item?.name,
+                    description: enchant.display_string,
+                    id: enchant.enchantment_id,
+                })) || [],
+                transmog: item.transmog
+                    ? {
+                          name: item.transmog.item.name,
+                          id: item.transmog.item.id,
+                      }
+                    : null,
+            };
+            if (item.spells) {
+                gear[slot].spells = item.spells
+            }
+        } catch (error) {
+            console.warn(error)
         }
 
-    }
 
+
+    }
     return gear;
 }
 

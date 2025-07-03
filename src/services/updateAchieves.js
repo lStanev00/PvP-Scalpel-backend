@@ -29,13 +29,17 @@ export default async function updateDBAchieves() {
     const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.5_60179-eu`;
     
     try {
-        await setSeasonalIdsMap()
         const req = await helpFetch.fetchWithLocale(feastOfStrengthURL, headers);
 
         if (req.status == 200){
             const data = await req.json();
             const achievements = data?.achievements;
-            const storedAches = getSeasonalIdsMap();
+            let storedAches = getSeasonalIdsMap();
+            if(storedAches === null) {
+                await setSeasonalIdsMap()
+                await delay(2000);
+                storedAches = getSeasonalIdsMap();
+            }
 
             if (achievements) {
                 for (const achievement of achievements) {
