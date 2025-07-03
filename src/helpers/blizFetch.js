@@ -135,4 +135,4 @@ async function fetchData(server, realm, name) {
 }
 export default fetchData
 // Example usage
-fetchData(`eu`, `chamber-of-aspects`, `Lychezar`)
+// fetchData(`eu`, `chamber-of-aspects`, `Jinada`)

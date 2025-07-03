@@ -607,6 +607,7 @@ async function filterAchiev (achievements, points, headers) {
 
 async function formatGearData(apiResponse, headers) {
     const gear = {};
+    console.log(apiResponse.equipped_items)
 
     for (const item of apiResponse.equipped_items) {
         let slot = item.slot.type.toLowerCase();
@@ -614,6 +615,8 @@ async function formatGearData(apiResponse, headers) {
         // Handle mismatches in slot names between API and schema
         const slotMap = {
             "back": "back",
+            "BACK": "back",
+            "Back": "back",
             "main_hand": "wep",
             "off_hand": "offHand",
             "finger_1": "ring1",
