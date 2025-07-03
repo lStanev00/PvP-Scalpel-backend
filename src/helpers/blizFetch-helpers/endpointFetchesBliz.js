@@ -647,6 +647,7 @@ async function formatGearData(apiResponse, headers) {
             })) || [],
             sockets,
             enchantments: item.enchantments?.map((enchant) => ({
+                name: enchant?.source_item?.name,
                 description: enchant.display_string,
                 id: enchant.enchantment_id,
             })) || [],
@@ -659,6 +660,10 @@ async function formatGearData(apiResponse, headers) {
         };
         if (item.spells) {
             gear[slot].spells = item.spells
+        }
+
+        if (item.enchantments) {
+            console.log(item.enchantments)
         }
 
     }
