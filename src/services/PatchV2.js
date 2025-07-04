@@ -130,6 +130,20 @@ async function getAccessToken() {
     }
 }
 
+const guildRanks = {
+    0: "Warlord",
+    1: "Council",
+    2: "Vanguard",
+    3: "Envoy",
+    4: "Champion",
+    5: "Gladiator",
+    6: "Slayer",
+    7: "Striker",
+    8: "Alt/Twink",
+    9: "Initiate"
+};
+
+
 export async function findChar(server, realm, name) {
     let character = undefined;
     
@@ -190,6 +204,10 @@ export async function findChar(server, realm, name) {
                 try {
                     const updatedData = await fetchData(server, realm, name);
                     updatedData.checkedCount = checkedCount;
+                    updatedData.guildInsight = {
+                      rank: guildRanks?.[member?.rank] || "Initiate",
+                      rankNumber: member?.rank || 0
+                    }
                         character = await Char.findByIdAndUpdate(charID, {
                             $set: updatedData
                         }, {new: true}
@@ -263,7 +281,7 @@ export async function findChar(server, realm, name) {
   
 
 async function checkIfShouldUpdateFull() {
-    const twentyFourHours = 12 * 60 * 60 * 1000;
+    const sixHours = 6 * 60 * 60 * 1000;
     const nowMS = new Date().getTime();
     let serviceData = undefined;
 
@@ -295,5 +313,5 @@ async function checkIfShouldUpdateFull() {
 
     const lastMS = lastRun ? lastRun.getTime() : 0;
 
-    return (nowMS - lastMS >= twentyFourHours);
+    return (nowMS - lastMS >= sixHours);
 }
