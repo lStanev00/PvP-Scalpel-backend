@@ -2,7 +2,7 @@ import achievesData from "./achievesData.js";
 import { setToken, getToken } from "./tokenCache.js"
 import {delay} from "../startBGTask.js";
 import Achievement from "../../Models/Achievements.js";
-import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../emiters_subsciribers/achievements/achievesEmt.js";
+import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../caching/achievements/achievesEmt.js";
 
 const helpFetch = {
     getAccessToken : async function (clientId, clientSecret) {
