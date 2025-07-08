@@ -3,9 +3,16 @@ import { setToken, getToken } from "./tokenCache.js"
 import {delay} from "../startBGTask.js";
 import Achievement from "../../Models/Achievements.js";
 import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../caching/achievements/achievesEmt.js";
+import dotenv from 'dotenv';
+dotenv.config({ path: '../../../.env' });
+
+const clientId = process.env.CLIENT_ID;
+const clientSecret = process.env.CLIENT_SECRET;
+
+
 
 const helpFetch = {
-    getAccessToken : async function (clientId, clientSecret) {
+    getAccessToken : async function () {
         const tokenUrl = 'https://eu.battle.net/oauth/token';
 
         const cachedToken = getToken(); // Check if the token is cached and valid
@@ -36,34 +43,34 @@ const helpFetch = {
             throw error;
         }
     },
-    getCharProfile: async function (server, realm , name, headers ) {
+    getCharProfile: async function (server, realm , name) {
         const URI = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}?namespace=profile-${server}&locale=en_US`;
         try {
-            const data = await (await fetch(URI, headers)).json();
+            const data = await (await this.fetchBlizzard(URI)).json();
             return data
         } catch (error) {
             console.log(error)
         }
 
     },
-    getMedia : async function (data, path, headers) {
+    getMedia : async function (data, path) {
         if (data?.code === 404 ) return null;
         let data1;
         try {
 
             try {
-                data1 = await(await fetch(data[path].key.href, headers)).json();
+                data1 = await(await this.fetchBlizzard(data[path].key.href)).json();
             } catch (error) {
                 await delay(500);
                 try {
-                    data1 = await(await fetch(data[path].key.href, headers)).json();
+                    data1 = await(await this.fetchBlizzard(data[path].key.href)).json();
                 } catch (error) {
                     await delay(200);
-                    data1 = await(await fetch(data[path].key.href, headers)).json();
+                    data1 = await(await this.fetchBlizzard(data[path].key.href)).json();
                 }
             }
             try {
-                const data2 = await ( await fetch(data1.media.key.href, headers)).json();
+                const data2 = await ( await this.fetchBlizzard(data1.media.key.href)).json();
                 return data2 ? data2.assets[0].value : undefined
                 
             } catch (error) {
@@ -77,7 +84,7 @@ const helpFetch = {
         }
 
     },
-    getRating: async function(path, headers, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
+    getRating: async function(path, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
         try {
             const bracketsCheatSheet = {
                 "SHUFFLE": `solo`,
@@ -98,18 +105,10 @@ const helpFetch = {
 
                 const accessToken =  await this.getAccessToken(clientId, clientSecret);
 
-                headers = {
-                    headers: {
-                      Authorization: `Bearer ${accessToken}`, 
-                      'Cache-Control': 'no-cache',  
-                      'Pragma': 'no-cache',
-                    },
-                };
-
-                currentSeasonIndex = await this.getCurrentPvPSeasonIndex(headers);
+                currentSeasonIndex = await this.getCurrentPvPSeasonIndex();
                 
             }
-            let brackets = (await (await fetch(path, headers)).json()).brackets;
+            let brackets = (await (await this.fetchBlizzard(path)).json()).brackets;
             if (brackets == undefined) return {
                 solo: {
                 },
@@ -141,7 +140,7 @@ const helpFetch = {
                 }
             }
             const bracketFetches = brackets.map(bracket =>
-                fetch(bracket.href, headers).then(res => { return  res.json()})
+                this.fetchBlizzard(bracket.href).then(res => { return  res.json()})
             );
             const allBracketsData = await Promise.all(bracketFetches);
 
@@ -155,7 +154,7 @@ const helpFetch = {
     
                 const currentBracket = data.bracket.type;
                 // const lastSeasonLadderPromise = helpFetch.getpastRate(pastSeasonCheckURL, name, headers);
-                const titlePromise = helpFetch.getPvPTitle(data.tier.key.href, headers);
+                const titlePromise = helpFetch.getPvPTitle(data.tier.key.href);
     
                 // const [lastSeasonLadder, title] = await Promise.all([lastSeasonLadderPromise, titlePromise]);
                 const title = await titlePromise;
@@ -226,13 +225,13 @@ const helpFetch = {
             }
         }
     },
-    getPvPTitle: async function (href, headers) {
+    getPvPTitle: async function (href) {
         try {
-            const data = await (await fetch(href, headers)).json();
+            const data = await (await this.fetchBlizzard(href)).json();
             if (data?.code == 404 ) return undefined;
             let result = {
                 name: data.name.en_GB,
-                media: await helpFetch.getMedia(data, `media`, headers)
+                media: await helpFetch.getMedia(data, `media`)
             }
             return result
         } catch (error) {
@@ -240,10 +239,10 @@ const helpFetch = {
             return undefined
         }
     },
-    getpastRate: async function (url, playerName, headers) {
+    getpastRate: async function (url, playerName) {
         let data;
         try {
-            data = await (await fetch(url, headers)).json()
+            data = await (await this.fetchBlizzard(url)).json()
         } catch (error) {
             console.warn(`BAD FETCH`);
         }
@@ -264,10 +263,10 @@ const helpFetch = {
             lastSeasonRating: player.rating
         }
     },
-    getAchievById : async function (href, headers, statId) {
+    getAchievById : async function (href, statId) {
         let data
         try {
-            data = await(await fetch(href ,headers)).json();
+            data = await(await this.fetchBlizzard(href)).json();
         } catch (error) {
             console.warn(`Error fetchng!`)
             return 0
@@ -283,10 +282,10 @@ const helpFetch = {
         }
         return 0 // Keep 0 if not found
     },
-    getAchievXP: async function (href, headers, points) {
+    getAchievXP: async function (href, points) {
         let data;
         try {
-            data = await (await helpFetch.fetchWithLocale(href, headers)).json();
+            data = await (await helpFetch.fetchBlizzard(href)).json();
 
             const achievementsMAP = new Map();
             const seasonalAchieves = [];
@@ -307,7 +306,7 @@ const helpFetch = {
                     seasonalAchieves.push(id);
                 }
             }
-            const result = [await filterAchiev(achievementsMAP, points, headers), seasonalAchieves];
+            const result = [await filterAchiev(achievementsMAP, points), seasonalAchieves];
             return result
         } catch (error) {
             console.log(data)
@@ -319,12 +318,39 @@ const helpFetch = {
     fetchWithLocale: async function (url, options = {}) {
         let apiUrl = new URL(url);
         apiUrl.searchParams.append("locale", "en_US");
-      
+
         return fetch(apiUrl, options);
-      },
-    getCharMedia: async function (href, headers) {
+    },
+    fetchBlizzard: async function (url, options = {}) {
+
+        if (typeof url !== "string") {
+            throw new TypeError("URL must be a string");
+        }
+
+        if (typeof options !== "object" || options === null) {
+            throw new TypeError("Options must be a non-null object");
+        }
+
+        let apiUrl = new URL(url);
+        apiUrl.searchParams.append("locale", "en_US");
+
+        const accessToken = await this.getAccessToken();
+
+        const finalOptions = {
+            ...options,
+            headers: {
+                ...(options.headers || {}),
+                Authorization: `Bearer ${accessToken}`,
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        };
+
+        return fetch(apiUrl, finalOptions);
+    },
+    getCharMedia: async function (href) {
         try {
-            const data = (await( await helpFetch.fetchWithLocale(href, headers)).json()).assets;
+            const data = (await( await helpFetch.fetchBlizzard(href)).json()).assets;
             const assets = {
                 avatar: (data[0])[`value`],
                 banner: (data[1])[`value`],
@@ -335,18 +361,18 @@ const helpFetch = {
             console.log(error)
         }
     },
-    getCharGear: async function (href, headers) {
+    getCharGear: async function (href) {
         try {
-            const data = await (await this.fetchWithLocale(href, headers)).json();
-            const result = await formatGearData(data, headers);
+            const data = await (await this.fetchBlizzard(href)).json();
+            const result = await formatGearData(data);
             return result
         } catch (error) {
             return undefined
         }
     },
-    getStats: async function(href, headers){
+    getStats: async function(href){
         try {
-            const data = await(await this.fetchWithLocale(href, headers)).json();
+            const data = await(await this.fetchBlizzard(href)).json();
             const result = extractStats(data);
             return result
         } catch (error) {
@@ -354,12 +380,12 @@ const helpFetch = {
             return undefined
         }
     },
-    getCurrentPvPSeasonIndex: async function (headers) {
+    getCurrentPvPSeasonIndex: async function () {
         const url = "https://eu.api.blizzard.com/data/wow/pvp-season/index?namespace=dynamic-eu&locale=en_GB";
 
         
         try {
-            const req = await this.fetchWithLocale(url, headers);
+            const req = await this.fetchBlizzard(url);
             const data = await req.json();
             const currentSeasonId = data?.current_season?.id;
 
@@ -375,32 +401,19 @@ const helpFetch = {
         const guildRealmSlug = "chamber-of-aspects";
         const guildServer = "eu"
         const path = `https://${guildServer}.api.blizzard.com/data/wow/guild/${guildRealmSlug}/${guildNameSlug}/roster?namespace=profile-${guildServer}`;
-
-        const clientId = process.env.CLIENT_ID;
-        const clientSecret = process.env.CLIENT_SECRET;
-
-        const accessToken =  await this.getAccessToken(clientId, clientSecret);
-
-        const headers = {
-            headers: {
-              Authorization: `Bearer ${accessToken}`, 
-              'Cache-Control': 'no-cache',  
-              'Pragma': 'no-cache',
-            },
-        };
-
-        const req = await this.fetchWithLocale(path, headers);
+       
+        const req = await this.fetchBlizzard(path);
         const data = await req.json();
 
         const memberList = data.members;
 
         return memberList
     },
-    getActiveTalentsCode: async function (href, headers) {
+    getActiveTalentsCode: async function (href) {
 
         try {
 
-            const req = await this.fetchWithLocale(href, headers);
+            const req = await this.fetchBlizzard(href);
 
             if (req.ok) {
                 const data = await req.json();
@@ -422,9 +435,9 @@ const helpFetch = {
             
         }
     },
-    getTalentSpec: async function (href, headers) {
+    getTalentSpec: async function (href) {
         try {
-            const req = await this.fetchWithLocale(href, headers);
+            const req = await this.fetchBlizzard(href);
             
             if(req.ok){
                 const data = await req.json();
@@ -437,11 +450,28 @@ const helpFetch = {
             console.warn(error);
         }
         return null;
+    },
+    getRealms: async function (server) {
+        if (typeof server !== "string" || server.length !== 2) {
+            throw new TypeError("The Server has to be a string of 2 characters");
+        }
+
+        const url = `https://${server}.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-${server}&orderby=id`;
+
+        try {
+            const req = await this.fetchBlizzard(url);
+            if (req.ok) {
+                const data = await req.json();
+                return data?.results
+            }
+        } catch (error) {
+            return null
+        }
     }
 }
 
 
-async function filterAchiev (achievements, points, headers) {
+async function filterAchiev (achievements, points) {
     // const start = performance.now();
     let result = {
         points: points.points, // Collected
@@ -477,11 +507,11 @@ async function filterAchiev (achievements, points, headers) {
         let match = achievements.get(dataID)
         if (match && match?.completed_timestamp){
             try {
-                const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+                const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
                 const twosResult = {
                     name: data.name,
                     description: data.description,
-                    media: await helpFetch.getMedia(data, "media", headers)
+                    media: await helpFetch.getMedia(data, "media")
                 }
                 result["2s"] = twosResult;
             } catch (error) {
@@ -495,11 +525,11 @@ async function filterAchiev (achievements, points, headers) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp){
             try {
-                const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+                const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
                 const threesResult = {
                     name: data.name,
                     description: data.description,
-                    media: await helpFetch.getMedia(data, "media", headers)
+                    media: await helpFetch.getMedia(data, "media")
                 }
                 result["3s"] = threesResult;
             } catch (error) {
@@ -512,11 +542,11 @@ async function filterAchiev (achievements, points, headers) {
     for (const {key, name, id: dataID} of achievesData["soloShuffle"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+            const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
             const soloResult = {
                 name: data.name,
                 description: data.description,
-                media: await helpFetch.getMedia(data, "media", headers)
+                media: await helpFetch.getMedia(data, "media")
             }
             result["solo"] = soloResult;
             break;
@@ -528,11 +558,11 @@ async function filterAchiev (achievements, points, headers) {
     for (const {key, name, id: dataID} of achievesData["BG"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+            const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
             const BGXPResult = {
                 name: data.name,
                 description: data.description,
-                media: await helpFetch.getMedia(data, "media", headers)
+                media: await helpFetch.getMedia(data, "media")
             }
             result["RBG"].XP = BGXPResult;
             result["Blitz"].XP = BGXPResult;
@@ -545,11 +575,11 @@ async function filterAchiev (achievements, points, headers) {
     for (const {key, name, id: dataID} of achievesData["RBGWins"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+            const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
             const RBGWinsResult = {
                 name: data.name,
                 description: data.description,
-                media: await helpFetch.getMedia(data, "media", headers)
+                media: await helpFetch.fetchBlizzard(data, "media")
             }
             result["RBG"].WINS = RBGWinsResult;
             break;
@@ -571,7 +601,6 @@ async function filterAchiev (achievements, points, headers) {
             let match = achievements.get(dataID);
 
             if(match && match?.completed_timestamp) {
-                // const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
                 const BlitzWinsResult = {
                     name: name,
                     description: description,
@@ -587,11 +616,11 @@ async function filterAchiev (achievements, points, headers) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp)
             try {
-                const data = await(await helpFetch.fetchWithLocale(match.achievement.key.href, headers)).json();
+                const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
                 const BlitzWinsResult = {
                     name: data.name,
                     description: data.description,
-                    media: await helpFetch.getMedia(data, "media", headers)
+                    media: await helpFetch.getMedia(data, "media")
                 }
                 result["Blitz"].WINS = BlitzWinsResult;
                 break;
@@ -605,7 +634,7 @@ async function filterAchiev (achievements, points, headers) {
     return result
 }
 
-async function formatGearData(apiResponse, headers) {
+async function formatGearData(apiResponse) {
     const gear = {};
     // console.log(apiResponse.equipped_items)
 
@@ -626,7 +655,7 @@ async function formatGearData(apiResponse, headers) {
             };
             slot = slotMap[slot] || slot;
     
-            const media = await helpFetch.getMedia(item, "media", headers);
+            const media = await helpFetch.getMedia(item, "media");
 
             let sockets = [];
 
@@ -641,7 +670,7 @@ async function formatGearData(apiResponse, headers) {
                             return {
                                 gemName: socket.item.name,
                                 gemId: socket.item.id,
-                                media: await helpFetch.getMedia(socket, "media", headers),
+                                media: await helpFetch.getMedia(socket, "media"),
                                 bonus: socket.display_string,
                             };
                         })

@@ -224,7 +224,7 @@ export async function findChar(server, realm, name) {
         } else {
             
             try {
-                const PvPData = await helpFetch.getRating(undefined, undefined, undefined, server, realm, name);
+                const PvPData = await helpFetch.getRating(undefined, undefined, server, realm, name);
                 const updatedCharPvpData = await Char.findByIdAndUpdate(character._id, {
                     rating: PvPData
                 }, {timestamps: false});
