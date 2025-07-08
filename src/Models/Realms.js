@@ -1,20 +1,23 @@
 import mongoose from 'mongoose';
 
 const realmSchema = new mongoose.Schema({
-    _id: Number, // use the realm ID from Blizzard as the primary key
+    _id: Number, // Blizzard realm ID
     name: String,
     slug: String,
-    connectedRealmId: Number,
-    type: String,
+    type: {
+        type: String,
+        enum: ['PVE', 'PVP', 'RP', 'RPPVP']
+    },
     population: String,
     status: String,
     timezone: String,
     locale: String,
-    region: String,
-    category: String,
-    hasQueue: Boolean,
-    isTournament: Boolean
-}, { _id: false }); // disables auto-generation of _id
+    region: {
+        type: String,
+        enum: ['EU', 'US', 'KR', 'TW', "CN"],
+        index: true
+    },
+}, { _id: false });
 
 const Realm = mongoose.model('Realm', realmSchema);
 
