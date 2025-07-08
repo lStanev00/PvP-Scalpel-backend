@@ -26,5 +26,5 @@ app.use(`/`, router);
 
 app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
 
-startBackgroundTask(updateGuildMembersData, 10800000);
+startBackgroundTask(updateGuildMembersData, 3600000);
 startBackgroundTask(updateDBAchieves, 604800000); // 1 week
