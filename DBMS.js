@@ -40,10 +40,10 @@ app.use(cors({
     optionsSuccessStatus: 204
 }));
 // );
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
+// app.use(cors({
+//   origin: true,
+//   credentials: true
+// }));
 app.options(/^\/(.*)/, cors()); // enable pre-flight for all routes
 app.use(cookieParser());
 app.use(express.json({ extended: false }));
