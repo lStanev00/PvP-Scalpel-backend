@@ -16,7 +16,7 @@ const helpFetch = {
         const tokenUrl = 'https://eu.battle.net/oauth/token';
 
         const cachedToken = getToken(); // Check if the token is cached and valid
-        if (cachedToken) {
+        if (cachedToken && cachedToken !== null) {
             return cachedToken;
         }
         
@@ -132,10 +132,10 @@ const helpFetch = {
                     lastSeasonLadder: undefined,
                 }
             }
-            const bracketFetches = brackets.map(bracket =>
-                this.fetchBlizzard(bracket.href).then(res => { return  res.json()})
-            );
+            const bracketFetches = brackets.map(bracket =>this.fetchBlizzard(bracket.href).then(res => { return  res.json()}));
+
             const allBracketsData = await Promise.all(bracketFetches);
+
 
             const processBrackets = allBracketsData.map(async (data, index) => {
                 const seasonIndex = data.season.id;
@@ -308,8 +308,7 @@ const helpFetch = {
             return result
         }
     },
-    fetchBlizzard: async function (url, options = {}) {
-
+    fetchBlizzard: async function (url, options = {}, retries = 3, delay = 500) {
         if (typeof url !== "string") {
             throw new TypeError("URL must be a string");
         }
@@ -318,7 +317,7 @@ const helpFetch = {
             throw new TypeError("Options must be a non-null object");
         }
 
-        let apiUrl = new URL(url);
+        const apiUrl = new URL(url);
         apiUrl.searchParams.append("locale", "en_US");
 
         const accessToken = await this.getAccessToken();
@@ -333,8 +332,26 @@ const helpFetch = {
             }
         };
 
-        return fetch(apiUrl, finalOptions);
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                const response = await fetch(apiUrl, finalOptions);
+
+                if (!response.ok) continue;
+
+                const contentType = response.headers.get("content-type") || "";
+                if (!contentType.includes("application/json")) continue;
+
+                return response;
+            } catch (err) {
+                if (attempt < retries) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        return null; // all retries failed or invalid content
     },
+
     getCharMedia: async function (href) {
         try {
             const data = (await( await helpFetch.fetchBlizzard(href)).json()).assets;
