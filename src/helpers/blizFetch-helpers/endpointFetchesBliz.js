@@ -315,12 +315,6 @@ const helpFetch = {
             return result
         }
     },
-    fetchWithLocale: async function (url, options = {}) {
-        let apiUrl = new URL(url);
-        apiUrl.searchParams.append("locale", "en_US");
-
-        return fetch(apiUrl, options);
-    },
     fetchBlizzard: async function (url, options = {}) {
 
         if (typeof url !== "string") {
