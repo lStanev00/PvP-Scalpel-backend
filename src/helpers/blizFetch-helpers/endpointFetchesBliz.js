@@ -95,18 +95,11 @@ const helpFetch = {
               }
             let result = {};
             if (server != undefined && realm != undefined && name != undefined) {
-            // if (name == "Lychezar") debugger;
 
                 name = name.toLowerCase();
                 path = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}/pvp-summary?namespace=profile-${server}`;
 
-                const clientId = process.env.CLIENT_ID;
-                const clientSecret = process.env.CLIENT_SECRET;
-
-                const accessToken =  await this.getAccessToken(clientId, clientSecret);
-
-                currentSeasonIndex = await this.getCurrentPvPSeasonIndex();
-                
+                currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
             let brackets = (await (await this.fetchBlizzard(path)).json()).brackets;
             if (brackets == undefined) return {
