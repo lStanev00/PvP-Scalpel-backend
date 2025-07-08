@@ -36,7 +36,7 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: "*",
+    allowedHeaders: ['Content-Type', 'Authorization', 'token', 'cache-control', 'cache', '600'],
     optionsSuccessStatus: 204
 }));
 // );
