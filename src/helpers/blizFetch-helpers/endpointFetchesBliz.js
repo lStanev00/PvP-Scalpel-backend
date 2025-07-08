@@ -583,7 +583,7 @@ async function filterAchiev (achievements, points) {
             const RBGWinsResult = {
                 name: data.name,
                 description: data.description,
-                media: await helpFetch.fetchBlizzard(data, "media")
+                media: await helpFetch.getMedia(data, "media")
             }
             result["RBG"].WINS = RBGWinsResult;
             break;
