@@ -54,15 +54,15 @@ async function fetchData(server, realm, name) {
             gear,
             equipmentStats
         ] = await Promise.all([
-            helpFetch.getMedia(data, 'character_class', headers),
-            helpFetch.getMedia(data, 'active_spec', headers),
-            helpFetch.getRating(data.pvp_summary.href, headers, currentSeasonIndex),
-            helpFetch.getAchievById(data.achievements_statistics.href, headers, 370),
-            helpFetch.getAchievById(data.achievements_statistics.href, headers, 595),
-            helpFetch.getAchievXP(data.achievements.href, headers, result.achieves),
-            helpFetch.getCharMedia(data.media.href, headers),
-            helpFetch.getCharGear(data.equipment.href, headers),
-            helpFetch.getStats(data.statistics.href, headers)
+            helpFetch.getMedia(data, 'character_class'),
+            helpFetch.getMedia(data, 'active_spec'),
+            helpFetch.getRating(data.pvp_summary.href, currentSeasonIndex),
+            helpFetch.getAchievById(data.achievements_statistics.href, 370),
+            helpFetch.getAchievById(data.achievements_statistics.href, 595),
+            helpFetch.getAchievXP(data.achievements.href, result.achieves),
+            helpFetch.getCharMedia(data.media.href),
+            helpFetch.getCharGear(data.equipment.href),
+            helpFetch.getStats(data.statistics.href)
         ]);
         // Assign fetched values to result
         result.class.media = classMedia;

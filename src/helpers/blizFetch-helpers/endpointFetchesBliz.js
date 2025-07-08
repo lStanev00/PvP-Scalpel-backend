@@ -308,7 +308,7 @@ const helpFetch = {
             return result
         }
     },
-    fetchBlizzard: async function (url, options = {}, retries = 3, delay = 500) {
+    fetchBlizzard: async function (url, options = {}) {
         if (typeof url !== "string") {
             throw new TypeError("URL must be a string");
         }
@@ -317,8 +317,7 @@ const helpFetch = {
             throw new TypeError("Options must be a non-null object");
         }
 
-        const apiUrl = new URL(url);
-        apiUrl.searchParams.append("locale", "en_US");
+        const apiUrl = url + "&locale=en_GB"
 
         const accessToken = await this.getAccessToken();
 
@@ -332,24 +331,7 @@ const helpFetch = {
             }
         };
 
-        for (let attempt = 1; attempt <= retries; attempt++) {
-            try {
-                const response = await fetch(apiUrl, finalOptions);
-
-                if (!response.ok) continue;
-
-                const contentType = response.headers.get("content-type") || "";
-                if (!contentType.includes("application/json")) continue;
-
-                return response;
-            } catch (err) {
-                if (attempt < retries) {
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        }
-
-        return null; // all retries failed or invalid content
+        return fetch(apiUrl, finalOptions)
     },
 
     getCharMedia: async function (href) {
