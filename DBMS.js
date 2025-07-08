@@ -2,12 +2,11 @@ import express from "express";
 import dotenv from 'dotenv'; dotenv.config({ path: '../.env' });
 import { DBconnect } from "./src/helpers/mongoHelper.js";
 import router from "./src/router.js";
-import cors from 'cors'
+import cors from 'cors';
 import cookieParser from "cookie-parser";
-import { delay, startBackgroundTask } from "./src/helpers/startBGTask.js";
+import { startBackgroundTask } from "./src/helpers/startBGTask.js";
 import { updateGuildMembersData } from "./src/services/PatchV2.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
-import { setSeasonalIdsMap } from "./src/emiters_subsciribers/achievements/achievesEmt.js";
 
 const app = express();
 const port = process.env.PORT || 8080;

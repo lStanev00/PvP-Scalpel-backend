@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import helpFetch from '../helpers/blizFetch-helpers/endpointFetchesBliz.js';
 import Achievement from '../Models/Achievements.js';
-import { getSeasonalIdsMap, setSeasonalIdsMap } from '../emiters_subsciribers/achievements/achievesEmt.js';
+import { getSeasonalIdsMap, setSeasonalIdsMap } from '../caching/achievements/achievesEmt.js';
 import { delay } from '../helpers/startBGTask.js';
 
 const clientId = process.env.CLIENT_ID;
