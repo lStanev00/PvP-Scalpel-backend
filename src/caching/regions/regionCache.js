@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import Region from "../../Models/Regions.js";
+import isPlainObject from "../../helpers/objectCheck.js";
 
 const emitter = new EventEmitter();
 
@@ -39,7 +40,15 @@ export async function mapDBRegion () {
         const dbList = await Region.find();
         const shadowMap = new Map();
         for (const entry of dbList) {
+
+            const shadowRealmMap = new Map();
             
+            if(entry.realms) {
+                for (const realm of entry.realms) {
+                    if (isPlainObject(realm)) shadowRealmMap.set(realm["_id"], realm);
+                }
+            }
+            entry.realms = shadowRealmMap;
             shadowMap.set(String(entry._id), entry.toObject());
 
         }
