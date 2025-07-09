@@ -21,7 +21,7 @@ regionSchema.virtual('realms', {
     localField: '_id',
     foreignField: 'region',
     justOne: false,
-    options: { select: 'name slug -_id' },
+    options: { select: 'name slug' },
     autopopulate: true // enable autopopulate
 });
 
