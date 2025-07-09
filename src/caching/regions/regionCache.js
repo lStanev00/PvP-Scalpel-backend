@@ -39,7 +39,7 @@ export async function mapDBRegion () {
         const dbList = await Region.find();
         const shadowMap = new Map();
         for (const entry of dbList) {
-            if (entry.realms) console.log(entry.realms)
+            
             shadowMap.set(String(entry._id), entry.toObject());
 
         }
