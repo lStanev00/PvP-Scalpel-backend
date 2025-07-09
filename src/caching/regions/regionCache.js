@@ -40,7 +40,7 @@ export async function mapDBRegion () {
         const shadowMap = new Map();
         for (const entry of dbList) {
 
-            shadowMap.set(String(entry._id), (entry.name).toLowerCase());
+            shadowMap.set(String(entry._id), entry.slug);
 
         }
 
