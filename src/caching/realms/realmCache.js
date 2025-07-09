@@ -14,16 +14,16 @@ export async function setRealmIdsMap() {
 
     if(newMap !== null){
         realmIdsMap = newMap;
-        console.info("[Achieves Cache] Realms just got cached")
         emitter.emit('update', newMap);
     }
 
 }
 
-export function onRealmIdsUpdate(fn) {
+function onRealmIdsUpdate(fn) {
     emitter.on('update', fn);
 }
 
+onRealmIdsUpdate(() => console.info("[Realms Cache] Realms just got cached"))
 
 export async function mapDBRealms () {
     try {
