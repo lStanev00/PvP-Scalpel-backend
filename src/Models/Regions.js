@@ -6,7 +6,11 @@ const regionSchema = new mongoose.Schema({
         enum: ['EU', 'US', 'KR', 'TW', "CN"],
         index: true
     },
-    slug: String,
+    slug: {
+        type: String,
+        enum: ['eu', 'us', 'kr', 'tw', "cn"],
+        index: true
+    }
 }, {_id: false});
 
 const Region = mongoose.model('Region', regionSchema);
