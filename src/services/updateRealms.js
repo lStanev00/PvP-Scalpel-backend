@@ -49,16 +49,18 @@ export default async function updateDBRealms() {
     
     for (const [key, value] of storedRegions) {
 
-        if (typeof value !== "string") {
+        const regionSlug = value?.slug;
 
-            console.warn(value + "\nIs not a string");
+        if (typeof regionSlug !== "string") {
+
+            console.warn(regionSlug + "\nIs not a string");
             continue;
 
         }
 
-        if (value === "cn" || value === "CN") continue;
+        if (regionSlug === "cn" || regionSlug === "CN") continue;
 
-        const realmsExtractUrl = `https://${value}.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-${value}&orderby=id`;
+        const realmsExtractUrl = `https://${regionSlug}.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-${regionSlug}&orderby=id`;
 
         try {
             const req = await helpFetch.fetchBlizzard(realmsExtractUrl);
