@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import Realm from "../../Models/Realms.js";
+import Region from "../../Models/Regions.js";
 
 const emitter = new EventEmitter();
 
@@ -26,7 +26,7 @@ export function onRegionIdsUpdate(fn) {
 
 export async function mapDBRegion () {
     try {
-        const dbList = await Realm.find();
+        const dbList = await Region.find();
         const shadowMap = new Map();
         for (const entry of dbList) {
 
