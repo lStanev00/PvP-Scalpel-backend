@@ -13,8 +13,8 @@ const realmSchema = new mongoose.Schema({
     timezone: String,
     locale: String,
     region: {
-        type: String,
-        enum: ['EU', 'US', 'KR', 'TW', "CN"],
+        type: Number,
+        ref: "Region",
         index: true
     },
 }, { _id: false });
