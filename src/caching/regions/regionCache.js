@@ -14,8 +14,16 @@ export async function setRegionIdsMap() {
 
     if(newMap !== null){
         regionIdsMap = newMap;
-        console.info("[Regions Cache] Regions just got cached")
         emitter.emit('update', newMap);
+    }
+
+}
+
+export async function initialSetRegionIdsMap() {
+    const newMap = await mapDBRegion()
+
+    if(newMap !== null){
+        regionIdsMap = newMap;
     }
 
 }
@@ -23,6 +31,8 @@ export async function setRegionIdsMap() {
 export function onRegionIdsUpdate(fn) {
     emitter.on('update', fn);
 }
+
+onRegionIdsUpdate(() => console.info("[Regions Cache] Regions just got cached"))
 
 export async function mapDBRegion () {
     try {

@@ -19,6 +19,15 @@ export async function setRealmIdsMap() {
 
 }
 
+export async function initialSetRealmIdsMap() {
+    const newMap = await mapDBRealms()
+
+    if(newMap !== null){
+        realmIdsMap = newMap;
+    }
+
+}
+
 function onRealmIdsUpdate(fn) {
     emitter.on('update', fn);
 }

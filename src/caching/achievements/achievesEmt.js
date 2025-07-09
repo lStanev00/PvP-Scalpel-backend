@@ -14,8 +14,16 @@ export async function setSeasonalIdsMap() {
 
     if(newMap !== null){
         seasonalIdsMap = newMap;
-        console.info("[Achieves Cache] Achieves just got cached")
         emitter.emit('update', newMap);
+    }
+
+}
+
+export async function initialSetSeasonalIdsMap() {
+    const newMap = await mapDBAchieves()
+
+    if(newMap !== null){
+        seasonalIdsMap = newMap;
     }
 
 }
@@ -23,6 +31,8 @@ export async function setSeasonalIdsMap() {
 export function onSeasonalIdsUpdate(fn) {
     emitter.on('update', fn);
 }
+
+onSeasonalIdsUpdate(() => console.info("[Achieves Cache] Achieves just got cached"));
 
 
 export async function mapDBAchieves () {
