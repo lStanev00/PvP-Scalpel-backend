@@ -5,7 +5,7 @@ import router from "./src/router.js";
 import cors from 'cors';
 import cookieParser from "cookie-parser";
 import { startBackgroundTask } from "./src/helpers/startBGTask.js";
-import { updateGuildMembersData } from "./src/services/PatchV2.js";
+import { updateGuildMembersData } from "./src/services/PatchGuildMembersData.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
 import { corsOptions, productionUrl } from "./src/corsSetup.js";
 
