@@ -8,6 +8,7 @@ import { startBackgroundTask } from "./src/helpers/startBGTask.js";
 import { updateGuildMembersData } from "./src/services/PatchGuildMembersData.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
 import { corsOptions, productionUrl } from "./src/corsSetup.js";
+import { setRealmIdsMap } from "./src/caching/realms/realmCache.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -25,6 +26,8 @@ app.use(`/`, router);
 
 
 app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
+
+await setRealmIdsMap();
 
 startBackgroundTask(updateGuildMembersData, 3600000);
 startBackgroundTask(updateDBAchieves, 604800000); // 1 week
