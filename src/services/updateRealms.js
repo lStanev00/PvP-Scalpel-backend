@@ -1,0 +1,108 @@
+import helpFetch from '../helpers/blizFetch-helpers/endpointFetchesBliz.js';
+import { delay } from '../helpers/startBGTask.js';
+import { getRealmIdsMap, setRealmIdsMap } from '../caching/realms/realmCache.js';
+import { getRegionIdsMap, setRegionIdsMap } from '../caching/regions/regionCache.js';
+import Realm from '../Models/Realms.js';
+
+
+export default async function updateDBRealms() {
+    
+    let storedRegions = getRegionIdsMap();
+
+    if(storedRegions === null) {
+        await setRegionIdsMap();
+        await delay(2000);
+        storedRegions = getRegionIdsMap();
+    }
+    
+    while (true) {
+
+        if (!(storedRegions instanceof Map)) {
+            await setRegionIdsMap();
+            await delay(2000);
+            storedRegions = getRegionIdsMap();
+        } else {
+            break;
+        }
+        
+    }
+
+    let storedRealms = getRealmIdsMap();
+
+    if(storedRealms === null) {
+        await setRealmIdsMap();
+        await delay(2000);
+        storedRealms = getRealmIdsMap();
+    }
+    
+    while (true) {
+
+        if (!(storedRealms instanceof Map)) {
+            await setRealmIdsMap();
+            await delay(2000);
+            storedRealms = getRealmIdsMap();
+        } else {
+            break;
+        }
+        
+    }
+    
+    for (const [key, value] of storedRegions) {
+
+        if (typeof value !== "string") {
+
+            console.warn(value + "\nIs not a string");
+            continue;
+
+        }
+
+        if (value === "cn" || value === "CN") continue;
+
+        const realmsExtractUrl = `https://${value}.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-${value}&orderby=id`;
+
+        try {
+            const req = await helpFetch.fetchBlizzard(realmsExtractUrl);
+
+            if(req.ok) {
+                const blizData = await req.json();
+                
+                if (blizData.results && Array.isArray(blizData?.results)) {
+                    for (const { data } of blizData.results) {
+
+                        if(data) {
+                            
+                            const {realms} = data;
+                            if(Array.isArray(realms)){
+                                for (const realm of realms) {
+                                    const {timezone, name, region, id, slug} = realm;
+                                    const idString = String(id);
+                                    const exist = storedRealms.has(idString);
+
+                                    if(exist) continue;
+                                    else {
+                                        const newRealm = new Realm();
+                                        newRealm._id = id;
+                                        newRealm.name = name["en_GB"];
+                                        newRealm.slug = slug;
+                                        newRealm.timezone = timezone;
+                                        newRealm.region = region?.id;
+                                        await newRealm.save();
+                                    }
+                                }
+                            }
+                                
+                        }
+                        
+
+                    }
+                }
+
+            }
+        } catch (error) {
+            console.warn(error)
+        }
+        
+    }
+    await setRealmIdsMap();
+
+}
