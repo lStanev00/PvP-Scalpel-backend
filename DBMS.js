@@ -30,7 +30,7 @@ app.listen(port, console.info(`Server's running at http://localhost:${port} or $
 
 await setRealmIdsMap();
 
-startBackgroundTask(updateDBRealms, 2592000000); // 1mo
+startBackgroundTask(updateDBRealms, 2147483647); // max 24.8 days
 await delay(3000);
 startBackgroundTask(updateGuildMembersData, 3600000); // 1 hr
 await delay(3000);
