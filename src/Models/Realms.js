@@ -4,14 +4,7 @@ const realmSchema = new mongoose.Schema({
     _id: Number, // Blizzard realm ID
     name: String,
     slug: String,
-    type: {
-        type: String,
-        enum: ['PVE', 'PVP', 'RP', 'RPPVP']
-    },
-    population: String,
-    status: String,
     timezone: String,
-    locale: String,
     region: {
         type: Number,
         ref: "Region",
