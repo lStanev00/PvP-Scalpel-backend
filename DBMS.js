@@ -4,11 +4,12 @@ import { DBconnect } from "./src/helpers/mongoHelper.js";
 import router from "./src/router.js";
 import cors from 'cors';
 import cookieParser from "cookie-parser";
-import { startBackgroundTask } from "./src/helpers/startBGTask.js";
+import { delay, startBackgroundTask } from "./src/helpers/startBGTask.js";
 import { updateGuildMembersData } from "./src/services/PatchGuildMembersData.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
 import { corsOptions, productionUrl } from "./src/corsSetup.js";
 import { setRealmIdsMap } from "./src/caching/realms/realmCache.js";
+import updateDBRealms from "./src/services/updateRealms.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -29,5 +30,8 @@ app.listen(port, console.info(`Server's running at http://localhost:${port} or $
 
 await setRealmIdsMap();
 
-startBackgroundTask(updateGuildMembersData, 3600000);
+startBackgroundTask(updateDBRealms, 2592000000); // 1mo
+await delay(3000);
+startBackgroundTask(updateGuildMembersData, 3600000); // 1 hr
+await delay(3000);
 startBackgroundTask(updateDBAchieves, 604800000); // 1 week
