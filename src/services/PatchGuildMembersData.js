@@ -166,8 +166,8 @@ export async function findChar(server, realm, name) {
     accessToken = await getAccessToken()
     const now = new Date(); 
     const fullUpdate = await checkIfShouldUpdateFull();
-    console.info(`[PatchPvP] Full update? = ${fullUpdate}`)
-    console.log(`[PatchPvP] Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
+    // console.info(`[PatchPvP] Full update? = ${fullUpdate}`)
+    // console.log(`[PatchPvP] Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
 
     const guildRoster = await blizzFetch(`/data/wow/guild/${GUILD_REALM}/${GUILD_NAME}/roster?`, "Guild", "Roster");
   
@@ -250,7 +250,7 @@ export async function findChar(server, realm, name) {
         updateDoc.$push.msRecords = runtimeMS
 
         const serviceUpdate = await Service.findOneAndUpdate( { service: "PatchPvP" }, updateDoc, { new: true } )
-        console.log(`[PatchPvP] Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()}`);
+        console.log(`[PatchPvP]${fullUpdate ? " Full" : " " }Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `);
     
         return serviceUpdate;
     } catch (error) {

@@ -8,8 +8,8 @@ import { delay, startBackgroundTask } from "./src/helpers/startBGTask.js";
 import { updateGuildMembersData } from "./src/services/PatchGuildMembersData.js";
 import updateDBAchieves from "./src/services/updateAchieves.js";
 import { corsOptions, productionUrl } from "./src/corsSetup.js";
-import { setRealmIdsMap } from "./src/caching/realms/realmCache.js";
 import updateDBRealms from "./src/services/updateRealms.js";
+import initialCache from "./src/caching/initialCache.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -28,8 +28,7 @@ app.use(`/`, router);
 
 app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
 
-await setRealmIdsMap();
-
+await initialCache();
 startBackgroundTask(updateDBRealms, 2147483647); // max 24.8 days
 await delay(3000);
 startBackgroundTask(updateGuildMembersData, 3600000); // 1 hr
