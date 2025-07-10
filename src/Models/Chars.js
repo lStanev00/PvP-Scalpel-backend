@@ -88,6 +88,7 @@ const CharSchema = new mongoose.Schema({
     },
     search: {
         type: String,
+        unique: true,
         index: true
     }
 }, { timestamps: true });
