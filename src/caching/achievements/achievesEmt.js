@@ -37,7 +37,7 @@ onSeasonalIdsUpdate(() => console.info("[Achieves Cache] Achieves just got cache
 
 export async function mapDBAchieves () {
     try {
-        const dbList = await Achievement.find();
+        const dbList = await Achievement.find().lean();
         const shadowMap = new Map();
         for (const entry of dbList) {
 

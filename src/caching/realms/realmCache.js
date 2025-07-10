@@ -36,7 +36,7 @@ onRealmIdsUpdate(() => console.info("[Realms Cache] Realms just got cached"))
 
 export async function mapDBRealms () {
     try {
-        const dbList = await Realm.find();
+        const dbList = await Realm.find().lean();
         const shadowMap = new Map();
         for (const entry of dbList) {
 

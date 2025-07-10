@@ -37,7 +37,7 @@ onRegionIdsUpdate(() => console.info("[Regions Cache] Regions just got cached"))
 
 export async function mapDBRegion () {
     try {
-        const dbList = await Region.find();
+        const dbList = await Region.find().lean();
         const shadowMap = new Map();
         for (const entry of dbList) {
 
