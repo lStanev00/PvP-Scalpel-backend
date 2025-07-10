@@ -10,6 +10,7 @@ import updateDBAchieves from "./src/services/updateAchieves.js";
 import { corsOptions, productionUrl } from "./src/corsSetup.js";
 import updateDBRealms from "./src/services/updateRealms.js";
 import initialCache from "./src/caching/initialCache.js";
+import sanitizer from "./src/middlewares/sanitizer.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -23,6 +24,7 @@ app.use(cors(corsOptions));
 app.options(/^\/(.*)/, cors(corsOptions)); // enable pre-flight for all routes
 app.use(cookieParser());
 app.use(express.json({ extended: false }));
+app.use("/", sanitizer);
 app.use(`/`, router);
 
 
