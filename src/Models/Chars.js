@@ -86,6 +86,7 @@ const CharSchema = new mongoose.Schema({
         talentsCode: {type: String, default: null},
         talentsSpec: {type: String, default: null},
     },
+    search: String
 }, { timestamps: true });
 
 CharSchema.virtual("posts", {
