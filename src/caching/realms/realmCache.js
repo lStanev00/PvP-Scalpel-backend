@@ -40,7 +40,15 @@ export async function mapDBRealms () {
         const shadowMap = new Map();
         for (const entry of dbList) {
 
-            shadowMap.set(String(entry._id), entry);
+            const key = entry.slug + ":" + entry.region;
+            
+            const value = {
+                name: entry.name,
+                _id: entry._id,
+                region: entry.region
+            }
+
+            shadowMap.set(String(key), value);
 
         }
 
