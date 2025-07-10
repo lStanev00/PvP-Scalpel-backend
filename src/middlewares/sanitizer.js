@@ -12,22 +12,40 @@ function sanitizeValue(value) {
         return value.map(sanitizeValue);
     }
     if (value && isPlainObject(value)) {
-        return sanitizeObject(value);
+        sanitizeInPlace(value);
+        return value;
     }
     return value;
 }
 
-function sanitizeObject(obj) {
-    const cleanObj = {};
+function sanitizeInPlace(obj) {
     for (const key of Object.keys(obj)) {
-        cleanObj[key] = sanitizeValue(obj[key]);
+        const val = obj[key];
+        if (typeof val === 'string') {
+            obj[key] = sanitizeHtml(val, {
+                allowedTags: [],
+                allowedAttributes: {}
+            }).trim();
+        } else if (Array.isArray(val)) {
+            obj[key] = val.map(sanitizeValue);
+        } else if (val && isPlainObject(val)) {
+            sanitizeInPlace(val);
+        }
     }
-    return cleanObj;
 }
 
 export default function sanitizer(req, res, next) {
-    if (req.body)   req.body   = sanitizeObject(req.body);
-    if (req.query)  req.query  = sanitizeObject(req.query);
-    if (req.params) req.params = sanitizeObject(req.params);
+    if (req.body && isPlainObject(req.body)) {
+        sanitizeInPlace(req.body);
+    }
+
+    if (req.query && isPlainObject(req.query)) {
+        sanitizeInPlace(req.query);
+    }
+
+    if (req.params && isPlainObject(req.params)) {
+        sanitizeInPlace(req.params);
+    }
+
     next();
 }
