@@ -73,7 +73,7 @@ async function fetchData(server, realm, name) {
 
         const talent = await helpFetch.getActiveTalentsCode(data.specializations.href);
         result.talents = talent;
-        result.search = `${server}:${realm}:${name}`
+        result.search = `${name}:${realm}:${server}`
 
         // const end = performance.now(); 
         // console.log(`Elapsed: ${end - start} ms`);
