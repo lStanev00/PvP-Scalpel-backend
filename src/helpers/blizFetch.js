@@ -1,28 +1,19 @@
 import dotenv from 'dotenv';
 import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js';
-import { performance } from 'perf_hooks';
+// import { performance } from 'perf_hooks';
 
 dotenv.config({ path: '../../.env' });
 
 async function fetchData(server, realm, name) {
-    const start = performance.now();
+    // const start = performance.now();
     name = name.toLowerCase();
-    let accessToken = await helpFetch.getAccessToken();
-
-    const headers = {
-        headers: {
-          Authorization: `Bearer ${accessToken}`, 
-          'Cache-Control': 'no-cache',  
-          'Pragma': 'no-cache',
-        },
-    }
 
     try {
         // Fetch the main character profile
-        let data = await helpFetch.getCharProfile(server, realm, name, headers);
+        let data = await helpFetch.getCharProfile(server, realm, name);
         if (!data || !data.id) return false;
 
-        const currentSeasonIndex = await helpFetch.getCurrentPvPSeasonIndex(headers);
+        const currentSeasonIndex = await helpFetch.getCurrentPvPSeasonIndex();
         const result = {
             name: data.name,
             server,
@@ -82,8 +73,9 @@ async function fetchData(server, realm, name) {
 
         const talent = await helpFetch.getActiveTalentsCode(data.specializations.href);
         result.talents = talent;
+        result.search = `${server}:${realm}:${name}`
 
-        const end = performance.now(); 
+        // const end = performance.now(); 
         // console.log(`Elapsed: ${end - start} ms`);
         return result;
     } catch (error) {
