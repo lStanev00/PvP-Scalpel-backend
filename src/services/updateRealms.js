@@ -77,7 +77,7 @@ export default async function updateDBRealms() {
                             if(Array.isArray(realms)){
                                 for (const realm of realms) {
                                     const {timezone, name, region, id, slug} = realm;
-                                    const idString = String(id);
+                                    const idString = String( slug + ":" + region.id);
                                     const exist = storedRealms.has(idString);
 
                                     if(exist) continue;
