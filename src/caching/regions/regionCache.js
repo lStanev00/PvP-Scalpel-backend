@@ -49,7 +49,7 @@ export async function mapDBRegion () {
                 }
             }
             entry.realms = shadowRealmMap;
-            shadowMap.set(String(entry._id), entry.toObject());
+            shadowMap.set(String(entry._id), entry);
 
         }
 
