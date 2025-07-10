@@ -28,6 +28,16 @@ export async function initialCharSearchMap() {
 
 }
 
+export function insertOneCharSearchMap(newChar) {
+    
+    if (!(newChar instanceof Char)) return
+
+    charSearchMap.set(newChar.search, newChar._id);
+
+    console.info(`[Character Search Cache] Character: ${newChar.name}-${newChar.playerRealm.name}, just got cached.`)
+
+}
+
 export function onCharSearchSetUpdate(fn) {
     emitter.on('update', fn);
 }
