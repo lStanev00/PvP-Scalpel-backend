@@ -4,7 +4,7 @@ import Char from "../Models/Chars.js"; // Model
 import fetchData from "../helpers/blizFetch.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-import { insertOneCharSearchMap } from "../caching/achievements copy/charSearchCache.js";
+import { insertOneCharSearchMap } from "../caching/character/charSearchCache.js";
 
 export const characterSearchCTRL = Router();
 
@@ -147,8 +147,10 @@ async function patchPvPData(req, res) {
     }
 }
 
-// export default characterSearchCTRL
 
+export async function searchCharacter(req, res) {
+    
+}
 
 export async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
     const key = `${server + realm + name}`;
@@ -220,3 +222,4 @@ export async function getCharacter(server, realm, name) {
     }
     return character
 }
+
