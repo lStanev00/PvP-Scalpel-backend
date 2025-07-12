@@ -1,5 +1,5 @@
 import { delay } from "../helpers/startBGTask.js";
-import { initialCharSearchMap } from "./achievements copy/charSearchCache.js";
+import { initialCharSearchMap } from "./character/charSearchCache.js";
 import { initialSetSeasonalIdsMap } from "./achievements/achievesEmt.js";
 import { initialSetRealmIdsMap } from "./realms/realmCache.js";
 import { initialSetRegionIdsMap } from "./regions/regionCache.js";
