@@ -11,6 +11,7 @@ import { corsOptions, productionUrl } from "./src/corsSetup.js";
 import updateDBRealms from "./src/services/updateRealms.js";
 import initialCache from "./src/caching/initialCache.js";
 import sanitizer from "./src/middlewares/sanitizer.js";
+import compression from "compression";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -19,6 +20,8 @@ app.disable("x-powered-by");
 app.set('trust proxy', true);
 
 await DBconnect();
+
+app.use(compression());
 
 app.use(cors(corsOptions));
 app.options(/^\/(.*)/, cors(corsOptions)); // enable pre-flight for all routes
