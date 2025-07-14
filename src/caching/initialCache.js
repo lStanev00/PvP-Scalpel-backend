@@ -3,6 +3,7 @@ import { initialCharSearchMap } from "./searchCache/charSearchCache.js";
 import { initialSetSeasonalIdsMap } from "./achievements/achievesEmt.js";
 import { initialSetRealmIdsMap } from "./realms/realmCache.js";
 import { initialSetRegionIdsMap } from "./regions/regionCache.js";
+import { initialRealmSearchMap } from "./searchCache/realmSearchCach.js";
 
 export default async function initialCache() {
 
@@ -11,7 +12,8 @@ export default async function initialCache() {
         await initialSetRegionIdsMap()
         await initialSetRealmIdsMap();
         await initialSetSeasonalIdsMap();
-        // await initialCharSearchMap();
+        await initialRealmSearchMap()
+        await initialCharSearchMap();
 
         await delay(1000);
         // console.info("[Cache] Initial cache finished.");
