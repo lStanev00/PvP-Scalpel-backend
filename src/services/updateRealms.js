@@ -87,8 +87,8 @@ export default async function updateDBRealms() {
                                         if(searchExist){
                                             continue
                                         } else {
-                                            const relamSearchToBeInserted = storedRealms.get(idString);
-                                            await insertOneRealmSearchMap(relamSearchToBeInserted);
+                                            const realmSearchToBeInserted = storedRealms.get(idString);
+                                            await insertOneRealmSearchMap(realmSearchToBeInserted);
                                         }
                                     }
                                     else {
