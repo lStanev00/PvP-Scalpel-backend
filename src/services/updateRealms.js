@@ -3,6 +3,7 @@ import { delay } from '../helpers/startBGTask.js';
 import { getRealmIdsMap, setRealmIdsMap } from '../caching/realms/realmCache.js';
 import { getRegionIdsMap, setRegionIdsMap } from '../caching/regions/regionCache.js';
 import Realm from '../Models/Realms.js';
+import { getRealmSearchMap, insertOneRealmSearchMap } from '../caching/searchCache/realmSearchCach.js';
 
 
 export default async function updateDBRealms() {
@@ -28,6 +29,7 @@ export default async function updateDBRealms() {
     }
 
     let storedRealms = getRealmIdsMap();
+    let storedRealmSearech = getRealmSearchMap();
 
     if(storedRealms === null) {
         await setRealmIdsMap();
@@ -79,8 +81,16 @@ export default async function updateDBRealms() {
                                     const {timezone, name, region, id, slug} = realm;
                                     const idString = String( slug + ":" + region.id);
                                     const exist = storedRealms.has(idString);
+                                    const searchExist = storedRealmSearech.has(slug);
 
-                                    if(exist) continue;
+                                    if(exist) {
+                                        if(searchExist){
+                                            continue
+                                        } else {
+                                            const relamSearchToBeInserted = storedRealms.get(idString);
+                                            await insertOneRealmSearchMap(relamSearchToBeInserted);
+                                        }
+                                    }
                                     else {
                                         const newRealm = new Realm();
                                         newRealm._id = id;
@@ -88,7 +98,10 @@ export default async function updateDBRealms() {
                                         newRealm.slug = slug;
                                         newRealm.timezone = timezone;
                                         newRealm.region = region?.id;
-                                        await newRealm.save();
+                                        const newRealmRecived = await newRealm.save();
+                                        if(newRealmRecived) {
+                                            await insertOneRealmSearchMap(newRealmRecived);
+                                        }
                                     }
                                 }
                             }
