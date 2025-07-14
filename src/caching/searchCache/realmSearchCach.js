@@ -92,7 +92,7 @@ onRealmSearchSetUpdate(() => console.info("[Realm Search Cache] Realm Search ind
 
 export async function setDBRealmSearch () {
     try {
-        const dbList = await RealmSearchModel.find().lean();
+        const dbList = await RealmSearchModel.find().populate("relRealms").lean();
         const shadowMap = new Map();
         for (const entry of dbList) {
             shadowMap.set(entry._id, entry);
