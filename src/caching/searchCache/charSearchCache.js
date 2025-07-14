@@ -71,8 +71,9 @@ export async function setDBChars () {
                     const newEntry = new CharSearchModel({
                         _id: searchVal,
                         searchParams: searchVal,
-                        searchResult: [entry.search],
-                        relChars: [entry._id]
+                        searchResult: [key],
+                        relChars: [entry._id],
+                        data: value
                     })
                     await newEntry.save();
                 } else {

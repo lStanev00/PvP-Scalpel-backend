@@ -71,8 +71,6 @@ export async function insertOneRealmSearchMap(newRealm) {
             }
             realmSearchMap.set(searchVal, entry)
 
-            console.info(searchVal);
-
         }
 
         console.info(`[Realm Search Cache] Realm: ${newRealmSlug}, just got cached.`)

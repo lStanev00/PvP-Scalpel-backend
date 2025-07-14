@@ -11,7 +11,7 @@ export default async function initialCache() {
         await initialSetRegionIdsMap()
         await initialSetRealmIdsMap();
         await initialSetSeasonalIdsMap();
-        await initialCharSearchMap();
+        // await initialCharSearchMap();
 
         await delay(1000);
         // console.info("[Cache] Initial cache finished.");
