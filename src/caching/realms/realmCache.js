@@ -42,11 +42,7 @@ export async function mapDBRealms () {
 
             const key = entry.slug + ":" + entry.region;
             
-            const value = {
-                name: entry.name,
-                _id: entry._id,
-                region: entry.region
-            }
+            const value = entry;
 
             shadowMap.set(String(key), value);
 
