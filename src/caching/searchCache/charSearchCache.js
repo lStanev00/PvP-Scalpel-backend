@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import Char from "../../Models/Chars.js";
 import CharSearchModel from "../../Models/SearchCharacter.js";
+import extractNameSlug from "../../helpers/extractName.js";
 
 const emitter = new EventEmitter();
 
@@ -10,32 +11,74 @@ export function getCharSearchMap() {
     return charSearchMap
 }
 
-export async function setCharSearchMap() {
-    const newMap = await setDBChars();
-
-    if(newMap !== null){
-        charSearchMap = newMap;
-        emitter.emit('update', newMap);
-    }
-
-}
-
 export async function initialCharSearchMap() {
     const newMap = await setDBChars();
-
+    const charList = await Char.find({}, {_id: 1, search: 1}).lean();
     if(newMap !== null){
         charSearchMap = newMap;
     }
 
+    for (const char of charList) {
+        const key = extractNameSlug(char.search);
+        const exist = charSearchMap.has(key);
+        
+        if(!exist) await insertOneCharSearchMap(char);
+
+    }
+
+
 }
 
-export function insertOneCharSearchMap(newChar) {
+export async function insertOneCharSearchMap(newChar) {
     
-    if (!(newChar instanceof Char)) return
+    if (!newChar._id && !newChar.search) return
 
-    charSearchMap.set(newChar.search, newChar._id);
+    const newCharSearchEntry = newChar;
+    const key = extractNameSlug(newCharSearchEntry.search);
 
-    console.info(`[Character Search Cache] Character: ${newChar.name}-${newChar.playerRealm.name}, just got cached.`)
+
+    for (let i = 3; i <= key.length; i++){
+
+        const searchVal = key.slice(0, i);
+        let searchCharacterEntry = await CharSearchModel.findById(searchVal);
+        // const exist = await CharSearchModel.findById(searchVal).populate("relChars").lean();
+
+        if(searchCharacterEntry === null) {
+
+            const newEntry = new CharSearchModel({
+                _id: searchVal,
+                searchParams: searchVal,
+                searchResult: [key],
+                relChars: [newCharSearchEntry._id],
+            })
+
+            searchCharacterEntry = await newEntry.save()
+        } else {
+
+            let trigger = false;
+
+            if (!searchCharacterEntry.searchResult.includes(newCharSearchEntry.search)) {
+                trigger = true;
+                searchCharacterEntry.searchResult.push(newCharSearchEntry.search);
+            }
+
+            if (!searchCharacterEntry.relChars.includes(newCharSearchEntry._id)) {
+                trigger = true;
+                searchCharacterEntry.relChars.push(newCharSearchEntry._id);
+            }
+
+            if(trigger) {
+                searchCharacterEntry = await searchCharacterEntry.save();
+            }
+
+        }
+        searchCharacterEntry = searchCharacterEntry.toObject();
+        charSearchMap.set(searchVal, searchCharacterEntry);
+        console.info(searchVal)
+    }
+    console.info(`[Character Search Cache] Character Search ${key}`)
+
+
 
 }
 
@@ -48,53 +91,10 @@ onCharSearchSetUpdate(() => console.info("[Character Search Cache] Character Sea
 
 export async function setDBChars () {
     try {
-        const dbList = await Char.find({}, { search: 1, _id: 1, name: 1, server: 1, playerRealm: 1 }).lean();
+        const dbCharSearchList = await CharSearchModel.find().lean();
         const shadowMap = new Map();
-        for (const entry of dbList) {
-
-            const key = entry.search;
-            const value = {
-                _id: entry._id,
-                name : entry.name,
-                server: entry.server,
-                playerRealm: entry.playerRealm
-            };
-
-            shadowMap.set(key, value);
-
-            for (let i = 3; i <= key.length; i++){
-                const searchVal = key.slice(0, i);
-                const exist = await CharSearchModel.findById(searchVal);
-                // const exist = await CharSearchModel.findById(searchVal).populate("relChars").lean();
-
-                if(exist === null) {
-                    const newEntry = new CharSearchModel({
-                        _id: searchVal,
-                        searchParams: searchVal,
-                        searchResult: [key],
-                        relChars: [entry._id],
-                        data: value
-                    })
-                    await newEntry.save();
-                } else {
-                    let trigger = false;
-                    if (!exist.searchResult.includes(entry.search)) {
-                        trigger = true;
-                        exist.searchResult.push(entry.search);
-                    }
-                    if (!exist.relChars.includes(entry._id)) {
-                        trigger = true;
-                        exist.relChars.push(entry._id);
-                    }
-                    if(trigger) {
-
-                        await exist.save();
-
-                    }
-                }
-                // console.info(exist)
-            }
-
+        for (const entry of dbCharSearchList) {
+            shadowMap.set(entry._id, entry);
         }
 
         return shadowMap
