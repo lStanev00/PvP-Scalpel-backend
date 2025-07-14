@@ -4,7 +4,7 @@ import Char from "../Models/Chars.js"; // Model
 import fetchData from "../helpers/blizFetch.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-import { insertOneCharSearchMap } from "../caching/character/charSearchCache.js";
+import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
 
 export const characterSearchCTRL = Router();
 
