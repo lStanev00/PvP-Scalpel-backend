@@ -11,7 +11,7 @@ export function getRealmSearchMap() {
 }
 
 export async function setRealmSearchMap() {
-    const newMap = await setDBChars();
+    const newMap = await setDBRealmSearch();
 
     if(newMap !== null){
         realmSearchMap = newMap;
@@ -21,7 +21,7 @@ export async function setRealmSearchMap() {
 }
 
 export async function initialRealmSearchMap() {
-    const newMap = await setDBChars();
+    const newMap = await setDBRealmSearch();
 
     if(newMap !== null){
         realmSearchMap = newMap;
@@ -90,7 +90,7 @@ export function onRealmSearchSetUpdate(fn) {
 onRealmSearchSetUpdate(() => console.info("[Realm Search Cache] Realm Search indexes just got cached"));
 
 
-export async function setDBChars () {
+export async function setDBRealmSearch () {
     try {
         const dbList = await RealmSearchModel.find().lean();
         const shadowMap = new Map();
