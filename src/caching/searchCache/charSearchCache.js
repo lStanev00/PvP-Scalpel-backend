@@ -39,28 +39,6 @@ export function insertOneCharSearchMap(newChar) {
 
 }
 
-// export function matchCharacter(name, server, realm, searchKey = null) {
-
-//     const result = [];
-//     const charMap = getCharSearchMap();
-
-//     let exist = undefined;
-//     if(searchKey !== null && typeof searchKey === "string") exist = charMap.get(searchKey);
-    
-//     if (exist) {
-//         result.push(exist);
-//     } else {
-//         for (const [key, value] of charMap) {
-//             if (server === value.server) {
-//                 if((value.name).toLowerCase().includes(name)) {
-//                     result.push(value)
-//                 } else if ()
-//             }
-//         }
-//     }
-
-// }
-
 export function onCharSearchSetUpdate(fn) {
     emitter.on('update', fn);
 }
@@ -87,6 +65,7 @@ export async function setDBChars () {
             for (let i = 3; i <= key.length; i++){
                 const searchVal = key.slice(0, i);
                 const exist = await CharSearchModel.findById(searchVal);
+                // const exist = await CharSearchModel.findById(searchVal).populate("relChars").lean();
 
                 if(exist === null) {
                     const newEntry = new CharSearchModel({
@@ -112,7 +91,7 @@ export async function setDBChars () {
 
                     }
                 }
-                console.info(searchVal)
+                // console.info(exist)
             }
 
         }
