@@ -4,11 +4,13 @@ import Char from "../Models/Chars.js"; // Model
 import fetchData from "../helpers/blizFetch.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
+import { getCharSearchMap, insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
+import { getRealmSearchMap } from "../caching/searchCache/realmSearchCach.js";
 
 export const characterSearchCTRL = Router();
 
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, checkCharacterGet);
+characterSearchCTRL.get(`/characterCache`, getCharsMap);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
 characterSearchCTRL.patch(`/patchPvPData/:server/:realm/:name`, patchPvPData);
 
@@ -22,16 +24,25 @@ async function checkCharacterGet(req, res) {
         if(!character) {
             character = await buildCharacter(server, realm, name, character, res);
     
-            if (!character) return jsonMessage(res, 404, "No character with this credentials");
+            if (!character){ 
+                character = await buildCharacter(server, realm, name);
+                if(character === null ) return jsonResponse(res, 404)
+                jsonResponse(res, 200, character);
+                
+                 return res.end()
+
+
+                // return jsonMessage(res, 404, "No character with this credentials");
+            }
             character = await getCharacter(server, realm, name);
             return jsonResponse(res, 200, character);
     
     
         }
         
-        if (patchingIDs[character.id]) { // If already updating
+        if (buildingEntries[character.id]) { // If already updating
 
-            while (patchingIDs[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
+            while (buildingEntries[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
              
             character = await getCharacter(server, realm, name);
         }
@@ -147,6 +158,46 @@ async function patchPvPData(req, res) {
     }
 }
 
+async function getRealmsMap(req, res) {
+    try {
+        
+        const realmsSearchMap = getRealmSearchMap();
+        if (realmsSearchMap === null) return jsonResponse(res, 404);
+
+            const etag = `"realms-${realmsSearchMap.size}"`;
+            if (req.headers['if-none-match'] === etag) return jsonResponse(res, 304);
+    
+        const plainObj = Object.fromEntries(realmsSearchMap);
+
+        res.set({
+            'Cache-Control': 'public, max-age=864000, must-revalidate', // cache for 10 days
+            'ETag': etag, // ver controll
+        });
+        return jsonResponse(res, 200, plainObj)
+    } catch (error) {
+        return jsonResponse(res, 500, "Internal Server Error");
+    }
+}
+async function getCharsMap(req, res) {
+    try {
+        
+        const realmsSearchMap = getCharSearchMap();
+        if (realmsSearchMap === null) return jsonResponse(res, 404);
+
+            const etag = `"realms-${realmsSearchMap.size}"`;
+            if (req.headers['if-none-match'] === etag) return jsonResponse(res, 304);
+    
+        const plainObj = Object.fromEntries(realmsSearchMap);
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set({
+            'ETag': etag, // ver controll
+        });
+        return jsonResponse(res, 200, plainObj)
+    } catch (error) {
+        return jsonResponse(res, 500, "Internal Server Error");
+    }
+}
+
 
 export async function searchCharacter(req, res) {
     
@@ -176,7 +227,11 @@ export async function buildCharacter(server, realm, name, character) { // If no 
     }
     buildingEntries[key] = true;
     character = await fetchData(server, realm, name);
-    if (character == false) return console.log(server,realm,name)
+    if (character == false) {
+        console.log("Character missing: ",server,realm,name);
+        delete buildingEntries[key];
+        return null
+    }
     character.checkedCount = 0;
     try {
         const newCharacter = new Char(character);
