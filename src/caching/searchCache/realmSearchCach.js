@@ -1,5 +1,4 @@
 import { EventEmitter } from "events";
-import Realm from "../../Models/Realms.js";
 import RealmSearchModel from "../../Models/SearchRealm.js";
 
 const emitter = new EventEmitter();
