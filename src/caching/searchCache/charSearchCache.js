@@ -29,6 +29,18 @@ export async function initialCharSearchMap() {
 
 }
 
+export function getCharFromMap(key) {
+    if (typeof key !== "string") {
+        console.warn(key + "'s not a string!");
+        return undefined
+    }
+
+    const result = charSearchMap.get(key);
+
+    return result
+}
+
+
 export async function insertOneCharSearchMap(newChar) {
     
     if (!newChar._id && !newChar.search) return
@@ -91,10 +103,12 @@ onCharSearchSetUpdate(() => console.info("[Character Search Cache] Character Sea
 
 export async function setDBChars () {
     try {
-        const dbCharSearchList = await CharSearchModel.find().lean();
+        const dbCharSearchList = await CharSearchModel.find();
         const shadowMap = new Map();
         for (const entry of dbCharSearchList) {
-            shadowMap.set(entry._id, entry);
+            const leanEntry = entry.toObject()
+            shadowMap.set(leanEntry._id, leanEntry);
+            console.log(leanEntry.relChars[0]);
         }
 
         return shadowMap
