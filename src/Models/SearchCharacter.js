@@ -12,7 +12,7 @@ const searchCharacterSchema = new mongoose.Schema({
     relChars : [{
         type: mongoose.Schema.Types.ObjectId,
         ref: Char,
-        autopopulate: { select: "_id name playerRealm server" }
+        autopopulate: { select: "_id name playerRealm server class" }
     }]
 }, {
     versionKey: false
