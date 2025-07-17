@@ -1,5 +1,6 @@
 import { EventEmitter } from "events";
 import RealmSearchModel from "../../Models/SearchRealm.js";
+import slugify from "../../helpers/slugify.js";
 
 const emitter = new EventEmitter();
 
@@ -31,53 +32,13 @@ export async function initialRealmSearchMap() {
 export async function insertOneRealmSearchMap(newRealm) {
 
     if(!newRealm.slug) return;
+    const newRealmSlug = newRealm.slug;
+    const zone = newRealm?.["locale"]
+    const slug2 = slugify(newRealm?.name?.[zone]) || undefined;
+    const _id = newRealm?._id
 
-    try {
-        const newRealmSlug = newRealm.slug;
-    
-        for (let i = 2; i <= newRealmSlug.length; i++) {
-            const searchVal = newRealmSlug.slice(0, i);
-            
-            let entry = await RealmSearchModel.findById(searchVal);
-            if(entry === null) {
-
-                const newEntry = new RealmSearchModel({
-                    _id: searchVal,
-                    searchParams: searchVal,
-                    searchResult: [newRealmSlug],
-                    relRealms: [newRealm._id],
-                })
-        
-                entry = (await newEntry.save()).toObject();
-
-            } else {
-
-                let trigger = false; // mutable!
-                if (!entry.searchResult.includes(newRealm.slug)) {
-                    trigger = true;
-                    entry.searchResult.push(newRealm.slug);
-                }
-                if (!entry.relRealms.includes(newRealm._id)) {
-                    trigger = true;
-                    entry.relRealms.push(newRealm._id);
-                }
-                if(trigger) {
-
-                    await entry.save();
-
-                }
-
-            }
-            realmSearchMap.set(searchVal, entry)
-
-        }
-
-        console.info(`[Realm Search Cache] Realm: ${newRealmSlug}, just got cached.`)
-        
-    } catch (error) {
-        console.warn(error)
-    }
-
+    await updateNewRealmDbaseAndLocal(newRealmSlug, _id).catch(err => {console.warn(err)});
+    if(newRealmSlug !== slug2 && slug2 !== undefined) await updateNewRealmDbaseAndLocal(slug2, _id).catch(err => {console.warn(err)});
 
 
 }
@@ -102,4 +63,55 @@ export async function setDBRealmSearch () {
 
         return null
     }
+}
+
+async function updateNewRealmDbaseAndLocal(newRealmSlug, realm_id = undefined) {
+
+    try {
+            if(typeof newRealmSlug !== "string") throw new TypeError(`The value provided is not a string`);
+            if(!realm_id) return
+    
+            for (let i = 2; i <= newRealmSlug.length; i++) {
+                const searchVal = newRealmSlug.slice(0, i);
+                
+                let entry = await RealmSearchModel.findById(searchVal);
+                if(entry === null) {
+
+                    const newEntry = new RealmSearchModel({
+                        _id: searchVal,
+                        searchParams: searchVal,
+                        searchResult: [newRealmSlug],
+                        relRealms: [realm_id],
+                    })
+            
+                    entry = (await newEntry.save()).toObject();
+
+                } else {
+
+                    let trigger = false; // mutable!
+                    if (!entry.searchResult.includes(newRealmSlug)) {
+                        trigger = true;
+                        entry.searchResult.push(newRealmSlug);
+                    }
+                    if (!entry.relRealms.includes(realm_id)) {
+                        trigger = true;
+                        entry.relRealms.push(realm_id);
+                    }
+                    if(trigger) {
+
+                        await entry.save();
+
+                    }
+
+                }
+                realmSearchMap.set(searchVal, entry)
+
+            }
+
+            console.info(`[Realm Search Cache] Realm: ${newRealmSlug}, just got cached.`)
+        
+    } catch (error) {
+        console.warn(error)
+    }
+    
 }

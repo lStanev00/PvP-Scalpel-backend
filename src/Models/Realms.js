@@ -2,9 +2,10 @@ import mongoose from 'mongoose';
 
 const realmSchema = new mongoose.Schema({
     _id: Number, // Blizzard realm ID
-    name: String,
+    name: mongoose.Schema.Types.Mixed,
     slug: String,
     timezone: String,
+    locale : String,
     region: {
         type: Number,
         ref: "Region",

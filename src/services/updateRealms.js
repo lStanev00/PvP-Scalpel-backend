@@ -4,6 +4,7 @@ import { getRealmIdsMap, setRealmIdsMap } from '../caching/realms/realmCache.js'
 import { getRegionIdsMap, setRegionIdsMap } from '../caching/regions/regionCache.js';
 import Realm from '../Models/Realms.js';
 import { getRealmSearchMap, insertOneRealmSearchMap } from '../caching/searchCache/realmSearchCach.js';
+import convertLocale from '../helpers/localeConverter.js';
 
 
 export default async function updateDBRealms() {
@@ -51,8 +52,8 @@ export default async function updateDBRealms() {
     
     for (const [key, value] of storedRegions) {
 
-        const regionSlug = value?.slug;
 
+        const regionSlug = value?.slug;
         if (typeof regionSlug !== "string") {
 
             console.warn(regionSlug + "\nIs not a string");
@@ -63,6 +64,7 @@ export default async function updateDBRealms() {
         if (regionSlug === "cn" || regionSlug === "CN") continue;
 
         const realmsExtractUrl = `https://${regionSlug}.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-${regionSlug}&orderby=id`;
+        // const realmsExtractUrl = `https://eu.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-eu&orderby=id`;
 
         try {
             const req = await helpFetch.fetchBlizzard(realmsExtractUrl);
@@ -79,6 +81,10 @@ export default async function updateDBRealms() {
                             if(Array.isArray(realms)){
                                 for (const realm of realms) {
                                     const {timezone, name, region, id, slug} = realm;
+                                    const locale = realm?.["locale"]
+                                    
+                                    const zone = convertLocale(locale);
+
                                     const idString = String( slug + ":" + region.id);
                                     const exist = storedRealms.has(idString);
                                     const searchExist = storedRealmSearech.has(slug);
@@ -94,15 +100,18 @@ export default async function updateDBRealms() {
                                     else {
                                         const newRealm = new Realm();
                                         newRealm._id = id;
-                                        newRealm.name = name["en_GB"];
+                                        newRealm.name = name;
+                                        newRealm.locale = zone;
                                         newRealm.slug = slug;
                                         newRealm.timezone = timezone;
                                         newRealm.region = region?.id;
                                         const newRealmRecived = await newRealm.save();
                                         if(newRealmRecived) {
-                                            await insertOneRealmSearchMap(newRealmRecived);
+                                            await insertOneRealmSearchMap(newRealmRecived.toObject());
                                         }
                                     }
+
+
                                 }
                             }
                                 
