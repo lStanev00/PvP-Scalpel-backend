@@ -103,10 +103,13 @@ onCharSearchSetUpdate(() => console.info("[Character Search Cache] Character Sea
 
 export async function setDBChars () {
     try {
-        const dbCharSearchList = await CharSearchModel.find();
+        const dbCharSearchList = await CharSearchModel.find().populate({
+            path: "relChars",
+            select: "_id name playerRealm server class"
+        }).lean();
         const shadowMap = new Map();
         for (const entry of dbCharSearchList) {
-            const leanEntry = entry.toObject()
+            const leanEntry = entry;
             shadowMap.set(leanEntry._id, leanEntry);
             console.log(leanEntry.relChars[0]);
         }
