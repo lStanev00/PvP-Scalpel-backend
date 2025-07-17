@@ -37,7 +37,7 @@ export async function insertOneCharSearchMap(newChar) {
     const key = extractNameSlug(newCharSearchEntry.search);
 
 
-    for (let i = 3; i <= key.length; i++){
+    for (let i = 2; i <= key.length; i++){
 
         const searchVal = key.slice(0, i);
         let searchCharacterEntry = await CharSearchModel.findById(searchVal);
