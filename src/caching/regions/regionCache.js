@@ -4,10 +4,21 @@ import isPlainObject from "../../helpers/objectCheck.js";
 
 const emitter = new EventEmitter();
 
-let regionIdsMap = null;
+let regionIdsMap = new Map();
 
 export function getRegionIdsMap() {
     return regionIdsMap
+}
+
+export function searchRegionFromMapBySlug(searchSlug) {
+    if (typeof searchSlug !== "string") {
+        console.warn(searchSlug + "'s not a string!");
+        return undefined
+    }
+
+    const result = Array.from(regionIdsMap)
+        .filter(([key, value]) => value.slug === searchSlug);
+    return result
 }
 
 export async function setRegionIdsMap() {
