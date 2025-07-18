@@ -10,12 +10,19 @@ export default function extractCharsBySearch(search, realms) {
 
     const nameRealmMatch = [];
 
+    if(chars) return nameRealmMatch;
+
     for (const {slug, name} of realms) {
-        for (const char of chars) {
-            if(char?.playerRealm?.slug === slug) nameRealmMatch.push({
-                char: char,
-                realmName: name
-            })
+        try {
+            
+            for (const char of chars) {
+                if(char?.playerRealm?.slug === slug) nameRealmMatch.push({
+                    char: char,
+                    realmName: name
+                })
+            }
+        } catch (error) {
+            return []
         }
     }
 
