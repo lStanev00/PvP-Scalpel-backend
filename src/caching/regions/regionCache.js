@@ -37,7 +37,7 @@ onRegionIdsUpdate(() => console.info("[Regions Cache] Regions just got cached"))
 
 export async function mapDBRegion () {
     try {
-        const dbList = await Region.find().lean();
+        const dbList = await Region.find().populate("realms").lean();
         const shadowMap = new Map();
         for (const entry of dbList) {
 
@@ -52,9 +52,9 @@ export async function mapDBRegion () {
             shadowMap.set(String(entry._id), entry);
 
         }
-
         return shadowMap
     } catch (error) {
+        console.warn(error);
         return null
     }
 }
