@@ -1,4 +1,4 @@
-import { searchRegionFromMapBySlug } from "../../../../caching/regions/regionCache.js";
+import { getRegionIdsMap, searchRegionFromMapBySlug } from "../../../../caching/regions/regionCache.js";
 import { searchRealmFromMap } from "../../../../caching/searchCache/realmSearchCach.js";
 import convertSearch from "../../../../helpers/convertSearch.js";
 
@@ -19,14 +19,27 @@ export default function extractRealmsBySearch (charSearch) {
     const realms = [];
 
     for (const entry of realmSlugMatch) {
+        const result = determinateRealmResult(entry);
+
+        realms.push(result)
+    }
+
+    return realms.sort((a, b) => 
+        a.slug.length - b.slug.length
+    );
+
+}
+
+export function determinateRealmResult(realm) {
+        const server = getRegionIdsMap().get(String(realm?.region))?.slug || undefined;
         const result = {
-            _id: entry._id,
+            _id: realm._id,
             server: server,
-            slug: entry?.slug,
+            slug: realm?.slug,
             
         }
-        const realmNames = entry?.["name"];
-        const realmLocale = entry?.["locale"];
+        const realmNames = realm?.["name"];
+        const realmLocale = realm?.["locale"];
 
         const langCheckName = realmNames?.[realmLocale];
         const enGbCheck = realmNames?.["en_GB"];
@@ -35,9 +48,5 @@ export default function extractRealmsBySearch (charSearch) {
             result.name = langCheckName === enGbCheck ? langCheckName : `${langCheckName} (${enGbCheck})`;
         } else if (enGbCheck !== undefined) result.name =  enGbCheck
 
-        realms.push(result)
-    }
-
-    return realms
-
+        return result
 }
