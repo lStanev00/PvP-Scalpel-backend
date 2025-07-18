@@ -76,7 +76,7 @@ export async function setDBChars () {
     try {
         const dbCharSearchList = await CharSearchModel.find().populate({
             path: "relChars",
-            select: "_id name playerRealm server class"
+            select: "_id name playerRealm server class search"
         }).lean();
         const shadowMap = new Map();
         for (const entry of dbCharSearchList) {
