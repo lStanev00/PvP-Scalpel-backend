@@ -6,9 +6,11 @@ import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import { getCharSearchMap, insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
 import { getRealmSearchMap } from "../caching/searchCache/realmSearchCach.js";
+import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter.js";
 
 export const characterSearchCTRL = Router();
 
+characterSearchCTRL.get("/searchCharacter", searchCharacterGET)
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, checkCharacterGet);
 characterSearchCTRL.get(`/characterCache`, getCharsMap);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
@@ -16,6 +18,21 @@ characterSearchCTRL.patch(`/patchPvPData/:server/:realm/:name`, patchPvPData);
 
 const patchingIDs = {};
 const buildingEntries = {}
+
+async function searchCharacterGET(req, res) {
+    const search = req?.query?.search;
+    if(!search) jsonMessage(res, 400, `Input of type: ${typeof search}'s not a valied search param. Search you provided is ${search}`);
+    try {
+        const searchData = queryCharacterBySearch(search);
+        return jsonResponse(res, 200, searchData);
+        
+    } catch (error) {
+        console.warn(error);
+        return jsonResponse(res, 500);
+    }
+}
+
+
 async function checkCharacterGet(req, res) {
     try {
         const { server, realm, name } = req.params;
