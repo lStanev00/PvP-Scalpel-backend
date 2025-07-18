@@ -18,7 +18,7 @@ export function searchRegionFromMapBySlug(searchSlug) {
 
     const result = Array.from(regionIdsMap)
         .filter(([key, value]) => value.slug === searchSlug);
-    return result
+    return result[0]
 }
 
 export async function setRegionIdsMap() {
