@@ -3,10 +3,17 @@ import Realm from "../../Models/Realms.js";
 
 const emitter = new EventEmitter();
 
-let realmIdsMap = null;
+let realmIdsMap = new Map();
 
 export function getRealmIdsMap() {
     return realmIdsMap
+}
+
+export function findRealmById(id) {
+    if(!id) return
+
+    return realmIdsMap.get(id);
+    
 }
 
 export async function setRealmIdsMap() {
