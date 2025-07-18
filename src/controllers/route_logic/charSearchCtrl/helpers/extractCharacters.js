@@ -70,3 +70,17 @@ function formEntry(char) {
             }
 }
 
+
+export function exactCharMatchBySearch(search) {
+    const charsMatch = extractCharacters(search);
+
+    if(!charsMatch) return undefined;
+    if(charsMatch.length !== 1) return undefined;
+
+    const char = charsMatch[0];
+    const [name, realm, server] = convertSearch(search);
+    if(char.search === `${name}:${realm}:${server}`)return formEntry(charsMatch[0]);
+
+    return undefined
+    
+}
