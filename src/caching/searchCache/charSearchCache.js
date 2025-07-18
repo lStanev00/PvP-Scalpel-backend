@@ -29,7 +29,7 @@ export async function initialCharSearchMap() {
 
 }
 
-export function getCharFromMap(key) {
+export function searchCharFromMap(key) {
     if (typeof key !== "string") {
         console.warn(key + "'s not a string!");
         return undefined
@@ -52,42 +52,13 @@ export async function insertOneCharSearchMap(newChar) {
     for (let i = 2; i <= key.length; i++){
 
         const searchVal = key.slice(0, i);
-        let searchCharacterEntry = await CharSearchModel.findById(searchVal);
-        // const exist = await CharSearchModel.findById(searchVal).populate("relChars").lean();
 
-        if(searchCharacterEntry === null) {
+        await createCharEntry(searchVal, newCharSearchEntry);
 
-            const newEntry = new CharSearchModel({
-                _id: searchVal,
-                searchParams: searchVal,
-                searchResult: [key],
-                relChars: [newCharSearchEntry._id],
-            })
-
-            searchCharacterEntry = await newEntry.save()
-        } else {
-
-            let trigger = false;
-
-            if (!searchCharacterEntry.searchResult.includes(newCharSearchEntry.search)) {
-                trigger = true;
-                searchCharacterEntry.searchResult.push(newCharSearchEntry.search);
-            }
-
-            if (!searchCharacterEntry.relChars.includes(newCharSearchEntry._id)) {
-                trigger = true;
-                searchCharacterEntry.relChars.push(newCharSearchEntry._id);
-            }
-
-            if(trigger) {
-                searchCharacterEntry = await searchCharacterEntry.save();
-            }
-
-        }
-        searchCharacterEntry = searchCharacterEntry.toObject();
-        charSearchMap.set(searchVal, searchCharacterEntry);
-        console.info(searchVal)
     }
+
+    createCharEntry(newCharSearchEntry?.search, newCharSearchEntry);
+
     console.info(`[Character Search Cache] Character Search ${key}`)
 
 
@@ -111,7 +82,6 @@ export async function setDBChars () {
         for (const entry of dbCharSearchList) {
             const leanEntry = entry;
             shadowMap.set(leanEntry._id, leanEntry);
-            console.log(leanEntry.relChars[0]);
         }
 
         return shadowMap
@@ -119,4 +89,37 @@ export async function setDBChars () {
 
         return null
     }
+}
+
+async function createCharEntry (searchVal, newCharSearchEntry) {
+        let searchCharacterEntry = await CharSearchModel.findById(searchVal);
+        // const exist = await CharSearchModel.findById(searchVal).populate("relChars").lean();
+        if(searchCharacterEntry === null) {
+
+            const newEntry = new CharSearchModel({
+                _id: searchVal,
+                searchParams: searchVal,
+                searchResult: [newCharSearchEntry.search],
+                relChars: [newCharSearchEntry._id],
+            })
+
+            searchCharacterEntry = await newEntry.save()
+        } else {
+
+            let trigger = false;
+
+            if (!searchCharacterEntry.searchResult.includes(newCharSearchEntry.search)) {
+                trigger = true;
+                searchCharacterEntry.searchResult.push(newCharSearchEntry.search);
+            }
+
+            if (!searchCharacterEntry.relChars.includes(newCharSearchEntry._id)) {
+                trigger = true;
+                searchCharacterEntry.relChars.push(newCharSearchEntry._id);
+            }
+
+            if(trigger) {
+                await searchCharacterEntry.save();
+            }
+        }
 }
