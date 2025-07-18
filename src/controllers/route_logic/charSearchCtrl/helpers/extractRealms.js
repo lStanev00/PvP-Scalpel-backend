@@ -10,6 +10,8 @@ export default function extractRealmsBySearch (charSearch) {
 
     const [name, realm, server] = convertSearch(charSearch);
 
+    if(realm === "!undefined") return [];
+
     const realmSearchMatches = searchRealmFromMap(realm);
     if (!realmSearchMatches) return undefined;
     const serverMatch = (searchRegionFromMapBySlug(server))[0];
