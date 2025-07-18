@@ -10,6 +10,17 @@ export function getRealmSearchMap() {
     return realmSearchMap
 }
 
+export function searchRealmFromMap(key) {
+    if (typeof key !== "string") {
+        console.warn(key + "'s not a string!");
+        return undefined
+    }
+
+    const result = realmSearchMap.get(key);
+
+    return result
+}
+
 export async function setRealmSearchMap() {
     const newMap = await setDBRealmSearch();
 
