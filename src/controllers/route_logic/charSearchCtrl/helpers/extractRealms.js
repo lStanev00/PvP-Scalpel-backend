@@ -12,8 +12,26 @@ export default function extractRealmsBySearch (charSearch) {
 
     if(realm === "!undefined") return [];
 
-    const realmSearchMatches = searchRealmFromMap(realm);
-    if (!realmSearchMatches) return undefined;
+    let realmSearchMatches = searchRealmFromMap(realm);
+    if (!realmSearchMatches) {
+        let match = undefined;
+        let inteliRealm = realm.replace(`-`, "").split("");
+        if (!(Array.isArray(inteliRealm))) return [];
+
+        for(let i = inteliRealm.length; i >= 2; i--) {
+            inteliRealm.pop();
+            const checker = searchRealmFromMap(inteliRealm.join(""));
+            
+            if (checker) {
+                match = checker;
+                break;
+            }
+        }
+        if(match) {
+            realmSearchMatches = match;
+        }
+        if(!match) return []; 
+    }
     const serverMatch = (searchRegionFromMapBySlug(server))[0];
 
     const realmSlugMatch = realmSearchMatches?.relRealms.filter(entry => entry.region == serverMatch);
