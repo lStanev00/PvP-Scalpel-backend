@@ -215,11 +215,6 @@ async function getCharsMap(req, res) {
     }
 }
 
-
-export async function searchCharacter(req, res) {
-    
-}
-
 export async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
     const key = `${server + realm + name}`;
     if (buildingEntries[key]) {
