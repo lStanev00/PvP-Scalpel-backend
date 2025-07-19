@@ -10,7 +10,7 @@ export default function extractCharsBySearch(search, realms) {
 
     const nameRealmMatch = [];
 
-    if(chars) return nameRealmMatch;
+    if(!chars) return nameRealmMatch;
 
     try {
         for (const {slug, name} of realms) {
@@ -28,7 +28,8 @@ export default function extractCharsBySearch(search, realms) {
         
         }
     } catch (error) {
-        return []
+        if(chars) nameRealmMatch = chars;
+        if(!chars)return []
     }
 
 
@@ -62,7 +63,7 @@ export default function extractCharsBySearch(search, realms) {
 
 }
 
-function extractCharacters(search) {
+function extractCharacters(search , exact = undefined) {
     if (typeof search !== "string") {
         console.warn(search + "'s not a string!");
         return undefined
@@ -73,7 +74,40 @@ function extractCharacters(search) {
     if (!name) return undefined;
 
     const charSearchMatch = searchCharFromMap(name);
-    return charSearchMatch?.relChars
+    if(exact) return charSearchMatch?.relChars;
+
+    let inteliChar = name.trim().toLowerCase().split("") || undefined;
+
+    if (!(Array.isArray(inteliChar))) return undefined;
+    let match = undefined;
+    for(let i = inteliChar.length; i >= 2; i--) {
+        inteliChar.pop();
+        const checker = searchCharFromMap(inteliChar.join(""));
+
+        if(checker) {
+            match = checker;
+            break;
+        }
+    }
+
+    if(!match && !charSearchMatch) return undefined;
+    if (!match) return charSearchMatch?.relChars;;
+    if (!charSearchMatch) return match?.relChars;;
+    
+    const noDupSet = new Set();
+
+    if(!charSearchMatch.relChars) return match?.relChars;;
+    if(!match.relChars) return charSearchMatch?.relChars;;
+    for (const {_id} of charSearchMatch.relChars) {
+        noDupSet.add(_id);
+    }
+
+    for (const entry of match.relChars) {
+
+        if(!(noDupSet.has(entry._id)))charSearchMatch.relChars.push(entry);
+    }
+
+    return charSearchMatch?.relChars;
 
 }
 
@@ -89,7 +123,7 @@ function formEntry(char) {
 
 
 export function exactCharMatchBySearch(search) {
-    const charsMatch = extractCharacters(search);
+    const charsMatch = extractCharacters(search, true);
 
     if(!charsMatch) return undefined;
     if(charsMatch.length !== 1) return undefined;
