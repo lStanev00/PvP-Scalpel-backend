@@ -12,19 +12,25 @@ export default function extractCharsBySearch(search, realms) {
 
     if(chars) return nameRealmMatch;
 
-    for (const {slug, name} of realms) {
-        try {
-            
-            for (const char of chars) {
-                if(char?.playerRealm?.slug === slug) nameRealmMatch.push({
-                    char: char,
-                    realmName: name
-                })
+    try {
+        for (const {slug, name} of realms) {
+            try {
+                
+                for (const char of chars) {
+                    if(char?.playerRealm?.slug === slug) nameRealmMatch.push({
+                        char: char,
+                        realmName: name
+                    })
+                }
+            } catch (error) {
+                return []
             }
-        } catch (error) {
-            return []
+        
         }
+    } catch (error) {
+        return []
     }
+
 
     if (nameRealmMatch.length > 3) return nameRealmMatch.sort((a, b) => 
         a.char.name.length - b.char.name.length
@@ -41,6 +47,10 @@ export default function extractCharsBySearch(search, realms) {
            
         }
     } else {
+        if(!chars) {
+            console.warn(chars);
+            return []
+        }
         for (const char of chars) {
             longerResult.push(formEntry(char));
         }
