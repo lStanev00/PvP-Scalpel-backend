@@ -32,9 +32,11 @@ export default function extractRealmsBySearch (charSearch) {
         }
         if(!match) return []; 
     }
-    const serverMatch = (searchRegionFromMapBySlug(server))[0];
+    let serverMatch = undefined;
+    if(server !== "!undefined") serverMatch = (searchRegionFromMapBySlug(server))[0];
 
-    const realmSlugMatch = realmSearchMatches?.relRealms.filter(entry => entry.region == serverMatch);
+    // const realmSlugMatch = realmSearchMatches?.relRealms.filter(entry => entry.region == serverMatch);
+    const realmSlugMatch = realmSearchMatches?.relRealms
 
     const realms = [];
 
