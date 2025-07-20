@@ -78,6 +78,7 @@ const CharSchema = new mongoose.Schema({
         ref: "Achievement",
         required: false,
     }],
+    guildName: {type: String, default: undefined},
     guildInsight : {
         rank: { type: mongoose.Schema.Types.Mixed, default: undefined },
         rankNumber : { type: mongoose.Schema.Types.Mixed, default: undefined },

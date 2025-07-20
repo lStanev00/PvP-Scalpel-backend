@@ -33,6 +33,7 @@ async function fetchData(server, realm, name) {
         };
         
         if (data?.guild?.name == "PvP Scalpel") result.guildMember = true;
+        result.guildName = data?.guild?.name;
         // Fetch dependent data in parallel
         const [
             classMedia,
