@@ -1,6 +1,8 @@
 export default function extractNameSlug(search) {
 
-    const wholeSearchVal = search
+    if(typeof search !== "string") return undefined;
+
+    const wholeSearchVal = search.toLowerCase()
     const WSV_Parts = wholeSearchVal.split(":");
 
     if(WSV_Parts.length !== 3 ) {

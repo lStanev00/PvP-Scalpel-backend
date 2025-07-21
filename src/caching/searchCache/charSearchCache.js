@@ -47,7 +47,7 @@ export async function insertOneCharSearchMap(newChar) {
 
     const newCharSearchEntry = newChar;
     const key = extractNameSlug(newCharSearchEntry.search);
-
+    if (!key) return;
 
     for (let i = 2; i <= key.length; i++){
 
