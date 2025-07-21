@@ -93,7 +93,7 @@ async function updateCharacterPatch(req, res) {
     }
 
     if(!character) {
-        character = await buildCharacter(server, realm, name, character, res);
+        character = await buildCharacter(server, realm, name, character);
 
         if (!character) return jsonMessage(res, 404, "No character with this credentials");
 
