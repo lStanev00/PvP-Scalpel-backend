@@ -61,8 +61,6 @@ export async function insertOneCharSearchMap(newChar) {
 
     console.info(`[Character Search Cache] Just cached character: ${key}`)
 
-
-
 }
 
 export function onCharSearchSetUpdate(fn) {
@@ -103,7 +101,8 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
                 relChars: [newCharSearchEntry._id],
             })
 
-            searchCharacterEntry = await newEntry.save()
+            searchCharacterEntry = await newEntry.save();
+            charSearchMap.set(searchVal , searchCharacterEntry)
         } else {
 
             let trigger = false;
@@ -120,6 +119,8 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
 
             if(trigger) {
                 await searchCharacterEntry.save();
+                charSearchMap.set(searchVal , searchCharacterEntry)
             }
         }
+
 }
