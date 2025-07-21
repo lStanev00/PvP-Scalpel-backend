@@ -267,7 +267,7 @@ export async function getCharacter(server, realm, name) {
     try {
         character = await Char.findOneAndUpdate(
             {
-                name: name,
+                name: new RegExp(`^${name}$`, 'i'),
                 "playerRealm.slug": realm,
                 server: server
             },
