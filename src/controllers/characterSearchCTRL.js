@@ -78,7 +78,7 @@ async function updateCharacterPatch(req, res) {
     try {
         character = await Char.findOneAndUpdate(
             {
-                name: name,
+                name: new RegExp(`^${name}$`, 'i'),
                 "playerRealm.slug": realm,
                 server: server
             },
@@ -145,7 +145,7 @@ async function patchPvPData(req, res) {
     
     try {
         const char = await Char.findOne({
-            name: name,
+            name: new RegExp(`^${name}$`, 'i'),
             "playerRealm.slug" : realm,
             server: server
         })
