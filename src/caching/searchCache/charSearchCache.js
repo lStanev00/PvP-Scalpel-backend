@@ -97,8 +97,8 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
         if(searchCharacterEntry === null) {
 
             const newEntry = new CharSearchModel({
-                _id: searchVal,
-                searchParams: searchVal,
+                _id: searchVal.toLowerCase(),
+                searchParams: searchVal.toLowerCase(),
                 searchResult: [newCharSearchEntry.search],
                 relChars: [newCharSearchEntry._id],
             })
