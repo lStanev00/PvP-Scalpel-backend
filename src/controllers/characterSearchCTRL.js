@@ -225,7 +225,7 @@ export async function buildCharacter(server, realm, name, character) { // If no 
             
         };
         character = await Char.findOne({
-                name: name,
+                name: new RegExp(`^${name}$`, 'i'),
                 "playerRealm.slug": realm,
                 server: server
         }).populate({
