@@ -75,6 +75,7 @@ function extractCharacters(search , exact = undefined) {
 
     const charSearchMatch = searchCharFromMap(name);
     if(exact) return charSearchMatch?.relChars;
+    if( charSearchMatch && charSearchMatch?.relChars.length > 3) return charSearchMatch?.relChars;
 
     let inteliChar = name.trim().toLowerCase().split("") || undefined;
 
