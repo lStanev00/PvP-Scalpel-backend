@@ -77,8 +77,10 @@ async function checkCharacterGet(req, res) {
                     if(character?.[key] && value) character[key] = value;
                 }
 
-                const updatedChar = await Char.findByIdAndUpdate(character._id, { $set: character }, {new:true})
-                return jsonResponse(res, 200, updatedChar.toObject());
+                await Char.findByIdAndUpdate(character._id, { $set: character });
+                const updatedChar = await getCharacter(character.server, character.playerRealm.slug, character.name, false); 
+                if(updatedChar) return jsonResponse(res, 200, updatedChar);
+                return jsonResponse(res, 500);
             }
         } 
 
@@ -279,7 +281,7 @@ export async function buildCharacter(server, realm, name, character) { // If no 
     }
 }
 
-export async function getCharacter(server, realm, name) {
+export async function getCharacter(server, realm, name, update = true) {
 
     let character = null;
 
@@ -290,7 +292,7 @@ export async function getCharacter(server, realm, name) {
                 "playerRealm.slug": realm,
                 server: server
             },
-            { $inc: { checkedCount: 1 } }, 
+            { $inc: { checkedCount: update ? 1 : 0 } }, 
             { new: true, upsert: false, timestamps: false }
         )
         await character.populate({
