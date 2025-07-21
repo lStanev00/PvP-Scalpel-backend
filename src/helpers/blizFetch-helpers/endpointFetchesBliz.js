@@ -338,13 +338,14 @@ const helpFetch = {
         try {
             const data = (await( await helpFetch.fetchBlizzard(href)).json()).assets;
             const assets = {
-                avatar: (data[0])[`value`],
-                banner: (data[1])[`value`],
-                charImg: (data[2])[`value`],
+                avatar: (data[0])[`value`] || "",
+                banner: (data[1])[`value`] || "",
+                charImg: (data[2])[`value`] || "",
             }
             return assets
         } catch (error) {
             console.log(error)
+            return {}
         }
     },
     getCharGear: async function (href) {
