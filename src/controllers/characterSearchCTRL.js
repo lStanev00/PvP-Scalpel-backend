@@ -24,6 +24,10 @@ async function searchCharacterGET(req, res) {
     if(!search) jsonMessage(res, 400, `Input of type: ${typeof search}'s not a valied search param. Search you provided is ${search}`);
     try {
         const searchData = queryCharacterBySearch(search);
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Surrogate-Control', 'no-store');
         return jsonResponse(res, 200, searchData);
         
     } catch (error) {
