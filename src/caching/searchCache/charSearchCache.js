@@ -57,7 +57,7 @@ export async function insertOneCharSearchMap(newChar) {
 
     }
 
-    createCharEntry(newCharSearchEntry?.search, newCharSearchEntry);
+    await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry);
 
     console.info(`[Character Search Cache] Just cached character: ${key}`)
 
