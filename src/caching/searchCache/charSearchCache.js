@@ -102,7 +102,7 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
             })
 
             searchCharacterEntry = await newEntry.save();
-            charSearchMap.set(searchVal , searchCharacterEntry)
+            charSearchMap.set(searchVal , newEntry.toObject());
         } else {
 
             let trigger = false;
