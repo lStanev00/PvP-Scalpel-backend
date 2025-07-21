@@ -4,7 +4,7 @@ import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js';
 
 dotenv.config({ path: '../../.env' });
 
-async function fetchData(server, realm, name) {
+async function fetchData(server, realm, name, checkedCount = undefined) {
     // const start = performance.now();
     name = name.toLowerCase();
 
@@ -75,6 +75,14 @@ async function fetchData(server, realm, name) {
         const talent = await helpFetch.getActiveTalentsCode(data.specializations.href);
         result.talents = talent;
         result.search = `${name}:${realm}:${server}`
+        if(checkedCount){
+            try {
+                const checkToNr = Number(checkedCount); 
+                if(typeof checkToNr === "number") result.checkedCount = checkToNr;
+            } catch (error) {
+                console.warn(error)
+            }
+        } 
 
         // const end = performance.now(); 
         // console.log(`Elapsed: ${end - start} ms`);
