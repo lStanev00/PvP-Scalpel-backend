@@ -67,6 +67,21 @@ async function checkCharacterGet(req, res) {
              
             character = await getCharacter(server, realm, name);
         }
+        const oneHourAgo = Date.now() - (60 * 60 * 1000);
+        const isOlderThanOneHour = new Date(character?.updatedAt).getTime() < oneHourAgo;
+
+        if (isOlderThanOneHour) {
+            const newData = await fetchData(character.server, character.playerRealm.slug, character.name, character.checkedCount);
+            if(newData) {
+                for (const [key, value] of Object.entries(newData)) {
+                    if(character?.[key] && value) character[key] = value;
+                }
+
+                const updatedChar = await Char.findByIdAndUpdate(character._id, { $set: character }, {new:true})
+                return jsonResponse(res, 200, updatedChar.toObject());
+            }
+        } 
+
         return res.status(200).json(character)
     
     } catch (error) {
