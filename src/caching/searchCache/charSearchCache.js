@@ -34,7 +34,7 @@ export function searchCharFromMap(key) {
         console.warn(key + "'s not a string!");
         return undefined
     }
-
+    key = KeyObject.toLowerCase();
     const result = charSearchMap.get(key);
 
     return result
