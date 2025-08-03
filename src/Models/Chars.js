@@ -82,6 +82,7 @@ const CharSchema = new mongoose.Schema({
     guildInsight : {
         rank: { type: mongoose.Schema.Types.Mixed, default: undefined },
         rankNumber : { type: mongoose.Schema.Types.Mixed, default: undefined },
+        required: false
     },
     talents: {
         talentsCode: {type: String, default: null},
