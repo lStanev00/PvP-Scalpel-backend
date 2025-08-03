@@ -32,7 +32,12 @@ async function fetchData(server, realm, name, checkedCount = undefined) {
             guildMember: false,
         };
         
-        if (data?.guild?.name == "PvP Scalpel") result.guildMember = true;
+        if (data?.guild?.name == "PvP Scalpel") {
+            result.guildMember = true;
+
+        } else {
+            result.guildMember - false;
+        }
         result.guildName = data?.guild?.name;
         // Fetch dependent data in parallel
         const [
