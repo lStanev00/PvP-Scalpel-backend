@@ -81,8 +81,7 @@ const CharSchema = new mongoose.Schema({
     guildName: {type: String, default: undefined},
     guildInsight : {
         rank: { type: mongoose.Schema.Types.Mixed, default: undefined },
-        rankNumber : { type: mongoose.Schema.Types.Mixed, default: undefined },
-        required: false
+        rankNumber : { type: mongoose.Schema.Types.Mixed, default: undefined }
     },
     talents: {
         talentsCode: {type: String, default: null},
