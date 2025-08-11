@@ -399,9 +399,16 @@ const helpFetch = {
     getActiveTalentsCode: async function (href) {
 
         try {
-
-            const req = await this.fetchBlizzard(href);
-
+            
+            let req = await this.fetchBlizzard(href);
+            if (!req.ok) {
+                await delay(3000);
+                req = await this.fetchBlizzard(href);
+                if(!req.ok) {
+                    console.warn(`Active Spec Error response code : ${req.status}`)
+                }
+            }
+            
             if (req.ok) {
                 const data = await req.json();
                 const activeSpecTalent = data?.active_hero_talent_tree?.name;
@@ -415,7 +422,7 @@ const helpFetch = {
                 result.talentsSpec = activeSpecTalent ? activeSpecTalent : null;
 
                 return result
-            }
+            } 
         } catch (error) {
             console.warn(error);
             return undefined
