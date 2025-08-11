@@ -166,8 +166,11 @@ export async function findChar(server, realm, name) {
     accessToken = await getAccessToken()
     const now = new Date(); 
     const fullUpdate = await checkIfShouldUpdateFull();
+    // const fullUpdate = true; // test 
     // console.info(`[PatchPvP] Full update? = ${fullUpdate}`)
     // console.log(`[PatchPvP] Execution Time: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`);
+
+    const dbaseKnownEntries = await Char.find({guildMember : true}).lean();
 
     const guildRoster = await blizzFetch(`/data/wow/guild/${GUILD_REALM}/${GUILD_NAME}/roster?`, "Guild", "Roster");
   
@@ -176,6 +179,25 @@ export async function findChar(server, realm, name) {
     }
   
     const members = guildRoster.members;
+
+    for (const dbaseEntry of dbaseKnownEntries) {
+      const blizID = dbaseEntry?.blizID;
+      if(!blizID) continue;
+
+      const exist = members.find(entry => entry.character.id == blizID);
+      if(exist) continue;
+      console.info(dbaseEntry.name)
+
+      const charOut = await Char.findByIdAndUpdate(dbaseEntry._id, {
+        $set : {
+          guildMember : false
+        },
+        $unset : {
+          guildInsight: ""
+        }
+      }, {new: true});
+      console.info(`Character: ${charOut.name}'s no longer a guild member`);
+    }
   
     let delayMS = 500;
     const updateDoc = {
@@ -184,7 +206,6 @@ export async function findChar(server, realm, name) {
     };
 
     for (const member of members) {
-        
         const server = "eu";
         const realm = member?.character.realm?.slug;
         const name = member?.character.name;
