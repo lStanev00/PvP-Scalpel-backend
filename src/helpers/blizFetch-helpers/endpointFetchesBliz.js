@@ -425,8 +425,9 @@ const helpFetch = {
             } 
         } catch (error) {
             console.warn(error);
-            if(!result.talentsCode) result.talentsCode = "";
-            if(!result.talentsSpec) result.talentsSpec = "";
+            console.info(result)
+            if(!result.talentsCode) result.talentsCode = null;
+            if(!result.talentsSpec) result.talentsSpec = null;
             return result
             
         }
