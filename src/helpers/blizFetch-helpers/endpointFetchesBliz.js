@@ -398,6 +398,7 @@ const helpFetch = {
     },
     getActiveTalentsCode: async function (href) {
 
+        const result = {};
         try {
             
             let req = await this.fetchBlizzard(href);
@@ -416,7 +417,6 @@ const helpFetch = {
                 const activeSpecData = data.specializations.find(specDetails => specDetails.specialization.id == specId);
                 const activeLoadout = activeSpecData.loadouts.find(loadout => loadout.is_active == true);
 
-                const result = {};
 
                 result.talentsCode = activeLoadout ? activeLoadout.talent_loadout_code : null;
                 result.talentsSpec = activeSpecTalent ? activeSpecTalent : null;
@@ -425,7 +425,9 @@ const helpFetch = {
             } 
         } catch (error) {
             console.warn(error);
-            return undefined
+            if(!result.talentsCode) result.talentsCode = "";
+            if(!result.talentsSpec) result.talentsSpec = "";
+            return result
             
         }
     },
