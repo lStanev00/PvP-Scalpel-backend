@@ -4,11 +4,12 @@ import { initialSetSeasonalIdsMap } from "./achievements/achievesEmt.js";
 import { initialSetRealmIdsMap } from "./realms/realmCache.js";
 import { initialSetRegionIdsMap } from "./regions/regionCache.js";
 import { initialRealmSearchMap } from "./searchCache/realmSearchCach.js";
+import updateDBAchieves from "../services/updateAchieves.js";
 
 export default async function initialCache() {
 
     try {
-        
+        await updateDBAchieves(); // TODO: Make repetitive
         await initialSetRegionIdsMap()
         await initialSetRealmIdsMap();
         await initialSetSeasonalIdsMap();
