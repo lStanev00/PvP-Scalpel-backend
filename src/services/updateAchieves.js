@@ -7,11 +7,11 @@ import { delay } from '../helpers/startBGTask.js';
 
 export default async function updateDBAchieves() {
     
-    const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.5_60179-eu`;
+    // const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-11.1.5_60179-eu`; !!OLD SEASON WWI SSN2
+    const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-eu`; //!! WWI SSN3
     
     try {
         const req = await helpFetch.fetchBlizzard(feastOfStrengthURL);
-
         if (req.status == 200){
             const data = await req.json();
             const achievements = data?.achievements;
@@ -25,10 +25,11 @@ export default async function updateDBAchieves() {
             if (achievements) {
                 for (const achievement of achievements) {
                     const stringId = String(achievement.id);
-                    const exist = storedAches.get(stringId);
+                    let exist = storedAches.get(stringId)?._id
 
                     if (exist) {
-
+                        exist = exist = await Achievement.findById(exist) || undefined;
+                        
                         if (exist.name != achievement?.name || exist.href != achievement?.key?.href) {
     
                             exist.name = achievement?.name;;
