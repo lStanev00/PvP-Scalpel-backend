@@ -432,7 +432,7 @@ const helpFetch = {
                 return result
             } 
         } catch (error) {
-            if(result = {}) return result
+            if (Object.keys(result).length === 0) return result
             console.warn(error);
             console.info(result)
             if(!result.talentsCode) result.talentsCode = null;
