@@ -219,8 +219,8 @@ const helpFetch = {
         }
     },
     getPvPTitle: async function (href) {
+        let data = await (await this.fetchBlizzard(href)).json();
         try {
-            const data = await (await this.fetchBlizzard(href)).json();
             if (data?.code == 404 ) return undefined;
             let result = {
                 name: data.name.en_GB,
@@ -228,7 +228,15 @@ const helpFetch = {
             }
             return result
         } catch (error) {
-            console.log(error);
+            if (data.startsWith("Downstream Error")) {
+                try {
+                    await delay(2000);
+                    const retry = await this.getPvPTitle(href);
+                    if(retry) return retry
+                } catch (error) {
+                    console.warn(error)
+                }
+            }
             return undefined
         }
     },
