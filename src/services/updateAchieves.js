@@ -11,100 +11,83 @@ export default async function updateDBAchieves() {
     const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-eu`; //!! WWI SSN3
     
     try {
-        const req = await helpFetch.fetchBlizzard(feastOfStrengthURL);
-        if (req.status == 200){
-            const data = await req.json();
-            const achievements = data?.achievements;
-            let storedAches = getSeasonalIdsMap();
-            if(storedAches === null) {
-                await setSeasonalIdsMap()
-                await delay(2000);
-                storedAches = getSeasonalIdsMap();
-            }
+        const data = await helpFetch.fetchBlizzard(feastOfStrengthURL);
 
-            if (achievements) {
-                for (const achievement of achievements) {
-                    const stringId = String(achievement.id);
-                    let exist = storedAches.get(stringId)?._id
+        const achievements = data?.achievements;
+        let storedAches = getSeasonalIdsMap();
+        if(storedAches === null) {
+            await setSeasonalIdsMap()
+            await delay(2000);
+            storedAches = getSeasonalIdsMap();
+        }
 
-                    if (exist) {
+        if (achievements) {
+            for (const achievement of achievements) {
+                const stringId = String(achievement.id);
+                let exist = storedAches.get(stringId)?._id
+
+                if (exist) {
                         
-                        exist = exist = await Achievement.findById(exist) || undefined;
-                        if (exist.name != achievement?.name || exist.href != achievement?.key?.href || exist.media === undefined) {
+                    exist = exist = await Achievement.findById(exist) || undefined;
+                    if (exist.name != achievement?.name || exist.href != achievement?.key?.href || exist.media === undefined) {
                             
-                            exist.name = achievement?.name;;
-                            exist.href = achievement?.key?.href;
-
+                        exist.name = achievement?.name;;
+                        exist.href = achievement?.key?.href;
                             
-                            const achDataReq = await helpFetch.fetchBlizzard(achievement.key.href);
-
-                            const achData = await achDataReq.json();
-
-                            const mediaString = await helpFetch.getMedia(achData, "media");
+                        const achData = await helpFetch.fetchBlizzard(achievement.key.href);
+                        const mediaString = await helpFetch.getMedia(achData, "media");
                             
-                            if(mediaString) exist.media = mediaString;
-                            if(achData.description) exist.description = achData.description;
-                            if(achData.display_order) exist.displayOrder = achData.display_order;
-                            if(achData.category) exist.category = achData.category.id;
-                            if(achData.criteria) exist.criteria = achData.criteria.id;
+                        if(mediaString) exist.media = mediaString;
+                        if(achData.description) exist.description = achData.description;
+                        if(achData.display_order) exist.displayOrder = achData.display_order;
+                        if(achData.category) exist.category = achData.category.id;
+                        if(achData.criteria) exist.criteria = achData.criteria.id;
 
-                            let name = achData?.name;
+                        let name = achData?.name;
 
-                            if(name && name.includes(`: `) && name.includes(` Season `)) {
+                        if(name && name.includes(`: `) && name.includes(` Season `)) {
+                            try {
+                                const [ title, expansion ] = name.split(`: `);
+                                let expName;
+                                let seasonIndex;
+                                [ expName, seasonIndex ] = expansion.split(` Season `);
 
-                                try {
-
-                                    const [ title, expansion ] = name.split(`: `);
-
-                                    let expName;
-                                    let seasonIndex;
-                                    [ expName, seasonIndex ] = expansion.split(` Season `);
-
-                                    if(seasonIndex) {
-                                        const season = Number(seasonIndex);
-        
-                                        exist.expansion.name = expName;
-                                        exist.expansion.season = season;
-
-                                    } else {
-                                        seasonIndex = expName.replace(`Season `, "");
-                                        const season = Number(seasonIndex);
-                                        exist.expansion.season = season;
-                                    }
-
-                                    
-                                } catch (error) {
-
-                                    console.warn(error)
-                                    
+                                if(seasonIndex) {
+                                    const season = Number(seasonIndex);
+                                    exist.expansion.name = expName;
+                                    exist.expansion.season = season;
+                                } else {
+                                    seasonIndex = expName.replace(`Season `, "");
+                                    const season = Number(seasonIndex);
+                                    exist.expansion.season = season;
                                 }
 
+                            } catch (error) {
+                                console.warn(error)
                             }
 
-                            await exist.save();
                         }
-                        
-                        continue;
-
+                        await exist.save();
                     }
+                    continue;
+                }
 
-                    if(achievement.id && achievement.name && achievement.key.href) {
+                if(achievement.id && achievement.name && achievement.key.href) {
 
-                        const newAch = new Achievement({
-                            _id: achievement.id,
-                            name: achievement.name,
-                            href: achievement.key.href
-                        })
+                    const newAch = new Achievement({
+                        _id: achievement.id,
+                        name: achievement.name,
+                        href: achievement.key.href
+                    })
     
-                        await newAch.save();
-
-                    }
+                    await newAch.save();
 
                 }
+
             }
-            await delay(2000);
-            await setSeasonalIdsMap()
         }
+        await delay(2000);
+        await setSeasonalIdsMap()
         
     } catch (error) {
         console.warn(error)
