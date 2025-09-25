@@ -4,6 +4,7 @@ import {delay} from "../startBGTask.js";
 import Achievement from "../../Models/Achievements.js";
 import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../caching/achievements/achievesEmt.js";
 import dotenv from 'dotenv';
+import BlizAPIError from "../../Models/BlizAPIErrors.js";
 dotenv.config({ path: '../../../.env' });
 
 const clientId = process.env.CLIENT_ID;
@@ -352,6 +353,20 @@ const helpFetch = {
                     data = JSON.parse(text);
                 }
             } catch (error) {
+
+                try {
+                    
+                    const newError = new BlizAPIError({
+                        url :url,
+                        status: res.status || 0,
+                        body : res?.body || text
+                    })
+                    await newError.save();
+
+                } catch (err) {
+                    console.warn(err)
+                }
+
                 await delay(1000); // Delay to give the API air
             }
         }
