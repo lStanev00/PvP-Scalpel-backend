@@ -338,6 +338,23 @@ const helpFetch = {
                 'Pragma': 'no-cache'
             }
         };
+        let res;
+        let text = "D";
+        let data = null
+        let retries = 0;
+
+        while(data === null && retries < 5) { // Loop for a valid JSON
+
+            try {
+                res = await fetch(apiUrl, finalOptions);
+                text = await res.text();
+                if(!text.startsWith("D")) {
+                    data = JSON.parse(text);
+                }
+            } catch (error) {
+                await delay(1000); // Delay to give the API air
+            }
+        }
 
         return fetch(apiUrl, finalOptions)
     },
