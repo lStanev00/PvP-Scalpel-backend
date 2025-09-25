@@ -440,29 +440,18 @@ const helpFetch = {
 
         const result = {};
         try {
-            
             const data = await this.fetchBlizzard(href);
-            // if (!req.ok) {
-            //     await delay(3000);
-            //     req = await this.fetchBlizzard(href);
-            //     if(!req.ok) {
-            //         console.warn(`Active Spec Error response code : ${req.status}`)
-            //     }
-            // }
-            
-            // if (req.ok) {
-                // const data = await req.json();
-                const activeSpecTalent = data?.active_hero_talent_tree?.name;
-                const specId = data.active_specialization.id;
-                const activeSpecData = data.specializations.find(specDetails => specDetails.specialization.id == specId);
-                const activeLoadout = activeSpecData.loadouts.find(loadout => loadout.is_active == true);
 
+            const activeSpecTalent = data?.active_hero_talent_tree?.name;
+            const specId = data.active_specialization.id;
+            const activeSpecData = data.specializations.find(specDetails => specDetails.specialization.id == specId);
+            const activeLoadout = activeSpecData.loadouts.find(loadout => loadout.is_active == true);
 
-                result.talentsCode = activeLoadout ? activeLoadout.talent_loadout_code : null;
-                result.talentsSpec = activeSpecTalent ? activeSpecTalent : null;
+            result.talentsCode = activeLoadout ? activeLoadout.talent_loadout_code : null;
+            result.talentsSpec = activeSpecTalent ? activeSpecTalent : null;
 
-                return result
-            // } 
+            return result
+
         } catch (error) {
             if (Object.keys(result).length === 0) return result
             console.warn(error);
@@ -476,14 +465,8 @@ const helpFetch = {
     getTalentSpec: async function (href) {
         try {
             const data = await this.fetchBlizzard(href);
-            
-            // if(req.ok){
-                // const data = await req.json();
-                const talentString = data?.active_hero_talent_tree?.name;
-                
-                return talentString ? talentString : null;
-
-            // }
+            const talentString = data?.active_hero_talent_tree?.name;
+            return talentString ? talentString : null;
         } catch (error) {
             console.warn(error);
         }
@@ -498,10 +481,7 @@ const helpFetch = {
 
         try {
             const data = await this.fetchBlizzard(url);
-            // if (req.ok) {
-                // const data = await req.json();
-                return data?.results
-            // }
+            return data?.results
         } catch (error) {
             return null
         }
