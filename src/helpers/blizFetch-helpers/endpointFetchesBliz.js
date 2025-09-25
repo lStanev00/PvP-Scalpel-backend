@@ -368,7 +368,7 @@ const helpFetch = {
                 }
 
                 await delay(1000); // Delay to give the API air;
-                retries += 5
+                retries += 1
             }
         }
 
