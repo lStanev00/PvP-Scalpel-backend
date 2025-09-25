@@ -367,11 +367,13 @@ const helpFetch = {
                     console.warn(err)
                 }
 
-                await delay(1000); // Delay to give the API air
+                await delay(1000); // Delay to give the API air;
+                retries += 5
             }
         }
 
-        return fetch(apiUrl, finalOptions)
+        // return fetch(apiUrl, finalOptions);
+        return data;
     },
 
     getCharMedia: async function (href) {
