@@ -11,9 +11,9 @@ export default async function updateDBAchieves() {
     const feastOfStrengthURL = `https://eu.api.blizzard.com/data/wow/achievement-category/15270?namespace=static-eu`; //!! WWI SSN3
     
     try {
-        const req = await helpFetch.fetchBlizzard(feastOfStrengthURL);
-        if (req.status == 200){
-            const data = await req.json();
+        const data = await helpFetch.fetchBlizzard(feastOfStrengthURL);
+        // if (req.status == 200){
+            // const data = await req.json();
             const achievements = data?.achievements;
             let storedAches = getSeasonalIdsMap();
             if(storedAches === null) {
@@ -36,9 +36,9 @@ export default async function updateDBAchieves() {
                             exist.href = achievement?.key?.href;
 
                             
-                            const achDataReq = await helpFetch.fetchBlizzard(achievement.key.href);
+                            const achData = await helpFetch.fetchBlizzard(achievement.key.href);
 
-                            const achData = await achDataReq.json();
+                            // const achData = await achDataReq.json();
 
                             const mediaString = await helpFetch.getMedia(achData, "media");
                             
@@ -104,7 +104,7 @@ export default async function updateDBAchieves() {
             }
             await delay(2000);
             await setSeasonalIdsMap()
-        }
+        // }
         
     } catch (error) {
         console.warn(error)

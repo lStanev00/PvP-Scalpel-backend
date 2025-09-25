@@ -67,10 +67,10 @@ export default async function updateDBRealms() {
         // const realmsExtractUrl = `https://eu.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-eu&orderby=id`;
 
         try {
-            const req = await helpFetch.fetchBlizzard(realmsExtractUrl);
+            const blizData = await helpFetch.fetchBlizzard(realmsExtractUrl);
 
-            if(req.ok) {
-                const blizData = await req.json();
+            // if(req.ok) {
+                // const blizData = await req.json();
                 
                 if (blizData.results && Array.isArray(blizData?.results)) {
                     for (const { data } of blizData.results) {
@@ -121,7 +121,7 @@ export default async function updateDBRealms() {
                     }
                 }
 
-            }
+            // }
         } catch (error) {
             console.warn(error)
         }

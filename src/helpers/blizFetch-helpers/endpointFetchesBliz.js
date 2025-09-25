@@ -47,7 +47,7 @@ const helpFetch = {
     getCharProfile: async function (server, realm , name) {
         const URI = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}?namespace=profile-${server}&locale=en_US`;
         try {
-            const data = await (await this.fetchBlizzard(URI)).json();
+            const data = await this.fetchBlizzard(URI);
             return data
         } catch (error) {
             console.log(error)
@@ -60,18 +60,18 @@ const helpFetch = {
         try {
 
             try {
-                data1 = await(await this.fetchBlizzard(data[path].key.href)).json();
+                data1 = await this.fetchBlizzard(data[path].key.href);
             } catch (error) {
                 await delay(500);
                 try {
-                    data1 = await(await this.fetchBlizzard(data[path].key.href)).json();
+                    data1 = await this.fetchBlizzard(data[path].key.href);
                 } catch (error) {
                     await delay(200);
-                    data1 = await(await this.fetchBlizzard(data[path].key.href)).json();
+                    data1 = await this.fetchBlizzard(data[path].key.href);
                 }
             }
             try {
-                const data2 = await ( await this.fetchBlizzard(data1.media.key.href)).json();
+                const data2 = await this.fetchBlizzard(data1.media.key.href);
                 return data2 ? data2.assets[0].value : undefined
                 
             } catch (error) {
@@ -102,7 +102,7 @@ const helpFetch = {
 
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
-            let brackets = (await (await this.fetchBlizzard(path)).json()).brackets;
+            let brackets = (await this.fetchBlizzard(path)).brackets;
             if (brackets == undefined) return {
                 solo: {
                 },
@@ -133,7 +133,7 @@ const helpFetch = {
                     lastSeasonLadder: undefined,
                 }
             }
-            const bracketFetches = brackets.map(bracket =>this.fetchBlizzard(bracket.href).then(res => { return  res.json()}));
+            const bracketFetches = brackets.map(bracket =>this.fetchBlizzard(bracket.href));
 
             const allBracketsData = await Promise.all(bracketFetches);
 
@@ -220,7 +220,7 @@ const helpFetch = {
         }
     },
     getPvPTitle: async function (href) {
-        let data = await (await this.fetchBlizzard(href)).json();
+        let data = await this.fetchBlizzard(href);
         try {
             if (data?.code == 404 ) return undefined;
             let result = {
@@ -244,7 +244,7 @@ const helpFetch = {
     getpastRate: async function (url, playerName) {
         let data;
         try {
-            data = await (await this.fetchBlizzard(url)).json()
+            data = await this.fetchBlizzard(url);
         } catch (error) {
             console.warn(`BAD FETCH`);
         }
@@ -268,7 +268,7 @@ const helpFetch = {
     getAchievById : async function (href, statId) {
         let data
         try {
-            data = await(await this.fetchBlizzard(href)).json();
+            data = await this.fetchBlizzard(href);
         } catch (error) {
             console.warn(`Error fetchng!`)
             return 0
@@ -287,7 +287,7 @@ const helpFetch = {
     getAchievXP: async function (href, points) {
         let data;
         try {
-            data = await (await helpFetch.fetchBlizzard(href)).json();
+            data = await helpFetch.fetchBlizzard(href);
 
             const achievementsMAP = new Map();
             const seasonalAchieves = [];
@@ -378,7 +378,7 @@ const helpFetch = {
 
     getCharMedia: async function (href) {
         try {
-            const data = (await( await helpFetch.fetchBlizzard(href)).json()).assets;
+            const data = (await helpFetch.fetchBlizzard(href)).assets;
             const assets = {
                 avatar: (data[0])[`value`] || "",
                 banner: (data[1])[`value`] || "",
@@ -392,7 +392,7 @@ const helpFetch = {
     },
     getCharGear: async function (href) {
         try {
-            const data = await (await this.fetchBlizzard(href)).json();
+            const data = await this.fetchBlizzard(href);
             const result = await formatGearData(data);
             return result
         } catch (error) {
@@ -401,7 +401,7 @@ const helpFetch = {
     },
     getStats: async function(href){
         try {
-            const data = await(await this.fetchBlizzard(href)).json();
+            const data = await this.fetchBlizzard(href);
             const result = extractStats(data);
             return result
         } catch (error) {
@@ -414,8 +414,7 @@ const helpFetch = {
 
         
         try {
-            const req = await this.fetchBlizzard(url);
-            const data = await req.json();
+            const data = await this.fetchBlizzard(url);
             const currentSeasonId = data?.current_season?.id;
 
             return currentSeasonId;
@@ -431,8 +430,7 @@ const helpFetch = {
         const guildServer = "eu"
         const path = `https://${guildServer}.api.blizzard.com/data/wow/guild/${guildRealmSlug}/${guildNameSlug}/roster?namespace=profile-${guildServer}`;
        
-        const req = await this.fetchBlizzard(path);
-        const data = await req.json();
+        const data = await this.fetchBlizzard(path);
 
         const memberList = data.members;
 
@@ -443,17 +441,17 @@ const helpFetch = {
         const result = {};
         try {
             
-            let req = await this.fetchBlizzard(href);
-            if (!req.ok) {
-                await delay(3000);
-                req = await this.fetchBlizzard(href);
-                if(!req.ok) {
-                    console.warn(`Active Spec Error response code : ${req.status}`)
-                }
-            }
+            const data = await this.fetchBlizzard(href);
+            // if (!req.ok) {
+            //     await delay(3000);
+            //     req = await this.fetchBlizzard(href);
+            //     if(!req.ok) {
+            //         console.warn(`Active Spec Error response code : ${req.status}`)
+            //     }
+            // }
             
-            if (req.ok) {
-                const data = await req.json();
+            // if (req.ok) {
+                // const data = await req.json();
                 const activeSpecTalent = data?.active_hero_talent_tree?.name;
                 const specId = data.active_specialization.id;
                 const activeSpecData = data.specializations.find(specDetails => specDetails.specialization.id == specId);
@@ -464,7 +462,7 @@ const helpFetch = {
                 result.talentsSpec = activeSpecTalent ? activeSpecTalent : null;
 
                 return result
-            } 
+            // } 
         } catch (error) {
             if (Object.keys(result).length === 0) return result
             console.warn(error);
@@ -477,15 +475,15 @@ const helpFetch = {
     },
     getTalentSpec: async function (href) {
         try {
-            const req = await this.fetchBlizzard(href);
+            const data = await this.fetchBlizzard(href);
             
-            if(req.ok){
-                const data = await req.json();
+            // if(req.ok){
+                // const data = await req.json();
                 const talentString = data?.active_hero_talent_tree?.name;
                 
                 return talentString ? talentString : null;
 
-            }
+            // }
         } catch (error) {
             console.warn(error);
         }
@@ -499,11 +497,11 @@ const helpFetch = {
         const url = `https://${server}.api.blizzard.com/data/wow/search/connected-realm?namespace=dynamic-${server}&orderby=id`;
 
         try {
-            const req = await this.fetchBlizzard(url);
-            if (req.ok) {
-                const data = await req.json();
+            const data = await this.fetchBlizzard(url);
+            // if (req.ok) {
+                // const data = await req.json();
                 return data?.results
-            }
+            // }
         } catch (error) {
             return null
         }
@@ -547,7 +545,7 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID)
         if (match && match?.completed_timestamp){
             try {
-                const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
+                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
                 const twosResult = {
                     name: data.name,
                     description: data.description,
@@ -565,7 +563,7 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp){
             try {
-                const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
+                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
                 const threesResult = {
                     name: data.name,
                     description: data.description,
@@ -582,7 +580,7 @@ async function filterAchiev (achievements, points) {
     for (const {key, name, id: dataID} of achievesData["soloShuffle"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
+            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
             const soloResult = {
                 name: data.name,
                 description: data.description,
@@ -598,7 +596,7 @@ async function filterAchiev (achievements, points) {
     for (const {key, name, id: dataID} of achievesData["BG"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
+            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
             const BGXPResult = {
                 name: data.name,
                 description: data.description,
@@ -615,7 +613,7 @@ async function filterAchiev (achievements, points) {
     for (const {key, name, id: dataID} of achievesData["RBGWins"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
+            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
             const RBGWinsResult = {
                 name: data.name,
                 description: data.description,
@@ -656,7 +654,7 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp)
             try {
-                const data = await(await helpFetch.fetchBlizzard(match.achievement.key.href)).json();
+                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
                 const BlitzWinsResult = {
                     name: data.name,
                     description: data.description,
