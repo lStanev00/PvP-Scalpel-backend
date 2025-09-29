@@ -16,9 +16,10 @@ export default async function connectRedis() {
 
     await client.connect();
 
-    await client.set("123", "test");
+    const tryout = new Map();
+    await client.set("mapTest", JSON.stringify(tryout));
 
-    const value = await client.get("123");
+    const value = await client.get("mapTest");
 
     console.info("Redis get try == " + value);
 
