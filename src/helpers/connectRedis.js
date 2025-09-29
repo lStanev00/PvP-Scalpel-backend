@@ -49,7 +49,7 @@ export async function shipCache(key, value) {
     }
 }
 
-// Get an entry to Redis
+// Get an entry from Redis
 export async function dockCache(key) {
 
     try {
