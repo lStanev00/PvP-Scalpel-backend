@@ -28,7 +28,6 @@ app.use(express.json({ extended: false }));
 app.use("/", sanitizer);
 app.use(`/`, router);
 
-await startServices();
-
 app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
 
+await startServices();
