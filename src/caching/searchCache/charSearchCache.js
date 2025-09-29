@@ -3,6 +3,7 @@ import Char from "../../Models/Chars.js";
 import CharSearchModel from "../../Models/SearchCharacter.js";
 import extractNameSlug from "../../helpers/extractName.js";
 import getCache from "../../helpers/redis/getterRedis.js";
+import hasHashCache from "../../helpers/redis/checkersRedis.js";
 
 const emitter = new EventEmitter();
 // let charSearchMap = new Map();
@@ -23,7 +24,7 @@ export async function initialCharSearchMap() {
     for (const char of charList) {
         const key = extractNameSlug(char.search);
         // const exist = charSearchMap.has(key);
-        const exist = charSearchMap.has(key);
+        const exist = await hasHashCache(hashName, key);
         
         if(!exist) await insertOneCharSearchMap(char);
 
@@ -31,13 +32,14 @@ export async function initialCharSearchMap() {
 
 }
 
-export function searchCharFromMap(key) {
+export async function searchCharFromMap(key) {
     if (typeof key !== "string") {
         console.warn(key + "'s not a string!");
         return undefined
     }
     key = key.toLowerCase();
-    const result = charSearchMap.get(key);
+    // const result = charSearchMap.get(key);
+    const result = await getCache(key, hashName);
 
     return result
 }
