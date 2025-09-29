@@ -1,4 +1,3 @@
-import { Types } from "mongoose";
 import { createClient } from "redis";
 
 const isLocal = process.env.REDIS_PUBLIC_URL;
