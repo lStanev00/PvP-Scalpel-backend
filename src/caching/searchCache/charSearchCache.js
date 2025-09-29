@@ -29,7 +29,6 @@ export async function initialCharSearchMap() {
 
     }
 
-
 }
 
 export function searchCharFromMap(key) {
