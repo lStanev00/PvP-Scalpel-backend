@@ -1,31 +1,40 @@
 import { EventEmitter } from "events";
 import Region from "../../Models/Regions.js";
 import isPlainObject from "../../helpers/objectCheck.js";
+import setCache from "../../helpers/redis/setterRedis.js";
+import getCache from "../../helpers/redis/getterRedis.js";
 
 const emitter = new EventEmitter();
 
 // let regionIdsMap = new Map();
 
-export function getRegionIdsMap() {
-    return regionIdsMap
+export async function getRegionIdsMap() {
+    // return regionIdsMap
+    const data = await getCache("Regions");
+    return data;
 }
 
-export function searchRegionFromMapBySlug(searchSlug) {
+export async function searchRegionFromMapBySlug(searchSlug) {
     if (typeof searchSlug !== "string") {
         console.warn(searchSlug + "'s not a string!");
         return undefined
     }
 
-    const result = Array.from(regionIdsMap)
+    // const result = Array.from(regionIdsMap)
+    //     .filter(([key, value]) => value.slug === searchSlug);
+    // return result[0]
+
+    const result = await getRegionIdsMap()
         .filter(([key, value]) => value.slug === searchSlug);
-    return result[0]
+
+    return result[0] || null;
 }
 
 export async function setRegionIdsMap() {
     const newMap = await mapDBRegion()
 
     if(newMap !== null){
-        regionIdsMap = newMap;
+        // regionIdsMap = newMap;
         emitter.emit('update', newMap);
     }
 
@@ -61,8 +70,8 @@ export async function mapDBRegion () {
                 }
             }
             entry.realms = shadowRealmMap;
+            await setCache(entry._id, entry, "Regions");
             shadowMap.set(String(entry._id), entry);
-            
 
         }
         return shadowMap
