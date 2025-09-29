@@ -4,7 +4,7 @@ import checkKey from "./validateRedisKey.js";
 // Upload an entry to Redis
 export default async function setCache(key, value, hash = "", ttl = -1) {
     if (typeof hash !== "string") throw new TypeError("The hash have to be a string!");
-    if (typeof ttl !== "number") throw new TypeError("The ttl have to be number!");
+    if (typeof ttl !== "number") throw new TypeError("The ttl have to be a number!");
     if (ttl !== -1 && ttl < 1) throw new Error("The ttl have to be a positive number!");
     if (!value) throw new TypeError("Invalid value's been passed!");
 
