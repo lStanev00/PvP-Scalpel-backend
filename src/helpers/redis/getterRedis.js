@@ -39,7 +39,7 @@ export default async function getCache(key, hash = "") {
 
 }
 
-export async function hashgetAllCache(hash) {
+export async function hashGetAllCache(hash) {
     if (!hash) throw new Error("Bad input");
     hash = checkKey(hash);
     if (typeof hash !== "string") throw new TypeError("The input must be type of string!");

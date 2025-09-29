@@ -2,27 +2,18 @@ import { EventEmitter } from "events";
 import Region from "../../Models/Regions.js";
 import isPlainObject from "../../helpers/objectCheck.js";
 import setCache from "../../helpers/redis/setterRedis.js";
-import getCache from "../../helpers/redis/getterRedis.js";
+import { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 
 const emitter = new EventEmitter();
+const hashName = "Regions";
 
-// let regionIdsMap = new Map();
-
-export async function getRegionIdsMap() {
-    // return regionIdsMap
-    const data = await getCache("Regions");
-    return data;
-}
+export const getRegionIdsMap = async() => await hashGetAllCache(hashName);
 
 export async function searchRegionFromMapBySlug(searchSlug) {
     if (typeof searchSlug !== "string") {
         console.warn(searchSlug + "'s not a string!");
         return undefined
     }
-
-    // const result = Array.from(regionIdsMap)
-    //     .filter(([key, value]) => value.slug === searchSlug);
-    // return result[0]
 
     const result = await getRegionIdsMap()
         .filter(([key, value]) => value.slug === searchSlug);
@@ -40,26 +31,12 @@ export async function setRegionIdsMap() {
 
 }
 
-export async function initialSetRegionIdsMap() {
-    const newMap = await mapDBRegion()
-
-    if(newMap !== null){
-        // regionIdsMap = newMap;
-
-    }
-
-}
-
-export function onRegionIdsUpdate(fn) {
-    emitter.on('update', fn);
-}
-
-onRegionIdsUpdate(() => console.info("[Regions Cache] Regions just got cached"))
+export const initialSetRegionIdsMap = async() => await mapDBRegion();
+export const onRegionIdsUpdate = () => emitter.on('update', console.info("[Regions Cache] Regions just got cached"));
 
 export async function mapDBRegion () {
     try {
         const dbList = await Region.find().populate("realms").lean();
-        const shadowMap = new Map();
         for (const entry of dbList) {
 
             const shadowRealmMap = new Map();
@@ -70,13 +47,9 @@ export async function mapDBRegion () {
                 }
             }
             entry.realms = shadowRealmMap;
-            await setCache(entry._id, entry, "Regions");
-            shadowMap.set(String(entry._id), entry);
-
+            await setCache(entry._id, entry, hashName);
         }
-        return shadowMap
     } catch (error) {
-        console.warn(error);
-        return null
+        console.error(error);
     }
 }

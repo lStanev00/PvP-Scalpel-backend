@@ -9,7 +9,7 @@ import updateDBAchieves from "../services/updateAchieves.js";
 export default async function initialCache() {
 
     try {
-        await updateDBAchieves(); // TODO: Make repetitive
+        await updateDBAchieves(); 
         await initialSetRegionIdsMap()
         await initialSetRealmIdsMap();
         await initialSetSeasonalIdsMap();

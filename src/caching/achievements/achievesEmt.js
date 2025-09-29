@@ -1,13 +1,13 @@
 import { EventEmitter } from "events";
 import Achievement from "../../Models/Achievements.js";
+import { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 
 const emitter = new EventEmitter();
+const hashName = "Achievements";
 
 let seasonalIdsMap = null;
 
-export function getSeasonalIdsMap() {
-    return seasonalIdsMap
-}
+export const getSeasonalIdsMap = async () => await hashGetAllCache(hashName);
 
 export async function setSeasonalIdsMap() {
     const newMap = await mapDBAchieves()

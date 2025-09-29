@@ -2,28 +2,22 @@ import { EventEmitter } from "events";
 import Char from "../../Models/Chars.js";
 import CharSearchModel from "../../Models/SearchCharacter.js";
 import extractNameSlug from "../../helpers/extractName.js";
-import getCache from "../../helpers/redis/getterRedis.js";
+import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import hasHashCache from "../../helpers/redis/checkersRedis.js";
 
-const emitter = new EventEmitter();
-// let charSearchMap = new Map();
 const hashName = "CharSearch";
 
-export async function getCharSearchMap() {
-    // return charSearchMap
-    return await getCache(hashName);
-}
+const emitter = new EventEmitter();
+emitter.on('update', console.info("[Character Search Cache] Character Search indexes just got cached"));
+
+export const getCharSearchMap = async() => await hashGetAllCache(hashName);
 
 export async function initialCharSearchMap() {
-    const newMap = await setDBChars();
+    await setDBChars();
     const charList = await Char.find({}, {_id: 1, search: 1}).lean();
-    if(newMap !== null){
-        // charSearchMap = newMap;
-    }
 
     for (const char of charList) {
         const key = extractNameSlug(char.search);
-        // const exist = charSearchMap.has(key);
         const exist = await hasHashCache(hashName, key);
         
         if(!exist) await insertOneCharSearchMap(char);
@@ -38,15 +32,12 @@ export async function searchCharFromMap(key) {
         return undefined
     }
     key = key.toLowerCase();
-    // const result = charSearchMap.get(key);
-    const result = await getCache(key, hashName);
 
-    return result
+    return await getCache(key, hashName);
 }
 
 
 export async function insertOneCharSearchMap(newChar) {
-    
     if (!newChar._id && !newChar.search) return
 
     const newCharSearchEntry = newChar;
@@ -56,25 +47,15 @@ export async function insertOneCharSearchMap(newChar) {
     for (let i = 2; i <= key.length; i++){
 
         const searchVal = key.slice(0, i);
-
         await createCharEntry(searchVal, newCharSearchEntry);
 
     }
 
     await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry);
-
     await initialCharSearchMap();
 
     console.info(`[Character Search Cache] Just cached character: ${key}`)
-
 }
-
-export function onCharSearchSetUpdate(fn) {
-    emitter.on('update', fn);
-}
-
-onCharSearchSetUpdate(() => console.info("[Character Search Cache] Character Search indexes just got cached"));
-
 
 export async function setDBChars () {
     try {
@@ -97,7 +78,7 @@ export async function setDBChars () {
 
 async function createCharEntry (searchVal, newCharSearchEntry) {
         let searchCharacterEntry = await CharSearchModel.findById(searchVal);
-        // const exist = await CharSearchModel.findById(searchVal).populate("relChars").lean();
+
         if(searchCharacterEntry === null) {
 
             const newEntry = new CharSearchModel({
