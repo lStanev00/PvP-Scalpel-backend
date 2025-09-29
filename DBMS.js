@@ -17,6 +17,7 @@ app.set('trust proxy', true);
 
 await DBconnect();
 
+console.info(process.env.REDISHOST )
 app.use(compression());
 
 app.use(cors(corsOptions));
@@ -30,5 +31,3 @@ await startServices();
 
 app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
 
-
-console.info(REDISHOST )
