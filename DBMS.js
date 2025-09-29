@@ -8,7 +8,7 @@ import { corsOptions, productionUrl } from "./src/corsSetup.js";
 import sanitizer from "./src/middlewares/sanitizer.js";
 import compression from "compression";
 import startServices from "./src/services/servicesMain.js";
-import connectRedis from "./src/helpers/connectRedis.js";
+import connectRedis from "./src/helpers/redisHelpers.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
