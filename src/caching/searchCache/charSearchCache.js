@@ -2,24 +2,27 @@ import { EventEmitter } from "events";
 import Char from "../../Models/Chars.js";
 import CharSearchModel from "../../Models/SearchCharacter.js";
 import extractNameSlug from "../../helpers/extractName.js";
+import getCache from "../../helpers/redis/getterRedis.js";
 
 const emitter = new EventEmitter();
+// let charSearchMap = new Map();
+const hashName = "CharSearch";
 
-let charSearchMap = new Map();
-
-export function getCharSearchMap() {
-    return charSearchMap
+export async function getCharSearchMap() {
+    // return charSearchMap
+    return await getCache(hashName);
 }
 
 export async function initialCharSearchMap() {
     const newMap = await setDBChars();
     const charList = await Char.find({}, {_id: 1, search: 1}).lean();
     if(newMap !== null){
-        charSearchMap = newMap;
+        // charSearchMap = newMap;
     }
 
     for (const char of charList) {
         const key = extractNameSlug(char.search);
+        // const exist = charSearchMap.has(key);
         const exist = charSearchMap.has(key);
         
         if(!exist) await insertOneCharSearchMap(char);
