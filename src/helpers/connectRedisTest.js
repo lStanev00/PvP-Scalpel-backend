@@ -3,8 +3,9 @@ import { createClient } from "redis";
 
 export default async function connectRedis() {
     const client = createClient({
-        url: `redis://${process.env.REDISHOST}:${process.env.REDISPORT}`
+        url: `redis://default:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}`
     });
+
 
     await client.connect();
 
