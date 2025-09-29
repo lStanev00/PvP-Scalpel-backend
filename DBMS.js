@@ -31,4 +31,4 @@ await startServices();
 app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
 
 
-console.info(REDIS_HOST )
+console.info(REDISHOST )
