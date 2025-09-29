@@ -1,11 +1,18 @@
 import { createClient } from "redis";
+import dotenv from 'dotenv';
 
 
 export default async function connectRedis() {
-    const client = createClient({
-        url: `redis://default:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}`
+    const isLocal = process.env.REDIS_PUBLIC_URL;
+    let url = `redis://default:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}`;
+    if (isLocal !== undefined) {
+        url = isLocal;
+    }
+    let client = createClient({
+        url: url
     });
 
+    if(isLocal)
 
     await client.connect();
 
@@ -15,9 +22,5 @@ export default async function connectRedis() {
 
     console.info("Redis get try == " + value);
 
-    if (value === "test") {
-        const val2 = await client.del("123");
-        console.info(val2);
-    }
 
 }
