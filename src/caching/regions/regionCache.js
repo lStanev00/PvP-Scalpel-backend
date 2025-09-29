@@ -4,7 +4,7 @@ import isPlainObject from "../../helpers/objectCheck.js";
 
 const emitter = new EventEmitter();
 
-let regionIdsMap = new Map();
+// let regionIdsMap = new Map();
 
 export function getRegionIdsMap() {
     return regionIdsMap
@@ -35,7 +35,8 @@ export async function initialSetRegionIdsMap() {
     const newMap = await mapDBRegion()
 
     if(newMap !== null){
-        regionIdsMap = newMap;
+        // regionIdsMap = newMap;
+
     }
 
 }
@@ -61,6 +62,7 @@ export async function mapDBRegion () {
             }
             entry.realms = shadowRealmMap;
             shadowMap.set(String(entry._id), entry);
+            
 
         }
         return shadowMap
