@@ -1,22 +1,27 @@
 import { EventEmitter } from "events";
 import RealmSearchModel from "../../Models/SearchRealm.js";
 import slugify from "../../helpers/slugify.js";
+import getCache from "../../helpers/redis/getterRedis.js";
+import setCache from "../../helpers/redis/setterRedis.js";
 
 const emitter = new EventEmitter();
+// let realmSearchMap = new Map();
+const hashName = "RealmSearch";
 
-let realmSearchMap = new Map();
-
-export function getRealmSearchMap() {
-    return realmSearchMap
+export async function getRealmSearchMap() {
+    // return realmSearchMap
+    return await getCache("RealmSearch");
 }
 
-export function searchRealmFromMap(key) {
+export async function searchRealmFromMap(key) {
     if (typeof key !== "string") {
         console.warn(key + "'s not a string!");
         return undefined
     }
 
-    const result = realmSearchMap.get(key);
+    // const result = realmSearchMap.get(key);
+    const result = await getCache(key, hashName);
+
 
     return result
 }
@@ -25,7 +30,7 @@ export async function setRealmSearchMap() {
     const newMap = await setDBRealmSearch();
 
     if(newMap !== null){
-        realmSearchMap = newMap;
+        // realmSearchMap = newMap;
         emitter.emit('update', newMap);
     }
 
@@ -35,7 +40,7 @@ export async function initialRealmSearchMap() {
     const newMap = await setDBRealmSearch();
 
     if(newMap !== null){
-        realmSearchMap = newMap;
+        // realmSearchMap = newMap;
     }
 
 }
@@ -115,7 +120,8 @@ async function updateNewRealmDbaseAndLocal(newRealmSlug, realm_id = undefined) {
                     }
 
                 }
-                realmSearchMap.set(searchVal, entry)
+                // realmSearchMap.set(searchVal, entry);
+                await setCache(searchVal, entry, hashName);
 
             }
 
