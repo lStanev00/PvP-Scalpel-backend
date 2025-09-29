@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import { createClient } from "redis";
-import { sanitizeValue } from "../middlewares/sanitizer";
+import { sanitizeValue } from "../middlewares/sanitizer.js";
 
 const isLocal = process.env.REDIS_PUBLIC_URL;
 let url = `redis://default:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}`;
@@ -13,25 +13,23 @@ const redisCache = createClient({
 });
 
 export default async function connectRedis() {
-
     if(isLocal)
 
-    await redisCache.connect();
-
-    const tryout = new Map();
-    await redisCache.set("mapTest", JSON.stringify(tryout));
-
-    const value = await dockCache()
-
-    console.info("Redis get try == " + value);
-
+    try {
+        await redisCache.connect();
+        console.info("Redis Connected Successfully!");
+        
+    } catch (error) {
+        console.warn("Redis failed to Connect!");
+        console.error(error);
+    }
 }
 
 // Upload an entry to Redis
 export async function shipCache(key, value) {
     try {
         try {
-            key = await checkKey();
+            key = checkKey(key);
         } catch (error) {
             console.warn(error)
             return null;
@@ -39,7 +37,7 @@ export async function shipCache(key, value) {
 
         const serializedValue = JSON.stringify(value);
 
-        const success = await redisCache.set(key, serializedValue).catch(console.info(`Redis Bug`));
+        const success = await redisCache.set(key, serializedValue).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
         if(!success) console.warn(success);
 
         return success;
@@ -53,13 +51,13 @@ export async function shipCache(key, value) {
 export async function dockCache(key) {
 
     try {
-        key = await checkKey();
+        key = checkKey(key);
     } catch (error) {
         console.warn(error)
         return null;
     }
 
-    let result = await redisCache.get(key).catch(console.info("Redis Cache bug"));
+    let result = await redisCache.get(key).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
     if(!result) {
         console.warn(result)
     } else {
@@ -77,7 +75,9 @@ export async function dockCache(key) {
 }
 
 // Validate Key
-export default function checkKey(key) {
+export function checkKey(key) {
+
+    if(!key) throw new Error("You must provide a key");
         
     if(key instanceof Types.ObjectId || typeof key === "number") key = key.toString();
 
@@ -86,4 +86,5 @@ export default function checkKey(key) {
     if (typeof key !== "string") throw new TypeError(`The type of: ${sanitizeValue(key)} is not a valid type!`);
 
     return key;
+
 }
