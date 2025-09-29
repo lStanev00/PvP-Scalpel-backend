@@ -25,7 +25,15 @@ export default async function setCache(key, value, hash = "", ttl = -1) {
         if (hash !== "") {
             success = await redisCache.hSet(hash, key, serializedValue).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
         } else {
-            success = await redisCache.set(key, serializedValue).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
+            if (ttl !== -1) {
+                success = await redisCache.set(key, serializedValue, {
+                    expiration : ttl
+                }).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
+
+            } else {
+                success = await redisCache.set(key, serializedValue).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
+
+            }
         }
 
         if(!success) console.warn(success);
