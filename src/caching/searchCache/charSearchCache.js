@@ -8,7 +8,7 @@ import hasHashCache from "../../helpers/redis/checkersRedis.js";
 const hashName = "CharSearch";
 
 const emitter = new EventEmitter();
-emitter.on('update', console.info("[Character Search Cache] Character Search indexes just got cached"));
+emitter.on('update', () => console.info("[Character Search Cache] Character Search indexes just got cached"));
 
 export const getCharSearchMap = async() => await hashGetAllCache(hashName);
 
