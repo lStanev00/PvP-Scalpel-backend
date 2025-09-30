@@ -22,5 +22,6 @@ export default async function connectRedis() {
     } catch (error) {
         console.warn("Redis failed to Connect!");
         console.error(error);
+        process.exit(1);
     }
 }
