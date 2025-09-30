@@ -1,3 +1,4 @@
+import toMap from "../toMap.js";
 import { redisCache } from "./connectRedis.js";
 import checkKey from "./validateRedisKey.js";
 
@@ -8,7 +9,8 @@ export default async function hasHashCache(hash, key) {
     key = checkKey(key);
     if(typeof key !== "string") throw new TypeError("Invalid key");
 
-    const cacheMap = new Map(await redisCache.hGetAll(hash));
+    const data = await redisCache.hGetAll(hash);
+    const cacheMap = toMap(data);
 
     const exist = cacheMap.has(key);
     return exist;

@@ -1,51 +1,41 @@
 import { EventEmitter } from "events";
 import Achievement from "../../Models/Achievements.js";
 import { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
+import setCache from "../../helpers/redis/setterRedis.js";
+import toMap from "../../helpers/toMap.js";
 
 const emitter = new EventEmitter();
+emitter.on('update', () => console.info("[Achieves Cache] Achieves just got cached"));
 const hashName = "Achievements";
 
-let seasonalIdsMap = null;
-
-export const getSeasonalIdsMap = async () => new Map(await hashGetAllCache(hashName));
+export const getSeasonalIdsMap = async () => {
+    const incomming = await hashGetAllCache(hashName);
+    return toMap(incomming);
+} 
 
 export async function setSeasonalIdsMap() {
     const newMap = await mapDBAchieves()
 
     if(newMap !== null){
-        seasonalIdsMap = newMap;
         emitter.emit('update', newMap);
     }
 
 }
 
 export async function initialSetSeasonalIdsMap() {
-    const newMap = await mapDBAchieves()
-
-    if(newMap !== null){
-        seasonalIdsMap = newMap;
-    }
-
+    await mapDBAchieves()
 }
-
-export function onSeasonalIdsUpdate(fn) {
-    emitter.on('update', fn);
-}
-
-onSeasonalIdsUpdate(() => console.info("[Achieves Cache] Achieves just got cached"));
-
 
 export async function mapDBAchieves () {
     try {
         const dbList = await Achievement.find().lean();
-        const shadowMap = new Map();
         for (const entry of dbList) {
 
-            shadowMap.set(String(entry._id), entry);
+            await setCache(entry._id, entry, hashName)
 
         }
 
-        return shadowMap
+        return true
     } catch (error) {
 
         return null

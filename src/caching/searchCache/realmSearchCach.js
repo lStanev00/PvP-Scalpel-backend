@@ -45,12 +45,11 @@ export async function insertOneRealmSearchMap(newRealm) {
 export async function setDBRealmSearch () {
     try {
         const dbList = await RealmSearchModel.find().populate("relRealms").lean();
-        const shadowMap = new Map();
         for (const entry of dbList) {
-            shadowMap.set(entry._id, entry);
+            await setCache(entry._id, entry, hashName)
+            
         }
 
-        return shadowMap
     } catch (error) {
 
         return null

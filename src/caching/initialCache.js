@@ -17,7 +17,7 @@ export default async function initialCache() {
         await initialCharSearchMap();
 
         await delay(1000);
-        // console.info("[Cache] Initial cache finished.");
+        console.info("[Cache] Initial cache finished.");
 
     } catch (error) {
         console.warn(error);

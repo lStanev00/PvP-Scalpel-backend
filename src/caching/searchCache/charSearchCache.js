@@ -4,6 +4,8 @@ import CharSearchModel from "../../Models/SearchCharacter.js";
 import extractNameSlug from "../../helpers/extractName.js";
 import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import hasHashCache from "../../helpers/redis/checkersRedis.js";
+import { delay } from "../../helpers/startBGTask.js";
+import setCache from "../../helpers/redis/setterRedis.js";
 
 const hashName = "CharSearch";
 
@@ -52,6 +54,7 @@ export async function insertOneCharSearchMap(newChar) {
     }
 
     await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry);
+    await delay(1000)
     await initialCharSearchMap();
 
     console.info(`[Character Search Cache] Just cached character: ${key}`)
@@ -63,13 +66,11 @@ export async function setDBChars () {
             path: "relChars",
             select: "_id name playerRealm server class search"
         }).lean();
-        const shadowMap = new Map();
         for (const entry of dbCharSearchList) {
             const leanEntry = entry;
-            shadowMap.set(leanEntry._id, leanEntry);
+            await setCache(leanEntry._id, leanEntry, hashName);
         }
 
-        return shadowMap
     } catch (error) {
 
         return null

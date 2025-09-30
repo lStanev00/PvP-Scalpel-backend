@@ -23,10 +23,12 @@ export default async function setCache(key, value, hash = "", ttl = -1) {
         let success;
 
         if (hash !== "") {
-            success = await redisCache.hSet(hash, key, serializedValue).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
             if (ttl !== -1) {
                 // !!! CARE! This drops the whole table after the ttl
-                await redisCache.expire(hash, ttl).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
+                success = await redisCache.expire(hash, ttl).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
+            }else {
+
+                success = await redisCache.hSet(hash, key, serializedValue)
             }
         } else {
             if (ttl !== -1) {
@@ -40,7 +42,7 @@ export default async function setCache(key, value, hash = "", ttl = -1) {
             }
         }
 
-        if(!success) console.warn(success);
+        if(!success && success !== 0) console.warn(success);
 
         return success;
         
