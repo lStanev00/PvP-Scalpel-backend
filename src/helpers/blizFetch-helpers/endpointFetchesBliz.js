@@ -291,19 +291,20 @@ const helpFetch = {
 
             const achievementsMAP = new Map();
             const seasonalAchieves = [];
-            let cachedMap = getSeasonalIdsMap();
+            let cachedMap = await getSeasonalIdsMap();
 
             if(cachedMap === null) {
                 await setSeasonalIdsMap()
                 await delay(2000);
-                cachedMap = getSeasonalIdsMap();
+                cachedMap = await getSeasonalIdsMap();
             }
 
             for (const element of data.achievements) {
                 achievementsMAP.set(element.id, element)
                 const stringID = String(element.id)
-                const exist = cachedMap.get(stringID)
+                let exist = cachedMap.get(stringID)
                 if(exist) {
+                    exist = JSON.parse(exist);
                     const id = Number(exist._id)
                     seasonalAchieves.push(id);
                 }
