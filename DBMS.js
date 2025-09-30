@@ -8,7 +8,6 @@ import { corsOptions, productionUrl } from "./src/corsSetup.js";
 import sanitizer from "./src/middlewares/sanitizer.js";
 import compression from "compression";
 import startServices from "./src/services/servicesMain.js";
-import connectRedis from "./src/helpers/connectRedisTest.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -17,7 +16,6 @@ app.disable("x-powered-by");
 app.set('trust proxy', true);
 
 await DBconnect();
-await connectRedis();
 
 app.use(compression());
 
