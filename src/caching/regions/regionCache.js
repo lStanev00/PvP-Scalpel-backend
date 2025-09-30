@@ -3,23 +3,34 @@ import Region from "../../Models/Regions.js";
 import isPlainObject from "../../helpers/objectCheck.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 import { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
+import toMap from "../../helpers/toMap.js";
 
 const emitter = new EventEmitter();
 const hashName = "Regions";
 
-export const getRegionIdsMap = async() => await hashGetAllCache(hashName);
+export const getRegionIdsMap = async() => toMap(await hashGetAllCache(hashName));
 
 export async function searchRegionFromMapBySlug(searchSlug) {
     if (typeof searchSlug !== "string") {
         console.warn(searchSlug + "'s not a string!");
-        return undefined
+        return undefined;
     }
 
-    const result = await getRegionIdsMap()
-        .filter(([key, value]) => value.slug === searchSlug);
+    const result = await getRegionIdsMap();
+    if (result === null) return null;
 
-    return result[0] || null;
+    const found = Array.from(result.entries()).find(([key, value]) => {
+        const parsed = JSON.parse(value);
+        return parsed.slug === searchSlug;
+    });
+
+    if (!found) return undefined;
+
+    const [key, value] = found;
+    return { key, ...JSON.parse(value) };
 }
+
+
 
 export async function setRegionIdsMap() {
     const newMap = await mapDBRegion()

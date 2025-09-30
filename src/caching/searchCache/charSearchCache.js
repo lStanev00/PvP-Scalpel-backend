@@ -6,23 +6,26 @@ import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import hasHashCache from "../../helpers/redis/checkersRedis.js";
 import { delay } from "../../helpers/startBGTask.js";
 import setCache from "../../helpers/redis/setterRedis.js";
+import toMap from "../../helpers/toMap.js";
 
 const hashName = "CharSearch";
 
 const emitter = new EventEmitter();
 emitter.on('update', () => console.info("[Character Search Cache] Character Search indexes just got cached"));
 
-export const getCharSearchMap = async() => await hashGetAllCache(hashName);
+export const getCharSearchMap = async() => toMap(await hashGetAllCache(hashName));
 
 export async function initialCharSearchMap() {
     await setDBChars();
     const charList = await Char.find({}, {_id: 1, search: 1}).lean();
+    const dbasemap = await getCharSearchMap();
 
     for (const char of charList) {
         const key = extractNameSlug(char.search);
-        const exist = await hasHashCache(hashName, key);
+        // const exist = await hasHashCache(hashName, key);
+        const exist = dbasemap.has(key);
         
-        if(!exist) await insertOneCharSearchMap(char);
+        if(!exist) await insertOneCharSearchMap(char, true);
 
     }
 
@@ -34,12 +37,12 @@ export async function searchCharFromMap(key) {
         return undefined
     }
     key = key.toLowerCase();
-
-    return await getCache(key, hashName);
+    const result = await getCache(key, hashName);
+    return result;
 }
 
 
-export async function insertOneCharSearchMap(newChar) {
+export async function insertOneCharSearchMap(newChar, isInitial = false) {
     if (!newChar._id && !newChar.search) return
 
     const newCharSearchEntry = newChar;
@@ -54,6 +57,7 @@ export async function insertOneCharSearchMap(newChar) {
     }
 
     await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry);
+    if (isInitial) return
     await delay(1000)
     await initialCharSearchMap();
 

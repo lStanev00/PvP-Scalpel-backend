@@ -5,8 +5,8 @@ import convertSearch from "../../../../helpers/convertSearch.js";
 import { determinateRealmResult } from "./extractRealms.js";
 
 
-export default function extractCharsBySearch(search, realms) {
-    const chars = extractCharacters(search);
+export default async function extractCharsBySearch(search, realms) {
+    const chars = await extractCharacters(search);
 
     const nameRealmMatch = [];
 
@@ -42,7 +42,7 @@ export default function extractCharsBySearch(search, realms) {
         for (const upperChar of nameRealmMatch) {
             for (const char of chars) {
                 if(char?.playerRealm?.slug === upperChar?.char?.playerRealm?.slug) continue;
-                longerResult.push(formEntry(char))
+                longerResult.push(await formEntry(char))
 
             }
            
@@ -53,7 +53,7 @@ export default function extractCharsBySearch(search, realms) {
             return []
         }
         for (const char of chars) {
-            longerResult.push(formEntry(char));
+            longerResult.push(await formEntry(char));
         }
     }
 
@@ -63,7 +63,7 @@ export default function extractCharsBySearch(search, realms) {
 
 }
 
-function extractCharacters(search , exact = undefined) {
+async function extractCharacters(search , exact = undefined) {
     if (typeof search !== "string") {
         console.warn(search + "'s not a string!");
         return undefined
@@ -73,7 +73,7 @@ function extractCharacters(search , exact = undefined) {
 
     if (!name) return undefined;
 
-    const charSearchMatch = searchCharFromMap(name);
+    const charSearchMatch = await searchCharFromMap(name);
     if(exact) return charSearchMatch?.relChars;
     if( charSearchMatch && charSearchMatch?.relChars.length > 3) return charSearchMatch?.relChars;
 
@@ -83,7 +83,7 @@ function extractCharacters(search , exact = undefined) {
     let match = undefined;
     for(let i = inteliChar.length; i >= 2; i--) {
         inteliChar.pop();
-        const checker = searchCharFromMap(inteliChar.join(""));
+        const checker = await searchCharFromMap(inteliChar.join(""));
 
         if(checker) {
             match = checker;
@@ -92,13 +92,13 @@ function extractCharacters(search , exact = undefined) {
     }
 
     if(!match && !charSearchMatch) return undefined;
-    if (!match) return charSearchMatch?.relChars;;
-    if (!charSearchMatch) return match?.relChars;;
+    if (!match) return charSearchMatch?.relChars;
+    if (!charSearchMatch) return match?.relChars;
     
     const noDupSet = new Set();
 
-    if(!charSearchMatch.relChars) return match?.relChars;;
-    if(!match.relChars) return charSearchMatch?.relChars;;
+    if(!charSearchMatch.relChars) return match?.relChars;
+    if(!match.relChars) return charSearchMatch?.relChars;
     for (const {_id} of charSearchMatch.relChars) {
         noDupSet.add(_id);
     }
@@ -112,26 +112,27 @@ function extractCharacters(search , exact = undefined) {
 
 }
 
-function formEntry(char) {
-            const regionId = searchRegionFromMapBySlug(char?.server)[0];
-            const realmMatch = findRealmById(`${char?.playerRealm?.slug}:${regionId}`);
-            const realmResult = determinateRealmResult(realmMatch);
-            return {
-                char: char,
-                realmName: realmResult.name
-            }
+async function formEntry(char) {
+    const regionId = await searchRegionFromMapBySlug(char?.server)[0];
+    const realmMatch = await findRealmById(`${char?.playerRealm?.slug}:${regionId}`);
+    // if (!realmMatch || realmMatch === null) debugger;
+    const realmResult = await determinateRealmResult(realmMatch);
+    return {
+        char: char,
+        realmName: realmResult.name
+    }
 }
 
 
-export function exactCharMatchBySearch(search) {
-    const charsMatch = extractCharacters(search, true);
+export async function exactCharMatchBySearch(search) {
+    const charsMatch = await extractCharacters(search, true);
 
     if(!charsMatch) return undefined;
     if(charsMatch.length !== 1) return undefined;
 
     const char = charsMatch[0];
     const [name, realm, server] = convertSearch(search);
-    if(char.search === `${name}:${realm}:${server}`)return formEntry(charsMatch[0]);
+    if(char.search === `${name}:${realm}:${server}`)return await formEntry(charsMatch[0]);
 
     return undefined
     

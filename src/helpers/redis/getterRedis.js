@@ -22,9 +22,11 @@ export default async function getCache(key, hash = "") {
         result = await redisCache.get(key).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
     } 
 
-    if(!result) {
+    if(result === null) return null;
+
+    if(!result && result !== null) {
         console.warn(result);
-        return null;
+        return result;
     } else {
         try {
             
