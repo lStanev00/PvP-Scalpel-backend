@@ -6,7 +6,7 @@ import setCache from "../../helpers/redis/setterRedis.js";
 const hashName = "Realms";
 
 const emitter = new EventEmitter();
-emitter.on('update', console.info("[Realms Cache] Realms just got cached"));
+emitter.on('update', () => console.info("[Realms Cache] Realms just got cached"));
 
 export const getRealmIdsMap= async() => await hashGetAllCache(hashName);
 export const findRealmById = async (id) => await getCache(id, hashName);
