@@ -14,11 +14,12 @@ export default async function updateDBAchieves() {
         const data = await helpFetch.fetchBlizzard(feastOfStrengthURL);
 
         const achievements = data?.achievements;
-        let storedAches = getSeasonalIdsMap();
+        let storedAches = await getSeasonalIdsMap();
+        debugger
         if(storedAches === null) {
             await setSeasonalIdsMap()
             await delay(2000);
-            storedAches = getSeasonalIdsMap();
+            storedAches = await getSeasonalIdsMap();
         }
 
         if (achievements) {

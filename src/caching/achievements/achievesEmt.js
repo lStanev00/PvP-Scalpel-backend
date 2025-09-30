@@ -7,7 +7,7 @@ const hashName = "Achievements";
 
 let seasonalIdsMap = null;
 
-export const getSeasonalIdsMap = async () => await hashGetAllCache(hashName);
+export const getSeasonalIdsMap = async () => new Map(await hashGetAllCache(hashName));
 
 export async function setSeasonalIdsMap() {
     const newMap = await mapDBAchieves()
