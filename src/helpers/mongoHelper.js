@@ -1,8 +1,9 @@
 import mongoose from "mongoose";
 // const dbName = `PvP-Scalpel`
 // const uri = `mongodb://127.0.0.1:27017/${dbName}`
-import dotenv from 'dotenv';
+import dotenv, { configDotenv } from 'dotenv';
 dotenv.config({path: "../../.env"});
+configDotenv();
 const MONGODB_CONNECTION= process.env.MONGODB_CONNECTION
 
 export async function DBconnect() {

@@ -44,6 +44,16 @@ export async function hashGetAllCache(hash) {
     hash = checkKey(hash);
     if (typeof hash !== "string") throw new TypeError("The input must be type of string!");
 
-    const result = redisCache.hGetAll(hash);
-    return JSON.parse(result);
+    const result = await redisCache.hGetAll(hash);
+    try {
+        return JSON.parse(result);
+        
+    } catch (error) {
+        try {
+            return result;
+        } catch (error) {
+            console.error(error);
+            return null;
+        }
+    }
 }

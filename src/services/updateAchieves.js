@@ -15,10 +15,11 @@ export default async function updateDBAchieves() {
 
         const achievements = data?.achievements;
         let storedAches = await getSeasonalIdsMap();
+
         if(storedAches === null) {
             await setSeasonalIdsMap()
             await delay(2000);
-            storedAches = getSeasonalIdsMap();
+            storedAches = await getSeasonalIdsMap();
         }
 
         if (achievements) {

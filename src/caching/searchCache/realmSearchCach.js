@@ -8,8 +8,6 @@ const hashName = "RealmSearch";
 
 const emitter = new EventEmitter();
 emitter.on('update', () => console.info("[Realm Search Cache] Realm Search indexes just got cached"));
-
-
 export const getRealmSearchMap = async () => await hashGetAllCache(hashName);
 export const initialRealmSearchMap = async() => await setDBRealmSearch();
 

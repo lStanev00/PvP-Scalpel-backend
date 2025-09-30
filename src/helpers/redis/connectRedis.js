@@ -2,7 +2,7 @@ import { createClient } from "redis";
 import { configDotenv } from "dotenv";
 configDotenv()
 
-const isLocal = process.env.REDIS_PUBLIC_URL;
+const isLocal = process.env.REDIS_LOCAL_URL;
 let url = `redis://default:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}`;
 
 if (isLocal !== undefined) {
@@ -22,5 +22,6 @@ export default async function connectRedis() {
     } catch (error) {
         console.warn("Redis failed to Connect!");
         console.error(error);
+        process.exit(1);
     }
 }
