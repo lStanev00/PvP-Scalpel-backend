@@ -20,7 +20,10 @@ const searchCharacterSchema = new mongoose.Schema({
 
 searchCharacterSchema.pre('save', function(next) {
     if (this.relChars && this.relChars.length > 0) {
-        this.relChars = [...new Set(this.relChars)];
+        this.relChars = [...new Set(this.relChars.map(v => v.toString()))];
+    }
+    if (this.searchResult && this.searchResult.length > 0) {
+        this.searchResult = [...new Set(this.searchResult)];
     }
     next();
 });
