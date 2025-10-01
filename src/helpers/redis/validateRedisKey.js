@@ -15,5 +15,3 @@ export default function checkKey(key) {
     return key;
 
 }
-
-seriliz
