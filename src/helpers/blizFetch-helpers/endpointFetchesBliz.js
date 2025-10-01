@@ -304,7 +304,7 @@ const helpFetch = {
                 const stringID = String(element.id)
                 let exist = cachedMap.get(stringID)
                 if(exist) {
-                    exist = JSON.parse(exist);
+                    // exist = JSON.parse(exist);
                     const id = Number(exist._id)
                     seasonalAchieves.push(id);
                 }

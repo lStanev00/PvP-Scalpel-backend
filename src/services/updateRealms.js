@@ -9,12 +9,12 @@ import convertLocale from '../helpers/localeConverter.js';
 
 export default async function updateDBRealms() {
     
-    let storedRegions = getRegionIdsMap();
+    let storedRegions = await getRegionIdsMap();
 
     if(storedRegions === null) {
         await setRegionIdsMap();
         await delay(2000);
-        storedRegions = getRegionIdsMap();
+        storedRegions = await getRegionIdsMap();
     }
     
     while (true) {
@@ -22,20 +22,20 @@ export default async function updateDBRealms() {
         if (!(storedRegions instanceof Map)) {
             await setRegionIdsMap();
             await delay(2000);
-            storedRegions = getRegionIdsMap();
+            storedRegions = await getRegionIdsMap();
         } else {
             break;
         }
         
     }
 
-    let storedRealms = getRealmIdsMap();
-    let storedRealmSearech = getRealmSearchMap();
+    let storedRealms = await getRealmIdsMap();
+    let storedRealmSearech = await getRealmSearchMap();
 
     if(storedRealms === null) {
         await setRealmIdsMap();
         await delay(2000);
-        storedRealms = getRealmIdsMap();
+        storedRealms = await getRealmIdsMap();
     }
     
     while (true) {
@@ -43,7 +43,7 @@ export default async function updateDBRealms() {
         if (!(storedRealms instanceof Map)) {
             await setRealmIdsMap();
             await delay(2000);
-            storedRealms = getRealmIdsMap();
+            storedRealms = await getRealmIdsMap();
         } else {
             break;
         }

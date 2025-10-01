@@ -60,7 +60,7 @@ export async function determinateRealmResult(realm) {
         let server = await getRegionIdsMap();
         // debugger
         server = server.get(String(realm?.region))
-        server = JSON.parse(server);
+        // server = JSON.parse(server);
         server = server?.slug || undefined;
         const result = {
             _id: realm?._id,

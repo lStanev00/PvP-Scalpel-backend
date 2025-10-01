@@ -19,15 +19,13 @@ export async function searchRegionFromMapBySlug(searchSlug) {
     const result = await getRegionIdsMap();
     if (result === null) return null;
 
-    const found = Array.from(result.entries()).find(([key, value]) => {
-        const parsed = JSON.parse(value);
-        return parsed.slug === searchSlug;
-    });
+    const found = Array.from(result.entries()).find(([key, value]) => value.slug === searchSlug);
 
     if (!found) return undefined;
 
     const [key, value] = found;
-    return { key, ...JSON.parse(value) };
+    // return { key, ...JSON.parse(value) };
+    return { key, value };
 }
 
 

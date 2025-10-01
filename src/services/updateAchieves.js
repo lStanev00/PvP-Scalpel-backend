@@ -29,7 +29,7 @@ export default async function updateDBAchieves() {
                 let exist = storedAches.get(stringId);
 
                 if (exist) {
-                    exist = JSON.parse(exist);
+                    // exist = JSON.parse(exist);
                     exist = exist = await Achievement.findById(exist) || undefined;
                     if (exist.name != achievement?.name || exist.href != achievement?.key?.href || exist.media === undefined) {
                             

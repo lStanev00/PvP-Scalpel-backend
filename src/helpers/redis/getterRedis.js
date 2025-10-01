@@ -47,15 +47,15 @@ export async function hashGetAllCache(hash) {
     if (typeof hash !== "string") throw new TypeError("The input must be type of string!");
 
     const result = await redisCache.hGetAll(hash);
-    try {
-        return JSON.parse(result);
-        
-    } catch (error) {
+    const parsed = {};
+
+    for (const [key, value] of Object.entries(result)) {
         try {
-            return result;
-        } catch (error) {
-            console.error(error);
-            return null;
+            parsed[key] = JSON.parse(value);
+        } catch {
+            parsed[key] = value; // fallback if not JSON
         }
     }
+
+    return parsed;
 }
