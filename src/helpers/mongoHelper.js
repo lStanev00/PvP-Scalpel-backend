@@ -6,10 +6,10 @@ dotenv.config({path: "../../.env"});
 configDotenv();
 const MONGODB_CONNECTION= process.env.MONGODB_CONNECTION
 
-export async function DBconnect() {
+export async function DBconnect(silent = false) {
     try {
         await mongoose.connect(MONGODB_CONNECTION);
-        console.log("MongoDB Connected Successfully!");
+        if(silent === false) console.log("MongoDB Connected Successfully!");
     } catch (err) {
         console.error("MongoDB Connection Error:", err.message);
         process.exit(1); 

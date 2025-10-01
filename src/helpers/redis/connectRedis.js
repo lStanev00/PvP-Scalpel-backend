@@ -12,12 +12,12 @@ export const redisCache = createClient({
     url: url
 });
 
-export default async function connectRedis() {
+export default async function connectRedis(silent = false) {
     if(isLocal)
 
     try {
         await redisCache.connect();
-        console.info("Redis Connected Successfully!");
+        if (silent === false) console.info("Redis Connected Successfully!");
         
     } catch (error) {
         console.warn("Redis failed to Connect!");
