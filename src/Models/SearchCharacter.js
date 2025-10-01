@@ -18,6 +18,13 @@ const searchCharacterSchema = new mongoose.Schema({
     versionKey: false
 });
 
+searchCharacterSchema.pre('save', function(next) {
+    if (this.relChars && this.relChars.length > 0) {
+        this.relChars = [...new Set(this.relChars)];
+    }
+    next();
+});
+
 searchCharacterSchema.plugin(autopopulate)
 
 const CharSearchModel = mongoose.model(`CharSearch`, searchCharacterSchema);
