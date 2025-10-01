@@ -2,13 +2,14 @@ import { EventEmitter } from "events";
 import Realm from "../../Models/Realms.js";
 import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
+import toMap from "../../helpers/toMap.js";
 
 const hashName = "Realms";
 
 const emitter = new EventEmitter();
 emitter.on('update', () => console.info("[Realms Cache] Realms just got cached"));
 
-export const getRealmIdsMap= async() => await hashGetAllCache(hashName);
+export const getRealmIdsMap= async() => toMap(await hashGetAllCache(hashName));
 export const findRealmById = async (id) => await getCache(id, hashName);
 export const initialSetRealmIdsMap = async() => await mapDBRealms();
 
