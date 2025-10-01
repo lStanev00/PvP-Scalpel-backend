@@ -55,18 +55,12 @@ export default async function extractRealmsBySearch (charSearch) {
 }
 
 export async function determinateRealmResult(realm) {
-        // if(realm === null || !realm) throw new TypeError("Bad input == " + typeof realm); 
-        // const server = (JSON.parse(await getRegionIdsMap())).get(String(realm?.region))?.slug || undefined;
-        let server = await getRegionIdsMap();
-        // debugger
-        server = server.get(String(realm?.region))
-        // server = JSON.parse(server);
-        server = server?.slug || undefined;
+        if(realm === null || !realm) throw new TypeError("Bad input == " + typeof realm); 
+        const server = (await getRegionIdsMap()).get(String(realm?.region))?.slug || undefined;
         const result = {
             _id: realm?._id,
             server: server,
             slug: realm?.slug,
-            
         }
         const realmNames = realm?.["name"];
         const realmLocale = realm?.["locale"];

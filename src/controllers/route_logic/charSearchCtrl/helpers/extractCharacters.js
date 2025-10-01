@@ -113,9 +113,8 @@ async function extractCharacters(search , exact = undefined) {
 }
 
 async function formEntry(char) {
-    const regionId = await searchRegionFromMapBySlug(char?.server)[0];
-    const realmMatch = await findRealmById(`${char?.playerRealm?.slug}:${regionId}`);
-    // if (!realmMatch || realmMatch === null) debugger;
+    const regionId = await searchRegionFromMapBySlug(char?.server);
+    const realmMatch = await findRealmById(`${char?.playerRealm?.slug}:${regionId[0] || ""}`);
     const realmResult = await determinateRealmResult(realmMatch);
     return {
         char: char,

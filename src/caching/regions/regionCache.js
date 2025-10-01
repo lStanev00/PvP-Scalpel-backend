@@ -22,10 +22,7 @@ export async function searchRegionFromMapBySlug(searchSlug) {
     const found = Array.from(result.entries()).find(([key, value]) => value.slug === searchSlug);
 
     if (!found) return undefined;
-
-    const [key, value] = found;
-    // return { key, ...JSON.parse(value) };
-    return { key, value };
+    return found;
 }
 
 
