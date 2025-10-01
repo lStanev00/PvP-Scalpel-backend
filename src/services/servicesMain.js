@@ -9,9 +9,9 @@ export default async function startServices() {
 
     await initialCache();
     startBackgroundTask(updateDBRealms, 2147483647); // max 24.8 days
-    // await delay(clearenceMS);
-    // startBackgroundTask(updateGuildMembersData, 3600000) // 1 hr
-    // await delay(clearenceMS);
-    // startBackgroundTask(updateDBAchieves, 604800000) // 1 week
+    await delay(clearenceMS);
+    startBackgroundTask(updateGuildMembersData, 3600000) // 1 hr
+    await delay(clearenceMS);
+    startBackgroundTask(updateDBAchieves, 604800000) // 1 week
 
 }
