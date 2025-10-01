@@ -28,7 +28,7 @@ app.use(express.json({ extended: false }));
 app.use("/", sanitizer);
 app.use(`/`, router);
 
-app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
+app.listen(port, console.info(`REST's running at http://localhost:${port} or ${productionUrl}`));
 
 // start worker for services
 new Worker(new URL("./src/workers/servicesWorker.js", import.meta.url), { type: "module" });
