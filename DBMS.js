@@ -7,8 +7,8 @@ import cookieParser from "cookie-parser";
 import { corsOptions, productionUrl } from "./src/corsSetup.js";
 import sanitizer from "./src/middlewares/sanitizer.js";
 import compression from "compression";
-import startServices from "./src/services/servicesMain.js";
 import connectRedis from "./src/helpers/redis/connectRedis.js";
+import { Worker } from "worker_threads";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -30,4 +30,5 @@ app.use(`/`, router);
 
 app.listen(port, console.info(`Server's running at http://localhost:${port} or ${productionUrl}`));
 
-await startServices();
+// start worker for services
+new Worker(new URL("./src/workers/servicesWorker.js", import.meta.url), { type: "module" });
