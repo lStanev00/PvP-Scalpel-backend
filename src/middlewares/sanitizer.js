@@ -1,7 +1,7 @@
 import sanitizeHtml from 'sanitize-html';
 import isPlainObject from '../helpers/objectCheck.js';
 
-function sanitizeValue(value) {
+export function sanitizeValue(value) {
     if (typeof value === 'string') {
         return sanitizeHtml(value, {
             allowedTags: [],

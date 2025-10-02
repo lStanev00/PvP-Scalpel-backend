@@ -1,55 +1,48 @@
 import { EventEmitter } from "events";
 import Region from "../../Models/Regions.js";
 import isPlainObject from "../../helpers/objectCheck.js";
+import setCache from "../../helpers/redis/setterRedis.js";
+import { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
+import toMap from "../../helpers/toMap.js";
 
 const emitter = new EventEmitter();
+const hashName = "Regions";
 
-let regionIdsMap = new Map();
+export const getRegionIdsMap = async() => toMap(await hashGetAllCache(hashName));
 
-export function getRegionIdsMap() {
-    return regionIdsMap
-}
-
-export function searchRegionFromMapBySlug(searchSlug) {
+export async function searchRegionFromMapBySlug(searchSlug) {
     if (typeof searchSlug !== "string") {
         console.warn(searchSlug + "'s not a string!");
-        return undefined
+        return undefined;
     }
 
-    const result = Array.from(regionIdsMap)
-        .filter(([key, value]) => value.slug === searchSlug);
-    return result[0]
+    const result = await getRegionIdsMap();
+    if (result === null) return null;
+
+    const found = Array.from(result.entries()).find(([key, value]) => value.slug === searchSlug);
+
+    if (!found) return undefined;
+    return found;
 }
+
+
 
 export async function setRegionIdsMap() {
     const newMap = await mapDBRegion()
 
     if(newMap !== null){
-        regionIdsMap = newMap;
+        // regionIdsMap = newMap;
         emitter.emit('update', newMap);
     }
 
 }
 
-export async function initialSetRegionIdsMap() {
-    const newMap = await mapDBRegion()
-
-    if(newMap !== null){
-        regionIdsMap = newMap;
-    }
-
-}
-
-export function onRegionIdsUpdate(fn) {
-    emitter.on('update', fn);
-}
-
-onRegionIdsUpdate(() => console.info("[Regions Cache] Regions just got cached"))
+export const initialSetRegionIdsMap = async() => await mapDBRegion();
+export const onRegionIdsUpdate = () => emitter.on('update', console.info("[Regions Cache] Regions just got cached"));
 
 export async function mapDBRegion () {
     try {
         const dbList = await Region.find().populate("realms").lean();
-        const shadowMap = new Map();
         for (const entry of dbList) {
 
             const shadowRealmMap = new Map();
@@ -60,12 +53,9 @@ export async function mapDBRegion () {
                 }
             }
             entry.realms = shadowRealmMap;
-            shadowMap.set(String(entry._id), entry);
-
+            await setCache(entry._id, entry, hashName);
         }
-        return shadowMap
     } catch (error) {
-        console.warn(error);
-        return null
+        console.error(error);
     }
 }

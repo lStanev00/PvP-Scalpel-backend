@@ -1,62 +1,41 @@
 import { EventEmitter } from "events";
 import Realm from "../../Models/Realms.js";
+import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
+import setCache from "../../helpers/redis/setterRedis.js";
+import toMap from "../../helpers/toMap.js";
+
+const hashName = "Realms";
 
 const emitter = new EventEmitter();
+emitter.on('update', () => console.info("[Realms Cache] Realms just got cached"));
 
-let realmIdsMap = new Map();
-
-export function getRealmIdsMap() {
-    return realmIdsMap
-}
-
-export function findRealmById(id) {
-    if(!id) return
-
-    return realmIdsMap.get(id);
-    
-}
+export const getRealmIdsMap= async() => toMap(await hashGetAllCache(hashName));
+export const findRealmById = async (id) => await getCache(id, hashName);
+export const initialSetRealmIdsMap = async() => await mapDBRealms();
 
 export async function setRealmIdsMap() {
     const newMap = await mapDBRealms()
 
     if(newMap !== null){
-        realmIdsMap = newMap;
         emitter.emit('update', newMap);
     }
 
 }
 
-export async function initialSetRealmIdsMap() {
-    const newMap = await mapDBRealms()
-
-    if(newMap !== null){
-        realmIdsMap = newMap;
-    }
-
-}
-
-function onRealmIdsUpdate(fn) {
-    emitter.on('update', fn);
-}
-
-onRealmIdsUpdate(() => console.info("[Realms Cache] Realms just got cached"))
-
 export async function mapDBRealms () {
     try {
         const dbList = await Realm.find().lean();
-        const shadowMap = new Map();
         for (const entry of dbList) {
 
             const key = entry.slug + ":" + entry.region;
             
             const value = entry;
 
-            shadowMap.set(String(key), value);
+            await setCache(key, value, hashName);
 
         }
 
-        return shadowMap
     } catch (error) {
-        return null
+        console.error(error)
     }
 }

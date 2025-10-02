@@ -1,44 +1,35 @@
 import { EventEmitter } from "events";
 import RealmSearchModel from "../../Models/SearchRealm.js";
 import slugify from "../../helpers/slugify.js";
+import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
+import setCache from "../../helpers/redis/setterRedis.js";
+import toMap from "../../helpers/toMap.js";
+
+const hashName = "RealmSearch";
 
 const emitter = new EventEmitter();
+emitter.on('update', () => console.info("[Realm Search Cache] Realm Search indexes just got cached"));
+export const getRealmSearchMap = async () => toMap(await hashGetAllCache(hashName));
+export const initialRealmSearchMap = async() => await setDBRealmSearch();
 
-let realmSearchMap = new Map();
-
-export function getRealmSearchMap() {
-    return realmSearchMap
-}
-
-export function searchRealmFromMap(key) {
+export async function searchRealmFromMap(key) {
     if (typeof key !== "string") {
         console.warn(key + "'s not a string!");
         return undefined
     }
 
-    const result = realmSearchMap.get(key);
-
-    return result
+    return await getCache(key, hashName);
 }
 
 export async function setRealmSearchMap() {
     const newMap = await setDBRealmSearch();
 
     if(newMap !== null){
-        realmSearchMap = newMap;
         emitter.emit('update', newMap);
     }
 
 }
 
-export async function initialRealmSearchMap() {
-    const newMap = await setDBRealmSearch();
-
-    if(newMap !== null){
-        realmSearchMap = newMap;
-    }
-
-}
 
 export async function insertOneRealmSearchMap(newRealm) {
 
@@ -50,26 +41,16 @@ export async function insertOneRealmSearchMap(newRealm) {
 
     await updateNewRealmDbaseAndLocal(newRealmSlug, _id).catch(err => {console.warn(err)});
     if(newRealmSlug !== slug2 && slug2 !== undefined) await updateNewRealmDbaseAndLocal(slug2, _id).catch(err => {console.warn(err)});
-
-
 }
-
-export function onRealmSearchSetUpdate(fn) {
-    emitter.on('update', fn);
-}
-
-onRealmSearchSetUpdate(() => console.info("[Realm Search Cache] Realm Search indexes just got cached"));
-
 
 export async function setDBRealmSearch () {
     try {
         const dbList = await RealmSearchModel.find().populate("relRealms").lean();
-        const shadowMap = new Map();
         for (const entry of dbList) {
-            shadowMap.set(entry._id, entry);
+            await setCache(entry._id, entry, hashName)
+            
         }
 
-        return shadowMap
     } catch (error) {
 
         return null
@@ -115,7 +96,7 @@ async function updateNewRealmDbaseAndLocal(newRealmSlug, realm_id = undefined) {
                     }
 
                 }
-                realmSearchMap.set(searchVal, entry)
+                await setCache(searchVal, entry, hashName);
 
             }
 

@@ -2,7 +2,7 @@ import { getRegionIdsMap, searchRegionFromMapBySlug } from "../../../../caching/
 import { searchRealmFromMap } from "../../../../caching/searchCache/realmSearchCach.js";
 import convertSearch from "../../../../helpers/convertSearch.js";
 
-export default function extractRealmsBySearch (charSearch) {
+export default async function extractRealmsBySearch (charSearch) {
     if (typeof charSearch !== "string") {
         console.warn(charSearch + "'s not a string!");
         return undefined
@@ -12,7 +12,7 @@ export default function extractRealmsBySearch (charSearch) {
 
     if(realm === "!undefined") return [];
 
-    let realmSearchMatches = searchRealmFromMap(realm);
+    let realmSearchMatches = await searchRealmFromMap(realm);
     if (!realmSearchMatches) {
         let match = undefined;
         let inteliRealm = realm.replace(`-`, "").split("");
@@ -20,7 +20,7 @@ export default function extractRealmsBySearch (charSearch) {
 
         for(let i = inteliRealm.length; i >= 2; i--) {
             inteliRealm.pop();
-            const checker = searchRealmFromMap(inteliRealm.join(""));
+            const checker = await searchRealmFromMap(inteliRealm.join(""));
             
             if (checker) {
                 match = checker;
@@ -33,7 +33,7 @@ export default function extractRealmsBySearch (charSearch) {
         if(!match) return []; 
     }
     let serverMatch = undefined;
-    if(server !== "!undefined") serverMatch = (searchRegionFromMapBySlug(server))[0];
+    if(server !== "!undefined") serverMatch = (await searchRegionFromMapBySlug(server))[0];
 
     // const realmSlugMatch = realmSearchMatches?.relRealms.filter(entry => entry.region == serverMatch);
     const realmSlugMatch = realmSearchMatches?.relRealms
@@ -41,7 +41,9 @@ export default function extractRealmsBySearch (charSearch) {
     const realms = [];
 
     for (const entry of realmSlugMatch) {
-        const result = determinateRealmResult(entry);
+        // if (entry === null || !entry) debugger;
+
+        const result = await determinateRealmResult(entry);
 
         realms.push(result)
     }
@@ -52,13 +54,13 @@ export default function extractRealmsBySearch (charSearch) {
 
 }
 
-export function determinateRealmResult(realm) {
-        const server = getRegionIdsMap().get(String(realm?.region))?.slug || undefined;
+export async function determinateRealmResult(realm) {
+        if(realm === null || !realm) throw new TypeError("Bad input == " + typeof realm); 
+        const server = (await getRegionIdsMap()).get(String(realm?.region))?.slug || undefined;
         const result = {
-            _id: realm._id,
+            _id: realm?._id,
             server: server,
             slug: realm?.slug,
-            
         }
         const realmNames = realm?.["name"];
         const realmLocale = realm?.["locale"];

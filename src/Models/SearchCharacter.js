@@ -18,6 +18,26 @@ const searchCharacterSchema = new mongoose.Schema({
     versionKey: false
 });
 
+searchCharacterSchema.pre('save', function(next) {
+    if (this.relChars && this.relChars.length > 0) {
+        this.relChars = [...new Set(this.relChars.map(v => v.toString()))];
+    }
+    if (this.searchResult && this.searchResult.length > 0) {
+        this.searchResult = [...new Set(this.searchResult)];
+    }
+    next();
+});
+
+searchCharacterSchema.pre('get', function(next) {
+    if (this.relChars && this.relChars.length > 0) {
+        this.relChars = [...new Set(this.relChars.map(v => v.toString()))];
+    }
+    if (this.searchResult && this.searchResult.length > 0) {
+        this.searchResult = [...new Set(this.searchResult)];
+    }
+    next();
+});
+
 searchCharacterSchema.plugin(autopopulate)
 
 const CharSearchModel = mongoose.model(`CharSearch`, searchCharacterSchema);
