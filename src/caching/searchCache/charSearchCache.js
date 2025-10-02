@@ -3,10 +3,9 @@ import Char from "../../Models/Chars.js";
 import CharSearchModel from "../../Models/SearchCharacter.js";
 import extractNameSlug from "../../helpers/extractName.js";
 import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
-import hasHashCache from "../../helpers/redis/checkersRedis.js";
-import { delay } from "../../helpers/startBGTask.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 import toMap from "../../helpers/toMap.js";
+import setDBChars from "./helpers/setDBChars.js";
 
 const hashName = "CharSearch";
 
@@ -18,14 +17,13 @@ export const getCharSearchMap = async() => toMap(await hashGetAllCache(hashName)
 export async function initialCharSearchMap() {
     await setDBChars();
     const charList = await Char.find({}, {_id: 1, search: 1}).lean();
-    const dbasemap = await getCharSearchMap();
 
     for (const char of charList) {
         const key = extractNameSlug(char.search);
         // const exist = await hasHashCache(hashName, key);
-        const exist = dbasemap.has(key);
+        const exist = await getCache(key, hashName);
         
-        if(!exist) await insertOneCharSearchMap(char, true);
+        if(exist === null) await insertOneCharSearchMap(char);
 
     }
 
@@ -42,8 +40,11 @@ export async function searchCharFromMap(key) {
 }
 
 
-export async function insertOneCharSearchMap(newChar, isInitial = false) {
-    if (!newChar._id && !newChar.search) return
+export async function insertOneCharSearchMap(newChar) {
+    if (!newChar._id && !newChar.search) {
+        console.warn(`[SChar Cache] AT => insertOneCharSearchMap\n   => INCORRECT INPUT!\n INPUT TYPE IS => ${typeof newChar}`);
+        return
+    }
 
     const newCharSearchEntry = newChar;
     const key = extractNameSlug(newCharSearchEntry.search);
@@ -56,29 +57,9 @@ export async function insertOneCharSearchMap(newChar, isInitial = false) {
 
     }
 
-    await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry);
-    if (isInitial) return
-    await delay(1000)
-    await initialCharSearchMap();
+    await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry); // Create exact entry match
 
-    console.info(`[Character Search Cache] Just cached character: ${key}`)
-}
-
-export async function setDBChars () {
-    try {
-        const dbCharSearchList = await CharSearchModel.find().populate({
-            path: "relChars",
-            select: "_id name playerRealm server class search"
-        }).lean();
-        for (const entry of dbCharSearchList) {
-            const leanEntry = entry;
-            await setCache(leanEntry._id, leanEntry, hashName);
-        }
-
-    } catch (error) {
-
-        return null
-    }
+    console.info(`[Character Search Cache] Just cached character: ${newChar?.search}`)
 }
 
 async function createCharEntry (searchVal, newCharSearchEntry) {
@@ -94,6 +75,9 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
             })
 
             searchCharacterEntry = await newEntry.save();
+            searchCharacterEntry = searchCharacterEntry.toObject();
+            if(searchCharacterEntry) await setCache(searchCharacterEntry._id, searchCharacterEntry, hashName);
+            
         } else {
 
             let trigger = false;
@@ -102,14 +86,21 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
                 trigger = true;
                 searchCharacterEntry.searchResult.push(newCharSearchEntry.search);
             }
-
+            const tryer = [];
+            for (const entry of searchCharacterEntry.relChars) {
+                tryer.push((entry._id).toString());
+            }
+            searchCharacterEntry.relChars = [...new Set(tryer)];
             if (!searchCharacterEntry.relChars.includes(newCharSearchEntry._id)) {
                 trigger = true;
                 searchCharacterEntry.relChars.push(newCharSearchEntry._id);
             }
 
             if(trigger) {
-                await searchCharacterEntry.save();
+                searchCharacterEntry = await searchCharacterEntry.save();
+                if(searchCharacterEntry) await setCache(searchCharacterEntry._id, searchCharacterEntry, hashName);
+            } else {
+                console.info(`Prevented`)
             }
         }
 
