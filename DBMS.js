@@ -9,6 +9,7 @@ import sanitizer from "./src/middlewares/sanitizer.js";
 import compression from "compression";
 import connectRedis from "./src/helpers/redis/connectRedis.js";
 import { Worker } from "worker_threads";
+import { delay } from "./src/helpers/startBGTask.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -19,6 +20,7 @@ app.set('trust proxy', true);
 await DBconnect();
 await connectRedis();
 
+await delay(5000);
 app.use(compression());
 
 app.use(cors(corsOptions));
