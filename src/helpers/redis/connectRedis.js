@@ -5,6 +5,7 @@ configDotenv()
 const isLocal = process.env.REDIS_LOCAL_URL;
 // let url = `redis://default:${process.env.REDISPASSWORD}@${process.env.REDISHOST}:${process.env.REDISPORT}`;
 let url = process.env.REDIS_URL;
+console.info(url)
 
 if (isLocal !== undefined) {
     url = isLocal;
