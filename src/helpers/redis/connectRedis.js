@@ -1,11 +1,19 @@
 import { createClient } from "redis";
 import { configDotenv } from "dotenv";
+import dns from "dns";
 configDotenv()
 
-let url = process.env.REDIS_URL;
+// let url = process.env.REDIS_URL;
+let url = `redis://default:${process.env.REDIS_PASSWORD}@redis:${process.env.REDISPORT}`
 
 export const redisCache = createClient({
-    url: url
+    url,
+    socket: {
+        family: 6,   // force IPv6
+        dnsLookup: (hostname, opts, cb) => {
+            dns.lookup(hostname, { family: 6 }, cb);
+        }
+    }
 });
 
 export default async function connectRedis(silent = false) {
