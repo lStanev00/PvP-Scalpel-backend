@@ -5,8 +5,10 @@ import fetchData from "../helpers/blizFetch.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import { getCharSearchMap, insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
-import { getRealmSearchMap } from "../caching/searchCache/realmSearchCach.js";
 import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter.js";
+import getCache from "../helpers/redis/getterRedis.js";
+import setCache from "../helpers/redis/setterRedis.js";
+const hashName = "Characters";
 
 export const characterSearchCTRL = Router();
 
@@ -196,26 +198,6 @@ async function patchPvPData(req, res) {
     }
 }
 
-async function getRealmsMap(req, res) {
-    try {
-        
-        const realmsSearchMap = getRealmSearchMap();
-        if (realmsSearchMap === null) return jsonResponse(res, 404);
-
-            const etag = `"realms-${realmsSearchMap.size}"`;
-            if (req.headers['if-none-match'] === etag) return jsonResponse(res, 304);
-    
-        const plainObj = Object.fromEntries(realmsSearchMap);
-
-        res.set({
-            'Cache-Control': 'public, max-age=864000, must-revalidate', // cache for 10 days
-            'ETag': etag, // ver controll
-        });
-        return jsonResponse(res, 200, plainObj)
-    } catch (error) {
-        return jsonResponse(res, 500, "Internal Server Error");
-    }
-}
 async function getCharsMap(req, res) {
     try {
         
@@ -283,7 +265,15 @@ export async function buildCharacter(server, realm, name, character) { // If no 
 
 export async function getCharacter(server, realm, name, update = true) {
 
-    let character = null;
+    let character;
+    const searchQuery = server + "/" + realm + "/" + name;
+    
+    try {
+        character = await getCache(searchQuery, hashName);
+        if(character !== null && character._id) return character;
+    } catch (error) {
+       console.error(error); 
+    }
 
     try {
         character = await Char.findOneAndUpdate(
@@ -304,9 +294,11 @@ export async function getCharacter(server, realm, name, update = true) {
         })
         await character.populate("listAchievements");
         character = character.toObject();
+        await setCache(searchQuery, character, hashName, 7200);
 
         
     } catch (error) {
+        console.warn(error)
     }
     return character
 }
