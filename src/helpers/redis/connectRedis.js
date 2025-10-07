@@ -4,14 +4,16 @@ import dns from "dns";
 configDotenv()
 
 // let url = process.env.REDIS_URL;
+const IS_LOCAL= process.env.IS_LOCAL;
 let url = `redis://default:${process.env.REDIS_PASSWORD}@redis:${process.env.REDISPORT}`
+if(IS_LOCAL) url = process.env.REDIS_URL;
 
 export const redisCache = createClient({
     url,
     socket: {
-        family: 6,   // force IPv6
+        family: IS_LOCAL ? 4 : 6,   // force IPv6 on production
         dnsLookup: (hostname, opts, cb) => {
-            dns.lookup(hostname, { family: 6 }, cb);
+            dns.lookup(hostname, { family: IS_LOCAL ? 4 : 6 }, cb);
         }
     }
 });
