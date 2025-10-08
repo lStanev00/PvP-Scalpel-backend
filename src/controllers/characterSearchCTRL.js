@@ -230,59 +230,6 @@ async function getCharsMap(req, res) {
     }
 }
 
-// export async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
-//     const hashName = "buildingEntries";
-
-//     const key = `${server + realm + name}`;
-//     const doesEntryAlreadyBuild = await getCache(key, hashName);
-//     if (doesEntryAlreadyBuild && doesEntryAlreadyBuild !== null) {
-
-//         while (true) {
-
-//             await new Promise(resolve => setTimeout(resolve, 300)); // little delay
-//             const exist = await getCache(key, hashName);
-//             if(!exist || exist === null) break;
-            
-//         };
-//         character = await Char.findOne({
-//                 name: new RegExp(`^${name}$`, 'i'),
-//                 "playerRealm.slug": realm,
-//                 server: server
-//         }).populate({
-//             path: "posts", 
-//             populate: {
-//               path: "author",          
-//               select: "username _id"   
-//             }
-//           }).lean();
-//         return character
-//     }
-//     // buildingEntries[key] = true;
-//     await setCache(key, "true", hashName);
-//     character = await fetchData(server, realm, name);
-//     if (character == false) {
-//         console.log("Character missing: ",server,realm,name);
-//         // delete buildingEntries[key];
-//         await delCache(key, hashName);
-//         return null
-//     }
-//     character.checkedCount = 0;
-//     try {
-//         const newCharacter = new Char(character);
-//         const savedChar = await newCharacter.save();
-//         // delete buildingEntries[key];
-//         await delCache(key, hashName);
-
-//         insertOneCharSearchMap(savedChar);
-
-//         return character;
-        
-//     } catch (error) {
-//         console.log(error)
-//         return null;
-//     }
-// }
-
 export async function getCharacter(server, realm, name, update = true) {
 
     let character;
@@ -305,13 +252,19 @@ export async function getCharacter(server, realm, name, update = true) {
             { $inc: { checkedCount: update ? 1 : 0 } }, 
             { new: true, upsert: false, timestamps: false }
         )
-        await character.populate({
-            path: "posts", 
-            populate: {
-              path: "author",          
-              select: "username _id"   
-            }
-        })
+
+        try {
+            await character.populate({
+                path: "posts", 
+                populate: {
+                  path: "author",          
+                  select: "username _id"   
+                }
+            })
+            
+        } catch (error) {
+            // posts can be missing
+        }
         await character.populate("listAchievements");
         character = character.toObject();
         await setCache(searchQuery, character, hashName, 7200);
