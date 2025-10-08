@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import Char from "../Models/Chars.js";
-import { buildCharacter } from "./characterSearchCTRL.js";
+import buildCharacter from "../helpers/buildCharacter.js";
 
 dotenv.config({ path: '../../.env' });
 

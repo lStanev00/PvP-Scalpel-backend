@@ -55,6 +55,7 @@ export async function mapDBRegion () {
             entry.realms = shadowRealmMap;
             await setCache(entry._id, entry, hashName);
         }
+        return;
     } catch (error) {
         console.error(error);
     }

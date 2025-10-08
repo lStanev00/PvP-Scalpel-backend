@@ -8,6 +8,8 @@ import { getCharSearchMap, insertOneCharSearchMap } from "../caching/searchCache
 import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter.js";
 import getCache from "../helpers/redis/getterRedis.js";
 import setCache from "../helpers/redis/setterRedis.js";
+import delCache from "../helpers/redis/deletersRedis.js";
+import buildCharacter from "../helpers/buildCharacter.js";
 const hashName = "Characters";
 
 export const characterSearchCTRL = Router();
@@ -18,8 +20,8 @@ characterSearchCTRL.get(`/characterCache`, getCharsMap);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
 characterSearchCTRL.patch(`/patchPvPData/:server/:realm/:name`, patchPvPData);
 
-const patchingIDs = {};
-const buildingEntries = {}
+// const patchingIDs = {};
+// const buildingEntries = {}
 
 async function searchCharacterGET(req, res) {
     const search = req?.query?.search;
@@ -40,6 +42,7 @@ async function searchCharacterGET(req, res) {
 
 
 async function checkCharacterGet(req, res) {
+    const hashName = "buildingEntries";
     try {
         const { server, realm, name } = req.params;
         let character = await getCharacter(server, realm, name);
@@ -62,10 +65,15 @@ async function checkCharacterGet(req, res) {
     
     
         }
-        
-        if (buildingEntries[character.id]) { // If already updating
+        const existingBuildingEntry = await getCache(character.id, hashName);
+        if (existingBuildingEntry && existingBuildingEntry !== null) { // If already updating
 
-            while (buildingEntries[character.id]) await new Promise(resolve => setTimeout(resolve, 300)); // little delay
+
+            while (true) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+                const exist = await getCache(character.id, hashName);
+                if(!exist || exist === null) break;
+            } // little delay
              
             character = await getCharacter(server, realm, name);
         }
@@ -97,6 +105,7 @@ async function checkCharacterGet(req, res) {
 async function updateCharacterPatch(req, res) {
     const { server, realm, name } = req.params;
     let character;
+    const hashName = "patchingIDs";
 
     try {
         character = await Char.findOneAndUpdate(
@@ -129,7 +138,8 @@ async function updateCharacterPatch(req, res) {
     const charID = character._id;
 
     try {
-        patchingIDs[charID] = true;
+        // patchingIDs[charID] = true;
+        await setCache(charID, "true", hashName);
 
         const newCharacterData = await fetchData(server, realm, name);
         newCharacterData.checkedCount = checkedCount;
@@ -158,7 +168,9 @@ async function updateCharacterPatch(req, res) {
         })
         console.warn(error);
     } finally {
-       if (patchingIDs[charID]) delete patchingIDs[charID];
+        const exist = await getCache(charID, hashName);
+    //    if (exist && exist !== null) delete patchingIDs[charID]
+        if (exist && exist !== null) await delCache(charID, hashName);
     }
 
 }
@@ -218,50 +230,58 @@ async function getCharsMap(req, res) {
     }
 }
 
-export async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
-    const key = `${server + realm + name}`;
-    if (buildingEntries[key]) {
+// export async function buildCharacter(server, realm, name, character) { // If no mongo entry try updating the db with a new one and send it
+//     const hashName = "buildingEntries";
 
-        while (buildingEntries[key]) {
-            await new Promise(resolve => setTimeout(resolve, 300)); // little delay
+//     const key = `${server + realm + name}`;
+//     const doesEntryAlreadyBuild = await getCache(key, hashName);
+//     if (doesEntryAlreadyBuild && doesEntryAlreadyBuild !== null) {
 
+//         while (true) {
+
+//             await new Promise(resolve => setTimeout(resolve, 300)); // little delay
+//             const exist = await getCache(key, hashName);
+//             if(!exist || exist === null) break;
             
-        };
-        character = await Char.findOne({
-                name: new RegExp(`^${name}$`, 'i'),
-                "playerRealm.slug": realm,
-                server: server
-        }).populate({
-            path: "posts", 
-            populate: {
-              path: "author",          
-              select: "username _id"   
-            }
-          }).lean();
-        return character
-    }
-    buildingEntries[key] = true;
-    character = await fetchData(server, realm, name);
-    if (character == false) {
-        console.log("Character missing: ",server,realm,name);
-        delete buildingEntries[key];
-        return null
-    }
-    character.checkedCount = 0;
-    try {
-        const newCharacter = new Char(character);
-        const savedChar = await newCharacter.save();
-        delete buildingEntries[key];
+//         };
+//         character = await Char.findOne({
+//                 name: new RegExp(`^${name}$`, 'i'),
+//                 "playerRealm.slug": realm,
+//                 server: server
+//         }).populate({
+//             path: "posts", 
+//             populate: {
+//               path: "author",          
+//               select: "username _id"   
+//             }
+//           }).lean();
+//         return character
+//     }
+//     // buildingEntries[key] = true;
+//     await setCache(key, "true", hashName);
+//     character = await fetchData(server, realm, name);
+//     if (character == false) {
+//         console.log("Character missing: ",server,realm,name);
+//         // delete buildingEntries[key];
+//         await delCache(key, hashName);
+//         return null
+//     }
+//     character.checkedCount = 0;
+//     try {
+//         const newCharacter = new Char(character);
+//         const savedChar = await newCharacter.save();
+//         // delete buildingEntries[key];
+//         await delCache(key, hashName);
 
-        insertOneCharSearchMap(savedChar);
+//         insertOneCharSearchMap(savedChar);
 
-        return character;
+//         return character;
         
-    } catch (error) {
-        console.log(error)
-        return null;
-    }
-}
+//     } catch (error) {
+//         console.log(error)
+//         return null;
+//     }
+// }
 
 export async function getCharacter(server, realm, name, update = true) {
 

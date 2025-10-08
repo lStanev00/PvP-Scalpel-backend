@@ -1,49 +1,13 @@
 import achievesData from "./achievesData.js";
-import { setToken, getToken } from "./tokenCache.js"
 import {delay} from "../startBGTask.js";
 import Achievement from "../../Models/Achievements.js";
 import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../caching/achievements/achievesEmt.js";
 import dotenv from 'dotenv';
 import BlizAPIError from "../../Models/BlizAPIErrors.js";
+import getAccessToken from "../../caching/blizTokenCache/tokenCache.js";
 dotenv.config({ path: '../../../.env' });
 
-const clientId = process.env.CLIENT_ID;
-const clientSecret = process.env.CLIENT_SECRET;
-
-
-
 const helpFetch = {
-    getAccessToken : async function () {
-        const tokenUrl = 'https://eu.battle.net/oauth/token';
-
-        const cachedToken = getToken(); // Check if the token is cached and valid
-        if (cachedToken && cachedToken !== null) {
-            return cachedToken;
-        }
-        
-        try {
-            const response = await fetch(tokenUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
-                },
-                body: 'grant_type=client_credentials',
-            });
-    
-            if (!response.ok) {
-                throw new Error(`!! Failed to fetch token: ${response.statusText}`);
-            }
-    
-            const data = await response.json();
-            setToken(data.access_token, data.expires_in);
-
-            return data.access_token;
-        } catch (error) {
-            console.error('Error fetching access token:', error);
-            throw error;
-        }
-    },
     getCharProfile: async function (server, realm , name) {
         const URI = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}?namespace=profile-${server}&locale=en_US`;
         try {
@@ -329,7 +293,7 @@ const helpFetch = {
 
         const apiUrl = url + "&locale=en_GB"
 
-        const accessToken = await this.getAccessToken();
+        const accessToken = await getAccessToken();
 
         const finalOptions = {
             ...options,
@@ -360,7 +324,7 @@ const helpFetch = {
                     const newError = new BlizAPIError({
                         url :url,
                         status: res.status || 0,
-                        body : res?.body || text
+                        body : JSON.stringify(res?.body)  || text
                     })
                     await newError.save();
 
@@ -373,7 +337,6 @@ const helpFetch = {
             }
         }
 
-        // return fetch(apiUrl, finalOptions);
         return data;
     },
 

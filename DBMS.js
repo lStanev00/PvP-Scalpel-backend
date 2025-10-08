@@ -20,9 +20,9 @@ app.set('trust proxy', true);
 await DBconnect();
 await connectRedis();
 
-await delay(5000);
+await delay(2000);
 app.use(compression());
-
+ 
 app.use(cors(corsOptions));
 app.options(/^\/(.*)/, cors(corsOptions)); // enable pre-flight for all routes
 app.use(cookieParser());
