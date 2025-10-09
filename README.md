@@ -2,6 +2,8 @@
 
 This API manages the database and delivers data to the front-end.
 
+Stack: Node.js · Express · MongoDB · Redis · Mongoose · Worker Threads
+
 ## REST API Routes
 
 All REST endpoints return data in JSON format.
