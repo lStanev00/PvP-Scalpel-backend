@@ -35,5 +35,5 @@ const charWeeklyLadderSchema = new Schema(
     },
     { timestamps: true }
 );
-
-export default model("CharWeeklyLadder", charWeeklyLadderSchema);
+const charWeeklyLadder = model("CharWeeklyLadder", charWeeklyLadderSchema);
+export default  charWeeklyLadder;
