@@ -13,9 +13,20 @@ export default async function updateWeeklyLadder() {
             !serviceMetaData.lastRun ||
             (!isSameDay(serviceMetaData.lastRun, today) && serviceMetaData.running === false)
         ) {
+
             serviceMetaData.running = true;
             await serviceMetaData.save(); // Store in db that the service is starting;
-            const wBracketsData = await determinateWeeklyWinners();
+            let success = false;
+            try {
+                const wBracketsData = await determinateWeeklyWinners();
+                success = true;
+            } catch (error) {
+                console.error(error);
+            } finally {
+                serviceMetaData.running = false;
+                serviceMetaData.lastRun = success ? today : serviceMetaData.lastRun; 
+                await serviceMetaData.save();
+            }
 
         }
     }
