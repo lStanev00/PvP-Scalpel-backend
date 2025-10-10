@@ -7,7 +7,8 @@ const weeklyWinnersRecordSchema = new Schema({
     ss: [{ type: { playerSearch: String, result: Number }, default: [] }],
     RBG: [{ type: { playerSearch: String, result: Number }, default: [] }]
 }, {
-    timestamps: true
+    timestamps: true,
+    versionKey: false
 });
 
 const WeeklyWinnersRecord = model("WeeklyWinnersRecord", weeklyWinnersRecordSchema);
