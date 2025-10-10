@@ -10,24 +10,34 @@ const charWeeklyLadderSchema = new Schema(
             type: Schema.Types.Mixed,
             default: {},
         },
-        weeklyPerformance: {
-            blitz: Schema.Types.Mixed, // due to multiple elos for diferent specs
-            "2v2": {
-                type: Number,
-                default: null,
-            },
-            "3v3": {
-                type: Number,
-                default: null,
-            },
-            ss: Schema.Types.Mixed,
-            RBG: {
-                type: Number,
-                default: null,
-            },
-        },
     },
-    { timestamps: true }
+    { 
+        timestamps: true,
+        versionKey: false
+    }
 );
 const charWeeklyLadder = model("CharWeeklyLadder", charWeeklyLadderSchema);
-export default  charWeeklyLadder;
+export default charWeeklyLadder;
+
+        // weeklyPerformance: {
+        //     blitz: {
+        //         type: [[Schema.Types.Mixed]], // each element can be ["name", 10]
+        //         default: [],
+        //     },
+        //     "2v2": {
+        //         type: Number,
+        //         default: null,
+        //     },
+        //     "3v3": {
+        //         type: Number,
+        //         default: null,
+        //     },
+        //     ss: {
+        //         type: [[Schema.Types.Mixed]], // each element can be ["name", 10]
+        //         default: [],
+        //     },
+        //     RBG: {
+        //         type: Number,
+        //         default: null,
+        //     },
+        // },
