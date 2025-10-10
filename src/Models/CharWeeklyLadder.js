@@ -11,10 +11,7 @@ const charWeeklyLadderSchema = new Schema(
             default: {},
         },
         weeklyPerformance: {
-            blitz: {
-                type: Number,
-                default: null,
-            },
+            blitz: Schema.Types.Mixed, // due to multiple elos for diferent specs
             "2v2": {
                 type: Number,
                 default: null,
@@ -23,10 +20,7 @@ const charWeeklyLadderSchema = new Schema(
                 type: Number,
                 default: null,
             },
-            ss: {
-                type: Number,
-                default: null,
-            },
+            ss: Schema.Types.Mixed,
             RBG: {
                 type: Number,
                 default: null,
