@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 
-const charWeeklyLadderSchema = new Schema(
+const charWeeklySnapshotSchema = new Schema(
     {
         _id: {
             type: String,
@@ -16,8 +16,8 @@ const charWeeklyLadderSchema = new Schema(
         versionKey: false
     }
 );
-const charWeeklyLadder = model("CharWeeklyLadder", charWeeklyLadderSchema);
-export default charWeeklyLadder;
+const charWeeklySnapshot = model("CharWeeklySnapshot", charWeeklySnapshotSchema);
+export default charWeeklySnapshot;
 
         // weeklyPerformance: {
         //     blitz: {
