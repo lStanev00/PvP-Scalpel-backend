@@ -1,3 +1,4 @@
+import { cacheWeeklyData } from "../caching/weeklyChamps/weeklyChampsCache.js";
 import Service from "../Models/Services.js";
 import determinateWeeklyWinners from "./Service-Helpers/updateWeeklyLadder/determinateWeeklyWinners.js";
 import isSameDay from "./Service-Helpers/updateWeeklyLadder/isSameDay.js";
@@ -26,8 +27,10 @@ export default async function updateWeeklyLadder() {
                 serviceMetaData.running = false;
                 serviceMetaData.lastRun = success ? today : serviceMetaData.lastRun; 
                 await serviceMetaData.save();
+                return
             }
-
         }
     }
+
+    await cacheWeeklyData();
 }
