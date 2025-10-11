@@ -5,6 +5,7 @@ import helpFetch from '../helpers/blizFetch-helpers/endpointFetchesBliz.js';
 import Service from '../Models/Services.js';
 import buildCharacter from '../helpers/buildCharacter.js';
 import { delay } from '../helpers/startBGTask.js';
+import updateWeeklyLadder from './UpdateWeeklyLadder.js';
 dotenv.config({ path: '../../../../.env' });
 
 // PLEASE NOTE! Blizzard API have 36,000 requests per hour at a rate of 100 requests per second LIMIT!
@@ -142,7 +143,7 @@ export async function findChar(server, realm, name) {
 
         const serviceUpdate = await Service.findOneAndUpdate( { service: "PatchPvP" }, updateDoc, { new: true } )
         console.log(`[PatchPvP]${fullUpdate ? " Full" : " " }Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `);
-    
+        await updateWeeklyLadder()
         return serviceUpdate;
     } catch (error) {
         console.warn(error)
