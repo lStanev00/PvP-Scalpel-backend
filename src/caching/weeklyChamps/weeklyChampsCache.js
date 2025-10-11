@@ -11,7 +11,7 @@ emitter.on("update", (msg) => console.log(`[${hashName} UPDATE] ${msg}`));
 emitter.on("error", (msg) => console.error(`[${hashName} ERROR] ${msg}`));
 emitter.on("info", (msg) => console.info(`[${hashName} INFO] ${msg}`));
 
-export async function cacheWeeklyData(data) {
+export async function cacheWeeklyData(data = undefined) {
     if (!data) data = await formatWeeklyData();
 
     if (!data) {
