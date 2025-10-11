@@ -1,3 +1,4 @@
+import { cacheWeeklyData } from "../../../caching/weeklyChamps/weeklyChampsCache.js";
 import Char from "../../../Models/Chars.js";
 import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
 import WeeklyWinnersRecord from "../../../Models/WeeklyWinnersRecord.js";
@@ -27,5 +28,6 @@ export default async function determinateWeeklyWinners() {
     }
 
     await charWeeklySnapshot.insertMany(newWeeklySnapshotDocs, { ordered: false });
+    await cacheWeeklyData(data);
     
 }
