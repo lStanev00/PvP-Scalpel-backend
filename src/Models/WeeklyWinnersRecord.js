@@ -1,15 +1,26 @@
-import { model, Schema } from "mongoose";
+import { Schema, model } from "mongoose";
 
-const weeklyWinnersRecordSchema = new Schema({
-    blitz: [{ type: { playerSearch: String, result: Number }, default: [] }],
-    "2v2": [{ type: { playerSearch: String, result: Number }, default: [] }],
-    "3v3": [{ type: { playerSearch: String, result: Number }, default: [] }],
-    shuffle: [{ type: { playerSearch: String, result: Number }, default: [] }],
-    RBG: [{ type: { playerSearch: String, result: Number }, default: [] }]
-}, {
-    timestamps: true,
-    versionKey: false
-});
+const playerResultSchema = new Schema(
+    {
+        playerSearch: { type: String, required: true },
+        result: { type: Number, required: true },
+    },
+    { _id: false }
+);
+
+const weeklyWinnersRecordSchema = new Schema(
+    {
+        blitz: { type: [playerResultSchema], default: [] },
+        "2v2": { type: [playerResultSchema], default: [] },
+        "3v3": { type: [playerResultSchema], default: [] },
+        shuffle: { type: [playerResultSchema], default: [] },
+        RBG: { type: [playerResultSchema], default: [] },
+    },
+    {
+        timestamps: true,
+        versionKey: false,
+    }
+);
 
 const WeeklyWinnersRecord = model("WeeklyWinnersRecord", weeklyWinnersRecordSchema);
 export default WeeklyWinnersRecord;

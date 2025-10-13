@@ -144,6 +144,7 @@ export async function findChar(server, realm, name) {
         const serviceUpdate = await Service.findOneAndUpdate( { service: "PatchPvP" }, updateDoc, { new: true } )
         console.log(`[PatchPvP]${fullUpdate ? " Full" : " " }Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `);
         await updateWeeklyLadder()
+        await updateWeeklyLadder()
         return serviceUpdate;
     } catch (error) {
         console.warn(error)

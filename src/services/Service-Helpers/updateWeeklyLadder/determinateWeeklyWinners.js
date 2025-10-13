@@ -2,6 +2,7 @@ import { cacheWeeklyData } from "../../../caching/weeklyChamps/weeklyChampsCache
 import Char from "../../../Models/Chars.js";
 import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
 import WeeklyWinnersRecord from "../../../Models/WeeklyWinnersRecord.js";
+import { buildSnapshots } from "./buildSnapshots.js";
 import formatWeeklyData from "./formatWeeklyData.js";
 /**
  * @returns {Promise<void>}
@@ -10,7 +11,8 @@ export default async function determinateWeeklyWinners() {
     const guildCharList = await Char.find({ guildMember: true });
     const data = await formatWeeklyData(guildCharList);
 
-    if (await charWeeklySnapshot.collection.exists()) {
+    const exist = await charWeeklySnapshot.find().lean();
+    if (exist.length !== 0) {
         await charWeeklySnapshot.collection.drop().catch((err) => {
             if (err.code !== 26) throw err; // code 26 = "NamespaceNotFound"
         });
@@ -18,16 +20,7 @@ export default async function determinateWeeklyWinners() {
 
     await WeeklyWinnersRecord.create(data);
 
-    const newWeeklySnapshotDocs = [];
-    
-    for (const { search, rating } of guildCharList) {
-        newWeeklySnapshotDocs.push({
-            _id: search,
-            ratingSnapshot: rating,
-        });
-    }
-
-    await charWeeklySnapshot.insertMany(newWeeklySnapshotDocs, { ordered: false });
+    const newWeeklySnapshotDocs = await buildSnapshots()
     await cacheWeeklyData(data);
     
 }

@@ -1,24 +1,26 @@
 import Char from "../../../Models/Chars.js";
 import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
+import { buildSnapshots } from "./buildSnapshots.js";
 
 /**
  * Form the data for the weekly brackets
  * @param {Array<Object>} [guildCharList] - Optional guild character list. If not provided, it will be fetched from the database.
- * @returns {Promise<{ 
- *  blitz: [string, number][], 
- *  "2v2": [string, number][], 
- *  "3v3": [string, number][], 
- *  shuffle: [string, number][], 
- *  RBG: [string, number][] 
+ * @returns {Promise<{
+ *  blitz: { playerSearch: string, bracketName: string, startRating: number, result: number }[],
+ *  "2v2": { playerSearch: string, bracketName: string, startRating: number, result: number }[],
+ *  "3v3": { playerSearch: string, bracketName: string, startRating: number, result: number }[],
+ *  shuffle: { playerSearch: string, bracketName: string, startRating: number, result: number }[],
+ *  RBG: { playerSearch: string, bracketName: string, startRating: number, result: number }[]
  * }>}
  */
 
 export default async function formatWeeklyData(guildCharList = undefined) {
-    const weeklySnapshots = await charWeeklySnapshot.find().lean();
-    if(!guildCharList) guildCharList = await Char.find({ guildMember: true }).lean();
-    if (weeklySnapshots.length === 0) return null;
-    
+    let weeklySnapshots = await charWeeklySnapshot.find().lean();
+    if (!guildCharList) guildCharList = await Char.find({ guildMember: true }).lean();
+    if (weeklySnapshots.length === 0) weeklySnapshots = await buildSnapshots(guildCharList);
+
     const records = {
+        // define the structure of the result
         blitz: [],
         "2v2": [],
         "3v3": [],
@@ -27,50 +29,119 @@ export default async function formatWeeklyData(guildCharList = undefined) {
     };
 
     for (const { search, rating } of guildCharList) {
+        // loop the dbase with existing live chars data since the service start as soon as the patch of the guild mems finish so is a live data
         const snapshotEntry = weeklySnapshots.find(
             (entry) => entry._id.toString() === search
         )?.ratingSnapshot;
         if (!snapshotEntry) continue;
 
-        const ratings = Object.entries(rating);
         const charRecords = {
-            blitz: 0,
-            "2v2": 0,
-            "3v3": 0,
-            shuffle: 0,
-            RBG: 0,
+            // define 1 character structure of weekly progess data
+            blitz: [],
+            shuffle: [],
+            "2v2": null,
+            "3v3": null,
+            RBG: null,
         };
 
-        for (const [bracket, value] of ratings) {
-            const snapBracketData = snapshotEntry[bracket];
+        for (const [bracket, value] of Object.entries(rating)) {
+            if (bracket.startsWith("solo")) continue;
 
-            const scoreValue = snapBracketData ? value - snapBracketData : value;
+            let snapBracketData; // get the snapshot data
 
             if (bracket.startsWith("blitz")) {
-                if (charRecords.blitz < scoreValue) charRecords.blitz = scoreValue;
+                snapBracketData = snapshotEntry["blitz"].find(entry => entry.bracketName === bracket).rating;
             } else if (bracket.startsWith("shuffle")) {
-                if (charRecords.shuffle < scoreValue) charRecords.shuffle = scoreValue;
+                snapBracketData = snapshotEntry["shuffle"].find(entry => entry.bracketName === bracket).rating;
             } else {
-                charRecords[bracket] = scoreValue;
+                snapBracketData = snapshotEntry[bracket];
+            }
+
+            if (snapBracketData === undefined) snapBracketData = 0;
+
+            const extractedValue = value?.currentSeason?.rating ?? 0;
+
+            const scoreValue = snapBracketData ? extractedValue - snapBracketData : extractedValue; // define the outcome of the week
+
+            let bracketOutcome = [bracket, snapBracketData, scoreValue];
+
+            if (scoreValue === 0) continue; // falsy or 0 data is skiped
+
+            if (bracket.startsWith("blitz")) {
+                charRecords.blitz.push(bracketOutcome);
+            } else if (bracket.startsWith("shuffle")) {
+                charRecords.shuffle.push(bracketOutcome);
+            } else {
+                charRecords[bracket] = bracketOutcome;
             }
         }
 
-        for (const [bracket, value] of Object.entries(charRecords)) {
-            if (value === 0) continue;
-            records[bracket].push([search, value]);
+        if (
+            charRecords.blitz.length === 0 &&
+            charRecords.shuffle.length === 0 &&
+            charRecords["2v2"] === null &&
+            charRecords["3v3"] === null &&
+            charRecords["RBG"] === null
+        )
+            continue;
+
+        for (let [bracket, value] of Object.entries(charRecords)) {
+            // loop the built records
+
+            if (value === null) continue;
+            if (Array.isArray(value) && value[2] === 0) continue;
+
+            if (bracket.startsWith("blitz")) {
+                records.blitz.push([search, value]);
+            } else if (bracket.startsWith("shuffle")) {
+                records.shuffle.push([search, value]);
+            } else {
+                try {
+                    if (bracket === "rbg") bracket = "RBG";
+                    records[bracket].push([search, value]);
+                } catch (error) {
+                    console.warn(error);
+                    console.info(bracket);
+                }
+            }
         }
     }
 
     for (const [bracket, arr] of Object.entries(records)) {
-        records[bracket].sort((a, b) => b[1] - a[1]);
+        records[bracket].sort((a, b) => b[1][2] - a[1][2]);
     }
 
     const formattedRecords = {
-        blitz: records.blitz.map(([playerSearch, result]) => ({ playerSearch, result })),
-        "2v2": records["2v2"].map(([playerSearch, result]) => ({ playerSearch, result })),
-        "3v3": records["3v3"].map(([playerSearch, result]) => ({ playerSearch, result })),
-        shuffle: records.shuffle.map(([playerSearch, result]) => ({ playerSearch, result })),
-        RBG: records.RBG.map(([playerSearch, result]) => ({ playerSearch, result })),
+        blitz: records.blitz.map(([playerSearch, [bracketName, startRating, result]]) => ({
+            playerSearch,
+            bracketName,
+            startRating,
+            result,
+        })),
+        "2v2": records["2v2"].map(([playerSearch, [bracketName, startRating, result]]) => ({
+            playerSearch,
+            bracketName,
+            startRating,
+            result,
+        })),
+        "3v3": records["3v3"].map(([playerSearch, [bracketName, startRating, result]]) => ({
+            playerSearch,
+            bracketName,
+            startRating,
+            result,
+        })),
+        shuffle: records.shuffle.map(([playerSearch, [bracketName, startRating, result]]) => ({
+            playerSearch,
+            bracketName,
+            startRating,
+            result,
+        })),
+        RBG: records.RBG.map(([playerSearch, [bracketName, startRating, result]]) => ({
+            playerSearch,
+            bracketName,
+            startRating,
+            result,
+        })),
     };
 
     return formattedRecords;
