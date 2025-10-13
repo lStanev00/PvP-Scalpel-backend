@@ -21,6 +21,5 @@ export default async function determinateWeeklyWinners() {
     await WeeklyWinnersRecord.create(data);
 
     const newWeeklySnapshotDocs = await buildSnapshots()
-    await cacheWeeklyData(data);
     
 }
