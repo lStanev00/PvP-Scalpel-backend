@@ -4,19 +4,19 @@ import setCache from "../../helpers/redis/setterRedis.js";
 import formatWeeklyData from "../../services/Service-Helpers/updateWeeklyLadder/formatWeeklyData.js";
 import { EventEmitter } from "node:events";
 
-const emitter = new EventEmitter();
+export const WeeklyEmitter = new EventEmitter();
 const hashName = "weeklyChampsCache";
 const humanReadableName = "Weekly"
 
-emitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
-emitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
-emitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
+WeeklyEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
+WeeklyEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
+WeeklyEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
 
 export async function cacheWeeklyData(data = undefined) {
     if (!data) data = await formatWeeklyData();
 
     if (!data) {
-        emitter.emit("error", "There's no data comming form the getter function.");
+        WeeklyEmitter.emit("error", "There's no data comming form the getter function.");
         return;
     }
 
@@ -26,7 +26,7 @@ export async function cacheWeeklyData(data = undefined) {
         await setCache(bracketName, bracketData, hashName);
     }
 
-    emitter.emit("update", "Just cached the data for all brackets");
+    WeeklyEmitter.emit("update", "Just cached the data for all brackets");
 }
 
 export async function getTop10ForABracket(bracketName) {
@@ -37,7 +37,7 @@ export async function getTop10ForABracket(bracketName) {
         bracketName !== "3v3" &&
         bracketName !== "RBG"
     ) {
-        emitter.emit("error", `${bracketName} is not an existing bracket.`);
+        WeeklyEmitter.emit("error", `${bracketName} is not an existing bracket.`);
         return;
     }
 
