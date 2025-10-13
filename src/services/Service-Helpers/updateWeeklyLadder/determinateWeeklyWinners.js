@@ -1,4 +1,3 @@
-import { cacheWeeklyData } from "../../../caching/weeklyChamps/weeklyChampsCache.js";
 import Char from "../../../Models/Chars.js";
 import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
 import WeeklyWinnersRecord from "../../../Models/WeeklyWinnersRecord.js";
