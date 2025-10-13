@@ -6,10 +6,11 @@ import { EventEmitter } from "node:events";
 
 const emitter = new EventEmitter();
 const hashName = "weeklyChampsCache";
+const humanReadableName = "Weekly"
 
-emitter.on("update", (msg) => console.log(`[${hashName} UPDATE] ${msg}`));
-emitter.on("error", (msg) => console.error(`[${hashName} ERROR] ${msg}`));
-emitter.on("info", (msg) => console.info(`[${hashName} INFO] ${msg}`));
+emitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
+emitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
+emitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
 
 export async function cacheWeeklyData(data = undefined) {
     if (!data) data = await formatWeeklyData();
