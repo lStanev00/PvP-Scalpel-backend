@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getTop10ForABracket } from "../caching/weeklyChamps/weeklyChampsCache.js";
-import { jsonResponse } from "../helpers/resposeHelpers";
+import { jsonResponse } from "../helpers/resposeHelpers.js";
 
 const weeklyLadderCTRL = Router();
 
