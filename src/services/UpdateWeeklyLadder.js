@@ -21,8 +21,7 @@ export default async function updateWeeklyLadder() {
             await serviceMetaData.save(); // Store in db that the service is starting;
             let success = false;
             try {
-                const wBracketsData = await determinateWeeklyWinners();
-                success = true;
+                success = await determinateWeeklyWinners();
             } catch (error) {
                 console.error(error);
             } finally {
