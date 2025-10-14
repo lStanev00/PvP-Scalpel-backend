@@ -26,6 +26,8 @@ export async function cacheWeeklyData(data = undefined) {
         await setCache(bracketName, bracketData, hashName);
     }
 
+    await setCache("lastUpdated", Date.now(), hashName); // set the last updated timestamp 
+
     WeeklyEmitter.emit("update", "Just cached the data for all brackets");
 }
 
@@ -42,8 +44,13 @@ export async function getTop10ForABracket(bracketName) {
     }
 
     const bracketData = await getCache(bracketName, hashName);
+    const lastUpdated = await getCache("lastUpdated", hashName);
     if (!bracketData) return 404;
 
-    const result = bracketData.slice(0, 10);
+    const result = {
+        data: bracketData.slice(0,10),
+        lastUpdated
+    }
+
     return result
 }
