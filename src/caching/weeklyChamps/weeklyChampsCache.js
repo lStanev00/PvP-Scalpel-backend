@@ -1,5 +1,5 @@
 import delCache from "../../helpers/redis/deletersRedis.js";
-import getCache from "../../helpers/redis/getterRedis.js";
+import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 import formatWeeklyData from "../../services/Service-Helpers/updateWeeklyLadder/formatWeeklyData.js";
 import { EventEmitter } from "node:events";
@@ -56,7 +56,7 @@ export async function getTop10ForABracket(bracketName) {
 }
 
 export async function getFullWeekly() {
-    const data = await getCache(hashName);
+    const data = await hashGetAllCache(hashName);
     if (!data) {
         WeeklyEmitter.emit("error", "Fail to retrive data at getFullWeekly function!");
         return 404
