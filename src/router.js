@@ -6,6 +6,7 @@ import authController from "./controllers/authentication.js";
 import {authMiddleware} from "./middlewares/authMiddleweare.js";
 import postsCTRL from "./controllers/postsCTRL.js";
 import userActionCTRL from "./controllers/userActionsCTRL.js";
+import weeklyLadderCTRL from "./controllers/weeklyLadderCTRL.js";
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.use(`/`, LDBController);
 router.use(`/`, characterSearchCTRL);
 router.use(`/`, postsCTRL)
 router.use(`/`, userActionCTRL);
+router.use(`/`, weeklyLadderCTRL);
 
 export default router
