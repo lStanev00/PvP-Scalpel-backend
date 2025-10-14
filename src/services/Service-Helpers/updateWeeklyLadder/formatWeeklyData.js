@@ -44,15 +44,19 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             RBG: null,
         };
 
-        for (const [bracket, value] of Object.entries(rating)) {
+        for (let [bracket, value] of Object.entries(rating)) {
             if (bracket.startsWith("solo")) continue;
-
+            if (bracket === "rbg") bracket = "RBG";
             let snapBracketData; // get the snapshot data
 
             if (bracket.startsWith("blitz")) {
-                snapBracketData = snapshotEntry["blitz"].find(entry => entry.bracketName === bracket).rating;
+                snapBracketData = snapshotEntry["blitz"].find(
+                    (entry) => entry.bracketName === bracket
+                ).rating;
             } else if (bracket.startsWith("shuffle")) {
-                snapBracketData = snapshotEntry["shuffle"].find(entry => entry.bracketName === bracket).rating;
+                snapBracketData = snapshotEntry["shuffle"].find(
+                    (entry) => entry.bracketName === bracket
+                ).rating;
             } else {
                 snapBracketData = snapshotEntry[bracket];
             }
@@ -72,6 +76,7 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             } else if (bracket.startsWith("shuffle")) {
                 charRecords.shuffle.push(bracketOutcome);
             } else {
+                bracketOutcome.shift();
                 charRecords[bracket] = bracketOutcome;
             }
         }
@@ -89,12 +94,18 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             // loop the built records
 
             if (value === null) continue;
-            if (Array.isArray(value) && value[2] === 0) continue;
+            if ((Array.isArray(value) && value[2] === 0) || value.length === 0) continue;
 
             if (bracket.startsWith("blitz")) {
-                records.blitz.push([search, value]);
+                for (const brackVal of value) {
+                    records.blitz.push([search, brackVal]);
+                }
+                // records.blitz.push([search, value]);
             } else if (bracket.startsWith("shuffle")) {
-                records.shuffle.push([search, value]);
+                for (const brackVal of value) {
+                    records.shuffle.push([search, brackVal]);
+                }
+                // records.shuffle.push([search, value]);
             } else {
                 try {
                     if (bracket === "rbg") bracket = "RBG";
@@ -108,7 +119,11 @@ export default async function formatWeeklyData(guildCharList = undefined) {
     }
 
     for (const [bracket, arr] of Object.entries(records)) {
-        records[bracket].sort((a, b) => b[1][2] - a[1][2]);
+        if(bracket === "blitz" || bracket === "shuffle") {
+            records[bracket].sort((a, b) => b[1][2] - a[1][2]);
+        } else {
+            records[bracket].sort((a, b) => b[1][1] - a[1][1]);
+        }
     }
 
     const formattedRecords = {
@@ -118,15 +133,13 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             startRating,
             result,
         })),
-        "2v2": records["2v2"].map(([playerSearch, [bracketName, startRating, result]]) => ({
+        "2v2": records["2v2"].map(([playerSearch, [startRating, result]]) => ({
             playerSearch,
-            bracketName,
             startRating,
             result,
         })),
-        "3v3": records["3v3"].map(([playerSearch, [bracketName, startRating, result]]) => ({
+        "3v3": records["3v3"].map(([playerSearch, [startRating, result]]) => ({
             playerSearch,
-            bracketName,
             startRating,
             result,
         })),
@@ -136,13 +149,11 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             startRating,
             result,
         })),
-        RBG: records.RBG.map(([playerSearch, [bracketName, startRating, result]]) => ({
+        RBG: records.RBG.map(([playerSearch, [startRating, result]]) => ({
             playerSearch,
-            bracketName,
             startRating,
             result,
         })),
     };
-
     return formattedRecords;
 }
