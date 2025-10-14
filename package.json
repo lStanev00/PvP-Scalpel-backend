@@ -7,6 +7,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node DBMS.js",
+    "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js",
     "patch": "cd src/services && node Patch"
   },
   "repository": {
