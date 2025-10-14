@@ -100,12 +100,10 @@ export default async function formatWeeklyData(guildCharList = undefined) {
                 for (const brackVal of value) {
                     records.blitz.push([search, brackVal]);
                 }
-                // records.blitz.push([search, value]);
             } else if (bracket.startsWith("shuffle")) {
                 for (const brackVal of value) {
                     records.shuffle.push([search, brackVal]);
                 }
-                // records.shuffle.push([search, value]);
             } else {
                 try {
                     if (bracket === "rbg") bracket = "RBG";
