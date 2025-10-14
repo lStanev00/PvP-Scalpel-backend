@@ -52,13 +52,13 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             if (bracket.startsWith("blitz")) {
                 snapBracketData = snapshotEntry["blitz"].find(
                     (entry) => entry.bracketName === bracket
-                ).rating;
+                )?.rating;
             } else if (bracket.startsWith("shuffle")) {
                 snapBracketData = snapshotEntry["shuffle"].find(
                     (entry) => entry.bracketName === bracket
-                ).rating;
+                )?.rating;
             } else {
-                snapBracketData = snapshotEntry[bracket];
+                snapBracketData = snapshotEntry?.[bracket];
             }
 
             if (snapBracketData === undefined) snapBracketData = 0;
