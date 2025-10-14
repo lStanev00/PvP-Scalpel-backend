@@ -6,7 +6,8 @@ const weeklyLadderCTRL = Router();
 
 weeklyLadderCTRL.get("/weekly/:bracket", getWeekly);
 
-const getWeekly = async (req, res) => {
+async function getWeekly(req, res) {
+
     const { bracket } = req.params;
     const data = await getTop10ForABracket(bracket);
     if (!data || data === 404) return jsonResponse(res, 404, "Check the bracket param");
