@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer'
+import { Resend } from "resend";
 import dotenv from 'dotenv'
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -9,18 +9,9 @@ const dir = path.dirname(_filename);
 dotenv.config({path: `${dir}/.env`});
 
 const apiKey = process.env.RESEND_API_KEY;
+const resend = new Resend(apiKey);
 
 const frontEndDomain = "https://www.pvpscalpel.com/";
-
-const transporter = nodemailer.createTransport({
-    host : 'smtp.resend.com',
-    port: 587,
-    secure: false,
-    auth: {
-        user: 'resend',
-        pass: apiKey
-    },
-});
 
 const mail = {
     sendJWTAuth : async function (email, code, option) {
@@ -141,7 +132,7 @@ const mail = {
             default: console.warn(`Allowed options are :\nemail\npassword`); return undefined;
         }
 
-        await transporter.sendMail({
+        await resend.emails.send({
             from: 'noreply@pvpscalpel.com',
             to: email,
             subject: header,
@@ -153,4 +144,4 @@ const mail = {
 export default mail;
 
 // Test run with the next line (uncomment it)
-// mail.sendJWTAuth(`l.stanev2000@gmail.com`, `TEST`)
+// mail.sendJWTAuth(`l.stanev2000@gmail.com`, `TEST`, "email")
