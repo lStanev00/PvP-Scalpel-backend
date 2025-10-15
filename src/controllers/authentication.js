@@ -251,11 +251,11 @@ async function registerPost(req, res) {
                 if (emailExist) msg.email = emailExist.email; 
                 if (usernameExist) msg.username = usernameExist.username; 
     
-                return res.status(409).json(error);
+                return res.status(409).json(msg);
                 
             } catch (error) {
                 console.warn(error);
-                return res.status(500).json(msg);
+                return res.status(500).end();
             }
 
         }
