@@ -242,8 +242,8 @@ async function registerPost(req, res) {
             .status(201).json({ _id: newUser._id, email: newUser.email });
 
         } catch (error) {
+            console.warn(error)
             const msg = {}
-
             try {
                 const emailExist = await User.findOne({email : email});
                 const usernameExist = await User.findOne({username : username});
