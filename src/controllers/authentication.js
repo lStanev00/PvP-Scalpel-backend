@@ -133,20 +133,20 @@ async function resetPasswordPost(req, res) {
         if (user?.verifyTokens?.password) {
             return res.status(400).end();
         }
-        res.status(201).json({  message : `Email send at ${email}!`  });
-
+        
         const payload = {
             fingerprint: fingerprint,
             email: user.email
         }
-    
+        
         const token = jwt.sign(payload, JWT_SECRET);
-
+        
         mail.sendJWTAuth(user.email, token, `password`);
-    
+        
         user.verifyTokens.password.fingerprint = fingerprint;
         user.verifyTokens.password.token = tokenHash;
-    
+        res.status(201).json({  message : `Email send at ${email}!`  });
+        
         return await user.save();
     
     
@@ -236,10 +236,10 @@ async function registerPost(req, res) {
                 }
             }
             await newUser.save();
-            res
+            await mail.sendJWTAuth(email, code, "email");
+            return res
             .cookie("token", JWT, getOptions(req))
             .status(201).json({ _id: newUser._id, email: newUser.email });
-            return await mail.sendJWTAuth(email, code, "email");
 
         } catch (error) {
             const msg = {}
@@ -385,13 +385,13 @@ async function changeEmailPatch(req, res) {
 
         delete deleteOptions.maxAge;
         
-        res
+        await mail.sendJWTAuth(newEmail, token, `email`);
+        return res
             .clearCookie("token", deleteOptions)
             .cookie("token", jwtToken, options)
             .status(201)
             .json(loginObject);
         
-        return await mail.sendJWTAuth(newEmail, token, `email`);
         
     } catch (error) {
         res.status(500).end();
