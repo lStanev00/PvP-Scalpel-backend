@@ -1,8 +1,7 @@
-import formReadableID from "../../../helpers/formReadableID.js";
 import Char from "../../../Models/Chars.js";
 
 export default async function shipCharById(ID) {
-    ID = formReadableID(ID);
+    // ID = formReadableID(ID);
 
     try {
         let data = await Char.findById(ID);

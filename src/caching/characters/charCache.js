@@ -23,7 +23,7 @@ CharCacheEmitter.on("updateRequest", (charData, charID) => {
 
 
 export async function cacheOneCharacter(charData, charID = undefined) {
-    const search = charData?.search
+    let search = charData?.search
     const _id = charData?._id
     if ((!_id || !search) && charID === undefined) {
         CharCacheEmitter.emit("error", `cacheOneCharacter invoked with bad params`);
@@ -31,7 +31,7 @@ export async function cacheOneCharacter(charData, charID = undefined) {
     }
 
     if ((!charData || charData === null) && charID !== undefined) charData = await shipCharById(charID);
-
+    search = charData?.search;
     if (charData && search) await setCache(search, charData, hashName);
 }
 

@@ -121,6 +121,7 @@ async function postDELETE(req, res) {
         const post = await Post.findById(postID);
         if (!user._id.equals(post.author)) return res.status(400).end();
 
+        await Post.findByIdAndDelete(postID);
         CharCacheEmitter.emit("updateRequest", undefined, post.character._id);
         
         return res.status(200).end();
