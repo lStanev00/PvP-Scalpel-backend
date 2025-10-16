@@ -52,7 +52,7 @@ async function checkCharacterGet(req, res) {
         const character = await getCharacter(server, realm, name);
 
         if (character === 404) response.code = 404
-            else if (character.name) response.code = 200
+            else if (character) response.code = 200
             else if (!character || character === null) response.code(404);
 
 

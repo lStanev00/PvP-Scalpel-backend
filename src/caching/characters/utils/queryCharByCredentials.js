@@ -1,4 +1,4 @@
-import Char from "../../../Models/Chars";
+import Char from "../../../Models/Chars.js";
 
 export default async function queryCharacterByCredentials(server, realm, name) {
     try {
