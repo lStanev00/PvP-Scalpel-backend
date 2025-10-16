@@ -138,6 +138,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
     } catch (error) {
         console.warn(error)
     }
+    return character
 }
 
 async function getCharFromCacheBySearch(search) {
