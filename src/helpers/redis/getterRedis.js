@@ -1,3 +1,4 @@
+import formReadableID from "../formReadableID.js";
 import { redisCache } from "./connectRedis.js";
 import checkKey from "./validateRedisKey.js";
 
@@ -26,18 +27,18 @@ export default async function getCache(key, hash = "") {
 
     if(!result && result !== null) {
         console.warn(result);
-        return result;
     } else {
         try {
-            
             result = JSON.parse(result);
-            return result;
-
         } catch (error) {
             console.error(error);
-            return result;
         }
     }
+
+    if(result._id) result._id = formReadableID(result._id)
+    if(result.id) result.id = formReadableID(result.id)
+
+    return result
 
 }
 

@@ -41,45 +41,42 @@ async function searchCharacterGET(req, res) {
     }
 }
 
-
+//
 async function checkCharacterGet(req, res) {
-    const hashName = "buildingEntries";
+    const buildingHashName = "buildingEntries";
     try {
         const { server, realm, name } = req.params;
         let character = await getCharacter(server, realm, name);
 
-        if(!character) {
+            // Enter the updater
+        if(!character) { // ++++++++++++++++++++++++++++ 2
             character = await buildCharacter(server, realm, name, character, res);
     
             if (!character){ 
                 character = await buildCharacter(server, realm, name);
                 if(character === null ) return jsonResponse(res, 404)
                 jsonResponse(res, 200, character);
-                
-                 return res.end()
-
-
-                // return jsonMessage(res, 404, "No character with this credentials");
+                return res.end()
             }
+
             character = await getCharacter(server, realm, name);
             return jsonResponse(res, 200, character);
-    
-    
+
         }
-        const existingBuildingEntry = await getCache(character.id, hashName);
+        const existingBuildingEntry = await getCache(character.id, buildingHashName);
         if (existingBuildingEntry && existingBuildingEntry !== null) { // If already updating
 
 
-            while (true) {
+            while (true) { // Deprecated sicne the builder has a loop
                 await new Promise(resolve => setTimeout(resolve, 300));
-                const exist = await getCache(character.id, hashName);
+                const exist = await getCache(character.id, buildingHashName);
                 if(!exist || exist === null) break;
-            } // little delay
+            } // litle delay
              
-            character = await getCharacter(server, realm, name);
+            character = await getCharacter(server, realm, name); // ???
         }
 
-        if (isOlderThanHour(character?.updatedAt)) {
+        if (isOlderThanHour(character?.updatedAt)) { // ++++++++++++++++++++++++++++1
             const newData = await fetchData(character.server, character.playerRealm.slug, character.name, character.checkedCount);
             if(newData) {
                 for (const [key, value] of Object.entries(newData)) {
@@ -88,6 +85,7 @@ async function checkCharacterGet(req, res) {
 
                 await Char.findByIdAndUpdate(character._id, { $set: character });
                 const updatedChar = await getCharacter(character.server, character.playerRealm.slug, character.name, false); 
+                // !!!REFACTURING for independent extracting logic so return status code instead? 
                 if(updatedChar) return jsonResponse(res, 200, updatedChar);
                 return jsonResponse(res, 500);
             }
@@ -100,6 +98,7 @@ async function checkCharacterGet(req, res) {
         return console.warn(error)
     }
 }
+//
 
 async function updateCharacterPatch(req, res) {
     const { server, realm, name } = req.params;

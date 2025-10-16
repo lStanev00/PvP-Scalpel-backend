@@ -1,3 +1,4 @@
+import { cacheOneCharacter } from "../caching/characters/charCache.js";
 import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
 import Char from "../Models/Chars.js";
 import fetchData from "./blizFetch.js";
@@ -51,7 +52,7 @@ export default async function buildCharacter(server, realm, name, character) {
         await delCache(key, hashName);
 
         insertOneCharSearchMap(savedChar);
-
+        cacheOneCharacter(savedChar.toObject());
         return character;
         
     } catch (error) {
