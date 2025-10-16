@@ -10,13 +10,14 @@ import getCache from "../helpers/redis/getterRedis.js";
 import setCache from "../helpers/redis/setterRedis.js";
 import delCache from "../helpers/redis/deletersRedis.js";
 import buildCharacter from "../helpers/buildCharacter.js";
+import isOlderThanHour from "../helpers/isOlderThanHour.js";
+import { getCharacter } from "../caching/characters/charCache.js";
 const hashName = "Characters";
 
 export const characterSearchCTRL = Router();
 
 characterSearchCTRL.get("/searchCharacter", searchCharacterGET)
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, checkCharacterGet);
-characterSearchCTRL.get(`/characterCache`, getCharsMap);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
 characterSearchCTRL.patch(`/patchPvPData/:server/:realm/:name`, patchPvPData);
 
@@ -77,10 +78,8 @@ async function checkCharacterGet(req, res) {
              
             character = await getCharacter(server, realm, name);
         }
-        const oneHourAgo = Date.now() - (60 * 60 * 1000);
-        const isOlderThanOneHour = new Date(character?.updatedAt).getTime() < oneHourAgo;
 
-        if (isOlderThanOneHour) {
+        if (isOlderThanHour(character?.updatedAt)) {
             const newData = await fetchData(character.server, character.playerRealm.slug, character.name, character.checkedCount);
             if(newData) {
                 for (const [key, value] of Object.entries(newData)) {
@@ -209,70 +208,3 @@ async function patchPvPData(req, res) {
         return jsonMessage(res, 500, "Internal server ERROR")
     }
 }
-
-async function getCharsMap(req, res) {
-    try {
-        
-        const realmsSearchMap = getCharSearchMap();
-        if (realmsSearchMap === null) return jsonResponse(res, 404);
-
-            const etag = `"realms-${realmsSearchMap.size}"`;
-            if (req.headers['if-none-match'] === etag) return jsonResponse(res, 304);
-    
-        const plainObj = Object.fromEntries(realmsSearchMap);
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set({
-            'ETag': etag, // ver controll
-        });
-        return jsonResponse(res, 200, plainObj)
-    } catch (error) {
-        return jsonResponse(res, 500, "Internal Server Error");
-    }
-}
-
-export async function getCharacter(server, realm, name, update = true) {
-
-    let character;
-    const searchQuery = server + "/" + realm + "/" + name;
-    
-    try {
-        character = await getCache(searchQuery, hashName);
-        if(character !== null && character._id) return character;
-    } catch (error) {
-       console.error(error); 
-    }
-
-    try {
-        character = await Char.findOneAndUpdate(
-            {
-                name: new RegExp(`^${name}$`, 'i'),
-                "playerRealm.slug": realm,
-                server: server
-            },
-            { $inc: { checkedCount: update ? 1 : 0 } }, 
-            { new: true, upsert: false, timestamps: false }
-        )
-
-        try {
-            await character.populate({
-                path: "posts", 
-                populate: {
-                  path: "author",          
-                  select: "username _id"   
-                }
-            })
-            
-        } catch (error) {
-            // posts can be missing
-        }
-        await character.populate("listAchievements");
-        character = character.toObject();
-        await setCache(searchQuery, character, hashName, 7200);
-
-        
-    } catch (error) {
-        console.warn(error)
-    }
-    return character
-}
-
