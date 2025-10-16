@@ -1,18 +1,30 @@
-// @ts‑check
 /**
- * Build a string of the form "Name:Realm:Server".
-*
-* @param   {string} server    — the raw search string
-* @param   {string} realm    — the raw search string
-* @param   {string} name    — the raw search string
-* @returns {string}   — name:realm:server or undefined if invalid
-*/
+ * @param {string} val
+ * @returns {string | undefined}
+ */
+const sanitize = (val) => {
+    if (typeof val !== "string") return undefined;
+    val = val.trim().toLowerCase();
+    if (val.length === 0) return undefined;
+    return val;
+};
 
+// @ts-check
+/**
+ * Build a safe string of the form "name:realm:server".
+ *
+ * @param   {string} server  - Raw server name
+ * @param   {string} realm   - Raw realm name
+ * @param   {string} name    - Raw character name
+ * @returns {string | undefined} Safe key (name:realm:server) or undefined if invalid
+ */
 export default function buildCharSearch(server, realm, name) {
-    server = server.toLowerCase().trim();
-    realm = realm.toLowerCase().trim();
-    name = name.toLowerCase().trim();
     
-
-    return [name, realm, server].join(":");
+    const safeServer = sanitize(server);
+    const safeRealm = sanitize(realm);
+    const safeName = sanitize(name);
+    
+    if (!safeServer || !safeRealm || !safeName) return undefined;
+    
+    return [safeName, safeRealm, safeServer].join(":");
 }

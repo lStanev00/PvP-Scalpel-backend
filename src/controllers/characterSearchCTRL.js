@@ -11,7 +11,7 @@ import setCache from "../helpers/redis/setterRedis.js";
 import delCache from "../helpers/redis/deletersRedis.js";
 import buildCharacter from "../helpers/buildCharacter.js";
 import isOlderThanHour from "../helpers/isOlderThanHour.js";
-import { getCharacter } from "../caching/characters/charCache.js";
+import { CharCacheEmitter, getCharacter } from "../caching/characters/charCache.js";
 const hashName = "Characters";
 
 export const characterSearchCTRL = Router();
@@ -43,60 +43,27 @@ async function searchCharacterGET(req, res) {
 
 //
 async function checkCharacterGet(req, res) {
-    const buildingHashName = "buildingEntries";
-    try {
-        const { server, realm, name } = req.params;
-        let character = await getCharacter(server, realm, name);
-
-            // Enter the updater
-        if(!character) { // ++++++++++++++++++++++++++++ 2
-            character = await buildCharacter(server, realm, name, character, res);
-    
-            if (!character){ 
-                character = await buildCharacter(server, realm, name);
-                if(character === null ) return jsonResponse(res, 404)
-                jsonResponse(res, 200, character);
-                return res.end()
-            }
-
-            character = await getCharacter(server, realm, name);
-            return jsonResponse(res, 200, character);
-
-        }
-        const existingBuildingEntry = await getCache(character.id, buildingHashName);
-        if (existingBuildingEntry && existingBuildingEntry !== null) { // If already updating
-
-
-            while (true) { // Deprecated sicne the builder has a loop
-                await new Promise(resolve => setTimeout(resolve, 300));
-                const exist = await getCache(character.id, buildingHashName);
-                if(!exist || exist === null) break;
-            } // litle delay
-             
-            character = await getCharacter(server, realm, name); // ???
-        }
-
-        if (isOlderThanHour(character?.updatedAt)) { // ++++++++++++++++++++++++++++1
-            const newData = await fetchData(character.server, character.playerRealm.slug, character.name, character.checkedCount);
-            if(newData) {
-                for (const [key, value] of Object.entries(newData)) {
-                    if(character?.[key] && value) character[key] = value;
-                }
-
-                await Char.findByIdAndUpdate(character._id, { $set: character });
-                const updatedChar = await getCharacter(character.server, character.playerRealm.slug, character.name, false); 
-                // !!!REFACTURING for independent extracting logic so return status code instead? 
-                if(updatedChar) return jsonResponse(res, 200, updatedChar);
-                return jsonResponse(res, 500);
-            }
-        } 
-
-        return res.status(200).json(character)
-    
-    } catch (error) {
-        res.status(500).json({messege: `Error retrieveing the data`})
-        return console.warn(error)
+    const { server, realm, name } = req.params;
+    const response= {
+        code: 0,
+        character: null,
     }
+    try {
+        const character = await getCharacter(server, realm, name);
+
+        if (character === 404) response.code = 404
+            else if (character.name) response.code = 200
+            else if (!character || character === null) response.code(404);
+
+
+        response.character = character;
+    } catch (error) {
+        console.warn(`Error at route: checkCharacterGet`);
+        console.error(error);
+        response.code = 500;
+    }
+    
+    return jsonResponse(res, response.code, response.character);
 }
 //
 
