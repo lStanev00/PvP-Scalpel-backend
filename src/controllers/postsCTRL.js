@@ -1,6 +1,7 @@
 import { Router } from "express";
 import Post from "../Models/Post.js";
 import User from "../Models/User.js";
+import { CharCacheEmitter } from "../caching/characters/charCache.js";
 
 
 const postsCTRL = Router();
@@ -77,6 +78,8 @@ async function editPostPATCH(req, res) {
             select: "name playerRealm media server _id"
         })
         .lean();
+        CharCacheEmitter.emit("updateRequest", undefined, newPostData.character._id);
+        
         return res.status(200).json(newPostData);
     } catch (error) {
         console.warn(error);
@@ -102,6 +105,7 @@ async function createPostPOST(req, res) {
             select : "username _id"
         });
 
+        CharCacheEmitter.emit("updateRequest", undefined, popNewPost.character._id);
         return res.status(201).json(popNewPost.toObject());
     } catch (error) {
         console.warn(error);
@@ -117,8 +121,8 @@ async function postDELETE(req, res) {
         const post = await Post.findById(postID);
         if (!user._id.equals(post.author)) return res.status(400).end();
 
-        await Post.findByIdAndDelete(postID);
-
+        CharCacheEmitter.emit("updateRequest", undefined, post.character._id);
+        
         return res.status(200).end();
 
     } catch (error) {

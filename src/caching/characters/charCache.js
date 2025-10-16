@@ -7,6 +7,8 @@ import Char from "../../Models/Chars.js";
 import buildCharSearch from "../../helpers/buildCharSearch.js";
 import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
+import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
+import shipCharById from "./utils/shipCharById.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "CharsCache";
@@ -15,36 +17,41 @@ const humanReadableName = "Characters Cache";
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
 CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
 CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
+CharCacheEmitter.on("updateRequest", (charData, charID) => {
+    cacheOneCharacter(charData, charID);
+});
 
-export async function cacheOneCharacter(charData) {
-    const { _id, search } = charData;
-    if (!_id || !search) {
-        CharCacheEmitter.emit(
-            "error",
-            `${arguments.callee.name} has been invoked with bad params\n the function will now exit.`
-        );
+
+export async function cacheOneCharacter(charData, charID = undefined) {
+    const search = charData?.search
+    const _id = charData?._id
+    if ((!_id || !search) && charID === undefined) {
+        CharCacheEmitter.emit("error", `cacheOneCharacter invoked with bad params`);
         return null;
     }
 
-    await setCache(search, charData, hashName);
+    if ((!charData || charData === null) && charID !== undefined) charData = await shipCharById(charID);
+
+    if (charData && search) await setCache(search, charData, hashName);
 }
 
 
 
-export async function getCharacter(server, realm, name, update = true) {
-    
+export async function getCharacter(server, realm, name, incChecks = true, renewCache = false) {
+     
     let character;
     const search = buildCharSearch(server, realm, name); 
 
-    try {
-        character = await getCharFromCacheBySearch(search);
+    try { // redis data logic
+        if (renewCache === false) character = await getCharFromCacheBySearch(search);
+            else if (renewCache === true) character = undefined;
 
         if(character?.code === 404 && character?.updatedAt) {
             if(!(isOlderThanHour(character))) return 404;
         }
 
         if (character && character !== undefined && character !== null && !(character?.code)) {
-            if (update) {
+            if (incChecks) {
                 character.checkedCount = character.checkedCount + 1;
             }            
             await setCache(search, character, hashName);
@@ -57,6 +64,8 @@ export async function getCharacter(server, realm, name, update = true) {
         character = undefined;
     }
 
+    // Query database or renew older data |
+    //                                    V
     const checkedCountClone = character 
         ? character.checkedCount
         : undefined
@@ -64,15 +73,9 @@ export async function getCharacter(server, realm, name, update = true) {
     try {
 
         let checkedCountIncrementation = 0;
-        character = await Char.findOne(
-            {
-                name: new RegExp(`^${name}$`, 'i'),
-                "playerRealm.slug": realm,
-                server: server
-            }
-        ).lean();
+        character = await queryCharacterByCredentials(server, realm, name);
 
-        if (update && character?.checkedCount) {
+        if (incChecks && character?.checkedCount) {
             if (checkedCountClone && typeof checkedCountClone === "number") {
                 checkedCountIncrementation = checkedCountClone - data.checkedCount;
             } else {
@@ -83,7 +86,7 @@ export async function getCharacter(server, realm, name, update = true) {
         }
 
 
-        if (character && isOlderThanHour(character)) {
+        if (character && (isOlderThanHour(character) || renewCache === true)) {
             const newData = await fetchData(character.server, character.playerRealm.slug, character.name, character.checkedCount);
             if(newData) {
                 for (const [key, value] of Object.entries(newData)) {
@@ -143,7 +146,7 @@ async function getCharFromCacheBySearch(search) {
         if (!search) {
             CharCacheEmitter.emit(
                 "error",
-                `${arguments.callee.name} has been invoked with bad params\n the function will now exit.`
+                `getCharFromCacheBySearch has been invoked with bad params\n the function will now exit.`
             );
             return null;
         }

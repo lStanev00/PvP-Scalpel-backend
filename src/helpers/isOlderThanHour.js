@@ -8,7 +8,7 @@
 
 export default function isOlderThanHour (data) {
     if (!data.updatedAt) {
-        throw new TypeError(`AT ${arguments.callee.name} ---\n$-${typeof data.updatedAt} is not a valid fn call.`)
+        throw new TypeError(`AT isOlderThanHour ---\n$-${typeof data.updatedAt} is not a valid fn call.`)
     } 
     const oneHourAgo = Date.now() - (60 * 60 * 1000);
     const isOlderThanOneHour = new Date(data?.updatedAt).getTime() < oneHourAgo;

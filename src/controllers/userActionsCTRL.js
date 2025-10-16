@@ -2,6 +2,7 @@ import { Router } from "express";
 import { jsonMessage } from "../helpers/resposeHelpers.js";
 import Char from "../Models/Chars.js";
 import User from "../Models/User.js";
+import { CharCacheEmitter } from "../caching/characters/charCache.js";
 
 const userActionCTRL = Router();
 
@@ -25,7 +26,7 @@ async function setLike(req, res) {
             : { $addToSet: { likes: user._id } };
   
         const updatedChar = await Char.findByIdAndUpdate(charID, update, { new: true });
-  
+        CharCacheEmitter.emit("updateRequest", updatedChar.toObject());
         return res.status(200).json({ likesCount: updatedChar.likes.length,  isLiked: (updatedChar.likes).includes(user._id) });
     } catch (error) {
         console.warn(error);
