@@ -53,7 +53,7 @@ async function checkCharacterGet(req, res) {
 
         if (character === 404) response.code = 404
             else if (character) response.code = 200
-            else if (!character || character === null) response.code(404);
+            else if (!character || character === null) response.code = 404;
 
 
         response.character = character;
