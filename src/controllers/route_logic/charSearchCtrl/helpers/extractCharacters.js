@@ -3,6 +3,7 @@ import { searchRegionFromMapBySlug } from "../../../../caching/regions/regionCac
 import { searchCharFromMap } from "../../../../caching/searchCache/charSearchCache.js";
 import convertSearch from "../../../../helpers/convertSearch.js";
 import { determinateRealmResult } from "./extractRealms.js";
+import formReadableID from "../../../../helpers/formReadableID.js";
 
 
 export default async function extractCharsBySearch(search, realms) {
@@ -100,12 +101,13 @@ async function extractCharacters(search , exact = undefined) {
     if(!charSearchMatch.relChars) return match?.relChars;
     if(!match.relChars) return charSearchMatch?.relChars;
     for (const {_id} of charSearchMatch.relChars) {
-        noDupSet.add(_id);
+        const id = formReadableID(_id);
+        noDupSet.add(id);
     }
 
     for (const entry of match.relChars) {
-
-        if(!(noDupSet.has(entry._id)))charSearchMatch.relChars.push(entry);
+        const id = formReadableID(entry._id)
+        if(!(noDupSet.has(id)))charSearchMatch.relChars.push(entry);
     }
 
     return charSearchMatch?.relChars;
