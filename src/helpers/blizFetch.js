@@ -10,6 +10,7 @@ async function fetchData(server, realm, name, checkedCount = undefined) {
 
     try {
         // Fetch the main character profile
+        
         let data = await helpFetch.getCharProfile(server, realm, name);
         if (!data || !data.id) return false;
 

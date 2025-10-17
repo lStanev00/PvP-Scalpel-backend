@@ -39,7 +39,7 @@ const gearSchema = new mongoose.Schema({ // Collected
 }, { _id: false });
 
 const CharSchema = new mongoose.Schema({
-    blizID: { type: Number, required: true }, // Collected
+    blizID: { type: Number, required: true, unique: true, index: true }, // Collected
     name: { type: String, required: [true, `Name is required`] }, // Collected
     playerRealm: { // Collected
         name: { type: String, required: true },
