@@ -82,7 +82,10 @@ export default async function dataGuard(data) {
     }
 
     // If no field changed but lastLogin is identical, no update needed
-    if (character.lastLogin === data.lastLogin && trigger === false) return 304;
+    if (character.lastLogin === data.lastLogin && trigger === false) {
+        await character.updateOne({ $currentDate: { updatedAt: true } }); // cast update so next time the redis cache access this it knows is fresh
+        return 304;
+    }
 
     return 200;
 }
