@@ -3,7 +3,7 @@
  * Split a string of the form "Name:Realm:Server" into its pieces.
 *
 * @param   {string} search    — the raw search string
-* @returns {[string, string, string]|undefined}   — [name, realm, server] or undefined if invalid
+* @returns {[name: string, realm: string, server: string] | undefined}   — [name, realm, server] or undefined if invalid
 */
 
 import slugify from "./slugify.js";
