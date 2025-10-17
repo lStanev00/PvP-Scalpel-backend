@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js';
+import dataGuard from './blizFetch-helpers/dataGuard.js';
 // import { performance } from 'perf_hooks';
 
 dotenv.config({ path: '../../.env' });
@@ -32,7 +33,8 @@ async function fetchData(server, realm, name, checkedCount = undefined) {
             activeSpec: { name: data.active_spec.name },
             guildMember: false,
         };
-        
+        const guard = await dataGuard(result);
+        if(guard === 304) return 304;
         if (data?.guild?.name == "PvP Scalpel") {
             result.guildMember = true;
 
