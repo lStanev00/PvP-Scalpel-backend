@@ -6,11 +6,18 @@ import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 import toMap from "../../helpers/toMap.js";
 import setDBChars from "./helpers/setDBChars.js";
+import convertSearch from "../../helpers/convertSearch.js";
+import buildCharSearch from "../../helpers/buildCharSearch.js";
 
 const hashName = "CharSearch";
 
-const emitter = new EventEmitter();
-emitter.on('update', () => console.info("[Character Search Cache] Character Search indexes just got cached"));
+export const CharSearchCacheEmiter = new EventEmitter();
+CharSearchCacheEmiter.on('update', () => console.info("[Character Search Cache] Character Search indexes just got cached"));
+CharSearchCacheEmiter.on("error", (msg) => console.error(`[Character Search Cache ERROR] ${msg}`));
+CharSearchCacheEmiter.on("info", (msg) => console.info(`[Character Search Cache INFO] ${msg}`));
+CharSearchCacheEmiter.on('purge', (search, newSearch) => {
+    wipeCharSearchEntry(search, newSearch)
+});
 
 export const getCharSearchMap = async() => toMap(await hashGetAllCache(hashName));
 
@@ -104,4 +111,56 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
             }
         }
 
+}
+
+async function wipeCharSearchEntry(search, newSearch) {
+/**
+ * Wipes a character search entry completely from both MongoDB and Redis.
+ * 
+ * @param {String} searchVal - The search term to remove (e.g., "dwarfrogue" or "dw").
+ * @returns {Promise<Number>} 
+ */
+
+    if (typeof search !== "string" || search.trim().length === 0) {
+        console.warn("[CharSearch Wipe] Invalid input:", search);
+        return ;
+    }
+    const CSParts = convertSearch(search);
+    if(CSParts.length  === 3 && CSParts !== undefined) {
+        search = buildCharSearch(...CSParts)
+    }
+    const mongoData = await CharSearchModel.find({searchResult : search})
+
+    if (mongoData.length === 0) {
+        CharSearchCacheEmiter.emit("error", `There seems to me no data for ${search} to be purged ---\n The fn will now exit.`);
+        return;
+    }
+
+    const char = await Char.findOne({search : newSearch});
+
+    const id = char.id; 
+    const updates = [];
+    for (const entry of mongoData) {
+        const searchResultIndex = entry.searchResult.indexOf(search);
+        if (searchResultIndex !== -1) entry.searchResult.splice(searchResultIndex, 1);
+        const relCharsIndex = entry.relChars.indexOf(id);
+        if (relCharsIndex !== -1) entry.relChars.splice(relCharsIndex, 1);
+        await entry.save();
+
+        updates.push(entry.id);
+
+    }
+
+    for (const id of updates) {
+        const data = await CharSearchModel.findById(id).populate({
+                path: "relChars",
+                select: "_id name playerRealm server class search",
+            })
+
+        if(data) await setCache(data._id, data.toObject(), hashName);
+
+    }
+
+    if (char) insertOneCharSearchMap(char)
+    
 }

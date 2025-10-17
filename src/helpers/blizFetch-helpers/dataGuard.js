@@ -1,9 +1,11 @@
+import { servicesWorker } from "../../../DBMS.js";
 import Char from "../../Models/Chars.js";
+import buildCharSearch from "../buildCharSearch.js";
 
 /**
  * Validates and compares incoming character data with the stored one.
  * Updates only if a difference is detected, without modifying updatedAt.
- * 
+ *
  * @param {Object} data - The new character data fetched from API or cache.
  * @param {Number|String} data.blizID - Unique Blizzard character ID.
  * @param {String} data.name - Character name.
@@ -14,8 +16,8 @@ import Char from "../../Models/Chars.js";
  * @param {Object} data.class - Object containing class info.
  * @param {String} data.class.name - Class name.
  * @param {Number} data.lastLogin - Blizzard’s last login timestamp.
- * 
- * @returns {Promise<Object|Number>} 
+ *
+ * @returns {Promise<Object|Number>}
  * - Returns the `data` object if valid and up to date.
  * - Returns `404` if the character isn’t found.
  * - Returns `304` if there’s no data change.
@@ -57,11 +59,7 @@ export default async function dataGuard(data) {
         trigger = true;
     }
 
-    if (
-        data.class &&
-        typeof data.class === "object" &&
-        character.class?.name !== data.class.name
-    ) {
+    if (data.class && typeof data.class === "object" && character.class?.name !== data.class.name) {
         character.class = data.class;
         trigger = true;
     }
@@ -69,11 +67,22 @@ export default async function dataGuard(data) {
     // Save without modifying updatedAt timestamp
     if (trigger) {
         await character.save({ timestamps: false });
+
+        const newSearch = buildCharSearch(data.server, data.playerRealm.slug, data.name);
+        const oldSearch = character.search;
+
+        if (newSearch !== oldSearch) {
+            character.search = newSearch;
+            servicesWorker.postMessage({
+                type: "purge",
+                payload: [oldSearch, newSearch],
+            });
+        }
         return 202;
     }
 
     // If no field changed but lastLogin is identical, no update needed
     if (character.lastLogin === data.lastLogin && trigger === false) return 304;
 
-    return 200; 
+    return 200;
 }
