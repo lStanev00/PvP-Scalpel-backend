@@ -5,7 +5,7 @@ import dataGuard from './blizFetch-helpers/dataGuard.js';
 
 dotenv.config({ path: '../../.env' });
 
-async function fetchData(server, realm, name, checkedCount = undefined) {
+async function fetchData(server, realm, name, checkedCount = undefined, forceUpdate = false) {
     // const start = performance.now();
     name = name.toLowerCase();
 
@@ -33,8 +33,14 @@ async function fetchData(server, realm, name, checkedCount = undefined) {
             activeSpec: { name: data.active_spec.name },
             guildMember: false,
         };
-        const guard = await dataGuard(result);
-        if(guard === 304) return 304;
+        const guard = await dataGuard(result, forceUpdate);
+        if(guard === 304) {
+            return {
+                code : guard,
+                data: result
+            }
+        }
+
         if (data?.guild?.name == "PvP Scalpel") {
             result.guildMember = true;
 
@@ -94,6 +100,13 @@ async function fetchData(server, realm, name, checkedCount = undefined) {
 
         // const end = performance.now(); 
         // console.log(`Elapsed: ${end - start} ms`);
+
+        if(guard === 202) {
+            return {
+                code: 202,
+                data: result
+            }
+        }
         return result;
     } catch (error) {
         console.log(error)

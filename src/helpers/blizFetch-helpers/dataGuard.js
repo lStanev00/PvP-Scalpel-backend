@@ -1,6 +1,7 @@
-import { servicesWorker } from "../../../DBMS.js";
+import { CharSearchCacheEmiter } from "../../caching/searchCache/charSearchCache.js";
 import Char from "../../Models/Chars.js";
 import buildCharSearch from "../buildCharSearch.js";
+// import { servicesWorker } from "../../../DBMS.js";
 
 /**
  * Validates and compares incoming character data with the stored one.
@@ -16,6 +17,7 @@ import buildCharSearch from "../buildCharSearch.js";
  * @param {Object} data.class - Object containing class info.
  * @param {String} data.class.name - Class name.
  * @param {Number} data.lastLogin - Blizzard’s last login timestamp.
+ * @param {Boolean} forceUpdate - The new character data fetched from API or cache.
  *
  * @returns {Promise<Object|Number>}
  * - Returns the `data` object if valid and up to date.
@@ -24,7 +26,7 @@ import buildCharSearch from "../buildCharSearch.js";
  * - Returns `202` if there’s partial change e.g name or race.
  * - Return `200` if the data is ready to be refreshed.
  */
-export default async function dataGuard(data) {
+export default async function dataGuard(data, forceUpdate) {
     // Basic input validation
     if (!data || typeof data !== "object") return 400;
     if (!data.blizID) return 400;
@@ -73,16 +75,19 @@ export default async function dataGuard(data) {
 
         if (newSearch !== oldSearch) {
             character.search = newSearch;
-            servicesWorker.postMessage({
-                type: "purge",
-                payload: [oldSearch, newSearch],
-            });
+            CharSearchCacheEmiter.emit("purge", oldSearch, newSearch)
+            // servicesWorker.postMessage({
+            //     type: "purge",
+            //     payload: [oldSearch, newSearch],
+            // });
+
+
         }
         return 202;
     }
 
     // If no field changed but lastLogin is identical, no update needed
-    if (character.lastLogin === data.lastLogin && trigger === false) {
+    if (character.lastLogin === data.lastLogin && forceUpdate === false) {
         await character.updateOne({ $currentDate: { updatedAt: true } }); // cast update so next time the redis cache access this it knows is fresh
         return 304;
     }
