@@ -67,7 +67,7 @@ export default async function dataGuard(data) {
     // Save without modifying updatedAt timestamp
     if (trigger) {
         await character.save({ timestamps: false });
-        return 201;
+        return 202;
     }
 
     // If no field changed but lastLogin is identical, no update needed
