@@ -19,6 +19,8 @@ import Char from "../../Models/Chars.js";
  * - Returns the `data` object if valid and up to date.
  * - Returns `404` if the character isn’t found.
  * - Returns `304` if there’s no data change.
+ * - Returns `202` if there’s partial change e.g name or race.
+ * - Return `200` if the data is ready to be refreshed.
  */
 export default async function dataGuard(data) {
     // Basic input validation
