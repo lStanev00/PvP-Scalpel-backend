@@ -115,9 +115,10 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
 
 async function wipeCharSearchEntry(search, newSearch) {
 /**
- * Wipes a character search entry completely from both MongoDB and Redis.
+ * Wipes a character search entry completely from both MongoDB and Redis and cache the new one.
  * 
  * @param {String} searchVal - The search term to remove (e.g., "dwarfrogue" or "dw").
+ * @param {String} newSearch - The new search term that has been created (e.g., "dwarfrogue" or "dw").
  * @returns {Promise<Number>} 
  */
 
