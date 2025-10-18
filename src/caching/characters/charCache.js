@@ -181,8 +181,8 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             console.warn(typeof character?.listAchievements);
             console.warn(character?.listAchievements);
         }
-        character = character.toObject();
         await cacheOneCharacter(character);
+        character = character.toObject();
     } catch (error) {
         console.warn(error);
     }
