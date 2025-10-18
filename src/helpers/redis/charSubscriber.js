@@ -8,7 +8,8 @@ const subscriber = redisCacheCharacters.duplicate();
 export default async function startRedisCharSubscriber() {
     try {
         await subscriber.connect();
-        
+        await subscriber.select(1);
+
         let size = await redisCacheCharacters.dbSize();
         console.info(`[Redis:DB1] On load size is: ${size} entries`);
         
