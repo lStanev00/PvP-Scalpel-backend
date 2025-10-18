@@ -4,7 +4,7 @@ import { sanitizeValue } from "../../middlewares/sanitizer.js";
 // Validate Key
 export default function checkKey(key) {
 
-    if(!key) throw new Error("You must provide a key");
+    if(!key) throw new Error("You must provide a key :" + typeof key);
         
     if(key instanceof Types.ObjectId || typeof key === "number") key = key.toString();
 
