@@ -1,52 +1,58 @@
-import { redisCache } from "./connectRedis.js";
+import { getRedisClient } from "./connectRedis.js";
 import checkKey from "./validateRedisKey.js";
 
-// Upload an entry to Redis
-export default async function setCache(key, value, hash = "", ttl = -1) {
-    if (typeof hash !== "string") throw new TypeError("The hash have to be a string!");
-    if (typeof ttl !== "number") throw new TypeError("The ttl have to be a number!");
-    if (ttl !== -1 && ttl < 1) throw new Error("The ttl have to be a positive number!");
-    if (!value) throw new TypeError("Invalid value's been passed!");
+/**
+ * Uploads an entry to Redis (supports direct key or hash mode)
+ * 
+ * @param {string} key - Key name or hash field.
+ * @param {any} value - Serializable value to store.
+ * @param {string} [hash=""] - If provided, stores key inside a hash.
+ * @param {number} [ttl=-1] - TTL in seconds (-1 means no expiration).
+ * @param {number} [clientIndex=0] - Redis client (DB index selector).
+ * @returns {Promise<number|string|null>} 
+ *   - success integer (1 for new field, 0 for replaced)
+ *   - "OK" for normal key set
+ *   - null on validation failure
+ */
+export default async function setCache(key, value, hash = "", ttl = -1, clientIndex = 0) {
+    if (typeof hash !== "string") throw new TypeError("The hash must be a string!");
+    if (typeof ttl !== "number") throw new TypeError("The ttl must be a number!");
+    if (ttl !== -1 && ttl < 1) throw new RangeError("TTL must be positive or -1 (no expiry)!");
+    if (value === undefined) throw new TypeError("Invalid value: undefined");
+
+    const client = getRedisClient(clientIndex);
+    let success;
 
     try {
-        try {
-            key = checkKey(key);
-        } catch (error) {
-            console.warn(error)
-            return null;
-        }
-
-        if (typeof key !== "string") throw new TypeError("The key have to be a string!");
+        key = checkKey(key);
+        if (typeof key !== "string") throw new TypeError("The key must be a string!");
 
         const serializedValue = JSON.stringify(value);
 
-        let success;
+        if (hash) {
+            // Set inside a hash
+            success = await client.hSet(hash, key, serializedValue);
 
-        if (hash !== "") {
+            // Apply TTL to the hash key (entire hash)
             if (ttl !== -1) {
-                // !!! CARE! This drops the whole table after the ttl
-                success = await redisCache.expire(hash, ttl).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
-            }else {
-
-                success = await redisCache.hSet(hash, key, serializedValue)
+                await client.expire(hash, ttl);
             }
         } else {
+            // Set as a direct key
             if (ttl !== -1) {
-                success = await redisCache.set(key, serializedValue, {
-                    expiration : ttl
-                }).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
-
+                success = await client.set(key, serializedValue, { EX: ttl });
             } else {
-                success = await redisCache.set(key, serializedValue).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
-
+                success = await client.set(key, serializedValue);
             }
         }
 
-        if(!success && success !== 0) console.warn(success);
+        if (success === undefined || success === null) {
+            console.warn(`[Redis Warning] Unexpected result for key "${key}"`);
+        }
 
         return success;
-        
     } catch (error) {
-        console.error(error);
+        console.error(`[Redis Error] Failed to set key "${key}" →`, error);
+        return null;
     }
 }

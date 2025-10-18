@@ -1,8 +1,10 @@
 import formReadableID from "../formReadableID.js";
-import { redisCache } from "./connectRedis.js";
+import { getRedisClient } from "./connectRedis.js";
 import checkKey from "./validateRedisKey.js";
 
-export default async function getCache(key, hash = "") {
+export default async function getCache(key, hash = "", clientIndex = 0) {
+
+    const client = getRedisClient(clientIndex);
 
     if (typeof hash !== "string") throw new TypeError("The hash have to be a string!");
 
@@ -18,9 +20,9 @@ export default async function getCache(key, hash = "") {
     let result;
 
     if (hash !== "") {
-        result = await redisCache.hGet(hash, key).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
+        result = await client.hGet(hash, key).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
     } else {
-        result = await redisCache.get(key).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
+        result = await client.get(key).catch((reason)=> console.info(`Redis Bug reason: ` + reason));
     } 
 
     if(result === null) return null;
@@ -42,12 +44,14 @@ export default async function getCache(key, hash = "") {
 
 }
 
-export async function hashGetAllCache(hash) {
+export async function hashGetAllCache(hash, clientIndex = 0) {
+    const client = getRedisClient(clientIndex);
+
     if (!hash) throw new Error("Bad input");
     hash = checkKey(hash);
     if (typeof hash !== "string") throw new TypeError("The input must be type of string!");
 
-    const result = await redisCache.hGetAll(hash);
+    const result = await client.hGetAll(hash);
     const parsed = {};
 
     for (const [key, value] of Object.entries(result)) {
