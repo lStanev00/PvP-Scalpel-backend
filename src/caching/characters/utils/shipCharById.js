@@ -1,10 +1,15 @@
 import Char from "../../../Models/Chars.js";
 
 export default async function shipCharById(ID) {
-    // ID = formReadableID(ID);
-
+    
     try {
-        let data = await Char.findById(ID);
+        let data;
+        try {
+            data = await Char.findById(ID);
+        } catch (error) {
+            ID = formReadableID(ID);
+            data = await Char.findById(ID);
+        }
         if (!data) return null;
 
         try {
