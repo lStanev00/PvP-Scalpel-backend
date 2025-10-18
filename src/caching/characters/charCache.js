@@ -56,7 +56,7 @@ export async function cacheOneCharacter(charData, charID = undefined) {
 
     search = charData?.search;
     if (charData && search) {
-        await setCache(search, charData, hashName, -1, 1);
+        await setCache(search, charData.toObject(), hashName, -1, 1);
         await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1);
     }
 }
@@ -171,6 +171,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
+            console.warn(error)
         }
         try {
             if (character?.listAchievements?.length !== 0)
