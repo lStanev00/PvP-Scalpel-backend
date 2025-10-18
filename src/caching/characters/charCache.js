@@ -68,13 +68,13 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 
     // Query database or renew older data |
     //                                    V
-    if (!character) await Char.findOne({ search: search });
-
+    
     const checkedCountClone = character ? character.checkedCount : undefined;
-
+    
     try {
         let checkedCountIncrementation = 0;
         character = await queryCharacterByCredentials(server, realm, name);
+        if (!character) await Char.findOne({ search: search });
 
         if (incChecks && character?.checkedCount) {
             if (checkedCountClone && typeof checkedCountClone === "number") {
