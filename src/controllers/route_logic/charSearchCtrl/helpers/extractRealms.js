@@ -10,7 +10,7 @@ export default async function extractRealmsBySearch (charSearch) {
 
     const [name, realm, server] = convertSearch(charSearch);
 
-    if(realm === "!undefined") return [];
+    if(realm === "!undefined" || ! realm || realm === null) return [];
 
     let realmSearchMatches = await searchRealmFromMap(realm);
     if (!realmSearchMatches) {
