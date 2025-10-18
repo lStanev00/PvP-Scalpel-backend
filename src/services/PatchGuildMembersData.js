@@ -168,7 +168,7 @@ export async function updateGuildMembersData() {
             }
         }
 
-        if(character._id) CharCacheEmitter.emit("updateRequest", undefined, character.id)
+        if(character._id) CharCacheEmitter.emit("updateRequest", undefined, character?.id, character?.search);
     }
 
     const endNow = new Date();
