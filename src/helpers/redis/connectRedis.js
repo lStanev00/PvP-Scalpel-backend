@@ -1,6 +1,7 @@
 import { createClient } from "redis";
 import { configDotenv } from "dotenv";
 import dns from "dns";
+
 configDotenv();
 
 const IS_LOCAL = process.env.IS_LOCAL;
@@ -8,30 +9,32 @@ const url = IS_LOCAL
     ? process.env.REDIS_URL
     : `redis://default:${process.env.REDIS_PASSWORD}@redis:${process.env.REDISPORT}`;
 
-// helper for DNS family choice
 const socketOptions = {
     family: IS_LOCAL ? 4 : 6,
-    dnsLookup: (hostname, opts, cb) => {
-        dns.lookup(hostname, { family: IS_LOCAL ? 4 : 6 }, cb);
-    }
+    dnsLookup: (hostname, opts, cb) =>
+        dns.lookup(hostname, { family: IS_LOCAL ? 4 : 6 }, cb),
 };
 
 // main (DB 0) client
 export const redisCache = createClient({ url, socket: socketOptions });
 
-// optional secondary (DB 1) client
+// secondary (DB 1) client for characters
 export const redisCacheCharacters = createClient({ url, socket: socketOptions });
 
 export default async function connectRedis(silent = false) {
     try {
+        // Connect both clients
         await Promise.all([
             redisCache.connect(),
-            redisCacheCharacters.connect()
+            redisCacheCharacters.connect(),
         ]);
 
-        // select databases
-        await redisCache.select(0); // main cache
-        await redisCacheCharacters.select(1); // secondary cache
+        // Select databases
+        await redisCache.select(0);
+        await redisCacheCharacters.select(1);
+
+        // Enable only expiration notifications for DB1
+        await redisCacheCharacters.configSet("notify-keyspace-events", "Ex");
 
         if (!silent) console.info("Redis connected: DB0 + DB1 ready!");
     } catch (error) {
@@ -41,8 +44,7 @@ export default async function connectRedis(silent = false) {
     }
 }
 
-// optional helper to choose DB dynamically
+// DB selector helper
 export function getRedisClient(dbIndex = 0) {
-    if (dbIndex === 1) return redisCacheCharacters;
-    return redisCache;
+    return dbIndex === 1 ? redisCacheCharacters : redisCache;
 }

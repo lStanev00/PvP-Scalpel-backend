@@ -52,8 +52,8 @@ export default async function buildCharacter(server, realm, name, character) {
         await delCache(key, hashName);
 
         insertOneCharSearchMap(savedChar);
-        cacheOneCharacter(savedChar.toObject());
-        return character;
+        // cacheOneCharacter(savedChar.toObject());
+        return savedChar;
         
     } catch (error) {
         console.log(error)

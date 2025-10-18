@@ -11,7 +11,7 @@ import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
 import shipCharById from "./utils/shipCharById.js";
 
 export const CharCacheEmitter = new EventEmitter();
-const hashName = "CharsCache";
+const hashName = "";
 const humanReadableName = "Characters Cache";
 
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
@@ -31,8 +31,12 @@ export async function cacheOneCharacter(charData, charID = undefined) {
 
     if ((!charData || charData === null) && charID !== undefined)
         charData = await shipCharById(charID);
+
     search = charData?.search;
-    if (charData && search) await setCache(search, charData, hashName);
+    if (charData && search) {
+        await setCache(search, charData, hashName, -1, 1);
+        await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1)
+    }
 }
 
 export async function getCharacter(server, realm, name, incChecks = true, renewCache = false) {
@@ -51,7 +55,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
         if (character && character !== undefined && character !== null && !character?.code) {
             if (incChecks) {
                 character.checkedCount = character.checkedCount + 1;
-                await setCache(search, character, hashName);
+                cacheOneCharacter(character)
             }
             return character;
         } else {
@@ -128,7 +132,9 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                         code: 404,
                         updatedAt: Date.now(),
                     },
-                    hashName
+                    hashName,
+                    3600,
+                    1
                 );
                 return 404;
             }
@@ -144,7 +150,15 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
         } catch (error) {
             // posts can be missing
         }
-        if (character?.listAchievements?.length !== 0) await character.populate("listAchievements");
+        try {
+            if (character?.listAchievements?.length !== 0) await character.populate("listAchievements");
+            
+        } catch (error) {
+            console.warn(error)
+            console.warn(typeof character);
+            console.warn(typeof character?.listAchievements);
+            console.warn(character?.listAchievements)
+        }
         character = character.toObject();
         await cacheOneCharacter(character);
     } catch (error) {
@@ -167,7 +181,7 @@ async function getCharFromCacheBySearch(search) {
 
     search = CSParts.join(":");
 
-    const result = await getCache(search, hashName);
+    const result = await getCache(search, hashName, 1);
     if (result === null || !result) return null;
     return isOlderThanHour(result) ? undefined : result;
 }
