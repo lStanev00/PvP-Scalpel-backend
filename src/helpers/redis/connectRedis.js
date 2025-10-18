@@ -22,7 +22,7 @@ export const redisCache = createClient({ url, socket: socketOptions });
 // optional secondary (DB 1) client
 export const redisCacheCharacters = createClient({ url, socket: socketOptions });
 
-export async function connectRedis(silent = false) {
+export default async function connectRedis(silent = false) {
     try {
         await Promise.all([
             redisCache.connect(),
