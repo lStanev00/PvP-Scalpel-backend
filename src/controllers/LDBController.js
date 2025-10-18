@@ -10,83 +10,128 @@ LDBController.get(`/LDB/solo`, soloGet);
 LDBController.get(`/LDB/blitz`, blitzGet);
 LDBController.get(`/LDB/BG`, BGGet);
 
+LDBController.get("/LDB/topAll", async (req, res) => {
+    try {
+        let baseUrl;
+
+        if (process.env.RAILWAY_PRIVATE_DOMAIN) {
+            baseUrl = `http://${process.env.RAILWAY_PRIVATE_DOMAIN}`;
+        } else if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) {
+            baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
+        } else {
+            baseUrl = `http://localhost:${process.env.PORT || 3000}`;
+        }
+        const brackets = ["2v2", "3v3", "solo", "blitz", "BG"];
+        const results = {};
+
+        // run in parallel for speed
+        const responses = await Promise.all(
+            brackets.map(async (bracket) => {
+                try {
+                    const resp = await fetch(`${baseUrl}/LDB/${bracket}`, {
+                        headers: { 600: "BasicPass" },
+                    });
+
+                    if (!resp.ok) return [bracket, null];
+
+                    const data = await resp.json();
+                    const arr = data?.data || data; // jsonResponse wrapper or plain array
+                    const top = Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+
+                    return [bracket, top];
+                } catch (err) {
+                    console.warn(`Failed to fetch ${bracket}:`, err.message);
+                    return [bracket, null];
+                }
+            })
+        );
+
+        // convert to object
+        for (const [bracket, top] of responses) results[bracket] = top;
+
+        return jsonResponse(res, 200, results);
+    } catch (error) {
+        console.error("LDB/topAll failed:", error);
+        res.status(500).json({
+            error: "Internal Server Error",
+            details: error.message,
+        });
+    }
+});
 
 async function twosGet(req, res) {
     try {
         const charList = await findRatingAndSort("2v2");
 
-        return jsonResponse(res, 200, charList)
+        return jsonResponse(res, 200, charList);
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error", details: error.message });
     }
 }
 
-
-async function threesGet(req,res) {
+async function threesGet(req, res) {
     try {
         const charList = await findRatingAndSort("3v3");
-        
-    return jsonResponse(res, 200, charList)        
+
+        return jsonResponse(res, 200, charList);
     } catch (error) {
         return res.status(404);
     }
 }
 
-async function soloGet(req,res) {
+async function soloGet(req, res) {
     try {
-
         const charList = await findRatingAndSort(`shuffle`);
 
-        return jsonResponse(res, 200, charList)
-        
+        return jsonResponse(res, 200, charList);
     } catch (error) {
         res.status(404);
     }
 }
-async function blitzGet(req,res) {
+async function blitzGet(req, res) {
     try {
         const charList = await findRatingAndSort(`blitz`);
 
-        return jsonResponse( res, 200, charList );
-        
+        return jsonResponse(res, 200, charList);
     } catch (error) {
         res.status(404);
     }
 }
-async function BGGet(req,res) {
+async function BGGet(req, res) {
     try {
         const charList = await findRatingAndSort(`rbg`);
 
-        jsonResponse(res, 200, charList)
-        
+        jsonResponse(res, 200, charList);
     } catch (error) {
         res.status(404);
     }
 }
 
-export default LDBController
+export default LDBController;
 
 // Helper for the fetches and sort
 
-async function findRatingAndSort (bracket) {
-
+async function findRatingAndSort(bracket) {
     if (bracket == "shuffle" || bracket == "blitz") {
         try {
-            const charList = await Char.find({ guildMember:true })
-            .select(`name playerRealm race class activeSpec rating achieves.${bracket == "shuffle" ? "solo" : "Blitz"} media server`)
-            .lean();
-            const hibrdEntries = charList.filter(entry => {
+            const charList = await Char.find({ guildMember: true })
+                .select(
+                    `name playerRealm race class activeSpec rating achieves.${
+                        bracket == "shuffle" ? "solo" : "Blitz"
+                    } media server`
+                )
+                .lean();
+            const hibrdEntries = charList.filter((entry) => {
                 const ratingList = Object.entries(entry?.rating);
-                let result = []
+                let result = [];
                 for (const format of ratingList) {
-                    const [ bracketName, bracketData ] = format;
+                    const [bracketName, bracketData] = format;
                     if (bracketName.startsWith(`${bracket}-`)) result.push(format);
                 }
 
                 if (result.length === 0) return false;
-
-                else if (result. length > 1) {
-                    result.sort( (a, b) => {
+                else if (result.length > 1) {
+                    result.sort((a, b) => {
                         const ratingA = a[1]?.currentSeason?.rating || 0;
                         const ratingB = b[1]?.currentSeason?.rating || 0;
 
@@ -94,11 +139,9 @@ async function findRatingAndSort (bracket) {
                     });
                 }
 
-                entry.rating = [
-                    [result[0][0]] , result[0][1]
-                ]
-                
-                return entry
+                entry.rating = [[result[0][0]], result[0][1]];
+
+                return entry;
             });
 
             const sortedEntries = hibrdEntries.sort((a, b) => {
@@ -109,45 +152,44 @@ async function findRatingAndSort (bracket) {
             });
 
             for (let i = 0; i < sortedEntries.length; i++) {
-                
                 const element = sortedEntries[i];
 
                 const objRestructure = {
-                    [element.rating[0]] : element.rating[1]
-                }
-                
-                sortedEntries[i].rating = objRestructure;
+                    [element.rating[0]]: element.rating[1],
+                };
 
+                sortedEntries[i].rating = objRestructure;
             }
 
-            return sortedEntries
-            
+            return sortedEntries;
         } catch (error) {
             console.warn(error);
-            return null
+            return null;
         }
     }
 
     try {
         let achievName = String;
 
-        if (bracket == "2v2") achievName = "2s"
-        else if (bracket == "3v3") achievName = "3s"
-        else achievName = "RBG"
+        if (bracket == "2v2") achievName = "2s";
+        else if (bracket == "3v3") achievName = "3s";
+        else achievName = "RBG";
 
         const charList = await Char.find({
-            [`rating.${bracket}.currentSeason.rating`] : { $exists: true },
-            guildMember: true
+            [`rating.${bracket}.currentSeason.rating`]: { $exists: true },
+            guildMember: true,
         })
-        .select(`name playerRealm race class activeSpec rating.${bracket} achieves.${achievName} media server`)
-        .sort({
-            [`rating.${bracket}.currentSeason.rating`]: -1,
-            [`rating.${bracket}.record`]: -1
-        })
-        .lean();
-        return charList
+            .select(
+                `name playerRealm race class activeSpec rating.${bracket} achieves.${achievName} media server`
+            )
+            .sort({
+                [`rating.${bracket}.currentSeason.rating`]: -1,
+                [`rating.${bracket}.record`]: -1,
+            })
+            .lean();
+        return charList;
     } catch (error) {
         console.warn(error);
-        return null
+        return null;
     }
 }
