@@ -4,6 +4,14 @@ import delCache from "./deletersRedis.js";
 import getCache from "./getterRedis.js";
 
 const subscriber = redisCacheCharacters.duplicate();
+let size = await redisCacheCharacters.dbSize();
+console.info(`[Redis:DB1] On load size is: ${size} entries`);
+
+if (size > 0) {
+    await subscriber.flushDb();
+    size = await redisCacheCharacters.dbSize();
+    console.info(`[Redis:DB1] Initial flush passed. Current size - ${size}`);
+}
 
 export default async function startRedisCharSubscriber() {
     try {
