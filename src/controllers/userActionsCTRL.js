@@ -26,7 +26,7 @@ async function setLike(req, res) {
             : { $addToSet: { likes: user._id } };
   
         const updatedChar = await Char.findByIdAndUpdate(charID, update, { new: true });
-        CharCacheEmitter.emit("updateRequest", updatedChar.toObject());
+        CharCacheEmitter.emit("updateRequest", updatedChar?.search);
         return res.status(200).json({ likesCount: updatedChar.likes.length,  isLiked: (updatedChar.likes).includes(user._id) });
     } catch (error) {
         console.warn(error);

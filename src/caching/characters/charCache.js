@@ -9,7 +9,6 @@ import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
 import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
 import shipCharById from "./utils/shipCharById.js";
-import formReadableID from "../../helpers/formReadableID.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
@@ -18,43 +17,26 @@ const humanReadableName = "Characters Cache";
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
 CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
 CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
-CharCacheEmitter.on("updateRequest", async (charData, charID, search = undefined) => {
-    let exist;
-    let id = charData?.id ? charData.id : charData?._id;
-    if (id || charID || search) {
-        if (typeof id !== "string") id = formReadableID(id);
-
-        try {
-            let char;
-            if (search) {
-                char = await Char.findOne({ search: search });
-            } else if (id || charID) {
-                char = await Char.findById(id ? id : charID).lean();
-            }
-            exist = await getCache(char ? char?.search : search, hashName, 1);
-        } catch (error) {
-            console.warn(error);
-            return;
-        }
-    }
-    if (exist === null || !exist) return;
-    cacheOneCharacter(charData, charID);
+CharCacheEmitter.on("updateRequest", async (search) => {
+    try {
+        const exist = await getCache(search, hashName, 1);
+        
+        if (exist === null || !exist) return;
+        const char = await shipCharById(exist.id);
+        cacheOneCharacter(char);
+    } catch (error) {
+        console.warn(error);
+    }    
 });
 
-export async function cacheOneCharacter(charData, charID = undefined) {
+export async function cacheOneCharacter(charData) {
     let search = charData?.search;
     const _id = charData?._id;
-    if ((!_id || !search) && charID === undefined) {
+    if ((!_id || !search)) {
         CharCacheEmitter.emit("error", `cacheOneCharacter invoked with bad params`);
         return null;
     }
 
-    // if ((!charData || charData === null) && charID !== undefined) {
-    //         if (typeof charID !== "string") charID = formReadableID(charID);
-        
-    // }
-
-    search = charData?.search;
     if (charData && search) {
         try {
             await setCache(search, charData.toObject(), hashName, -1, 1);

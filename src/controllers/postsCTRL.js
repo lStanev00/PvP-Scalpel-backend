@@ -2,6 +2,7 @@ import { Router } from "express";
 import Post from "../Models/Post.js";
 import User from "../Models/User.js";
 import { CharCacheEmitter } from "../caching/characters/charCache.js";
+import Char from "../Models/Chars.js";
 
 
 const postsCTRL = Router();
@@ -75,10 +76,10 @@ async function editPostPATCH(req, res) {
         })
         .populate({
             path: "character",
-            select: "name playerRealm media server _id"
+            select: "name playerRealm media server _id search"
         })
         .lean();
-        CharCacheEmitter.emit("updateRequest", undefined, newPostData.character._id);
+        CharCacheEmitter.emit("updateRequest", newPostData?.character?.search);
         
         return res.status(200).json(newPostData);
     } catch (error) {
@@ -105,7 +106,8 @@ async function createPostPOST(req, res) {
             select : "username _id"
         });
 
-        CharCacheEmitter.emit("updateRequest", undefined, popNewPost.character._id);
+        const char = await Char.findById(characterID).lean();
+        CharCacheEmitter.emit("updateRequest", char?.search);
         return res.status(201).json(popNewPost.toObject());
     } catch (error) {
         console.warn(error);
@@ -122,10 +124,10 @@ async function postDELETE(req, res) {
         if (!user._id.equals(post.author)) return res.status(400).end();
 
         await Post.findByIdAndDelete(postID);
-        CharCacheEmitter.emit("updateRequest", undefined, post.character._id);
-        
-        return res.status(200).end();
+        const char = await Char.findById(post.character._id);
+        CharCacheEmitter.emit("updateRequest", char?.search);
 
+        return res.status(200).end();
     } catch (error) {
         console.warn(error)
         return res.status(500).end();
