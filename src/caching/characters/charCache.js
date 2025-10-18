@@ -49,10 +49,10 @@ export async function cacheOneCharacter(charData, charID = undefined) {
         return null;
     }
 
-    if ((!charData || charData === null) && charID !== undefined) {
-        if (typeof charID !== "string") charID = formReadableID(charID);
-        charData = await shipCharById(charID);
-    }
+    // if ((!charData || charData === null) && charID !== undefined) {
+    //         if (typeof charID !== "string") charID = formReadableID(charID);
+        
+    // }
 
     search = charData?.search;
     if (charData && search) {

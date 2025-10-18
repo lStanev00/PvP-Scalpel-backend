@@ -30,5 +30,6 @@ export default async function shipCharById(ID) {
         return data;
     } catch (error) {
         console.warn(error);
+        return null
     }
 }
