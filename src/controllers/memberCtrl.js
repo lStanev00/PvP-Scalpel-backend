@@ -1,9 +1,9 @@
 import { Router } from "express";
 import dotenv from 'dotenv';
-import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import Char from "../Models/Chars.js";
-import buildCharacter from "../helpers/buildCharacter.js";
+// import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
+// import buildCharacter from "../helpers/buildCharacter.js";
 
 dotenv.config({ path: '../../.env' });
 
@@ -11,7 +11,7 @@ const memberCtrl = Router();
 
 
 memberCtrl.get(`/member/list`, onGetList)
-memberCtrl.patch(`/member/patch`, patchMemberList)
+// memberCtrl.patch(`/member/patch`, patchMemberList); Deprecated
 
 const roleMap = {
     0: "Warlord",
@@ -36,7 +36,7 @@ async function onGetList(req,res) {
             ["guildInsight.rankNumber"]: 1
         })
         .lean();
-    
+        
         return jsonResponse(res, 200, rosterList)
         
     } catch (error) {
@@ -44,81 +44,78 @@ async function onGetList(req,res) {
         return jsonMessage(res, 500, "Internal server error")
     }
 }
-
-async function patchMemberList(req, res) {
-    
-    try {
-        const memberList = await helpFetch.getGuildMembers();
-        const membersMap = new Map();
-
-        // memberCtrl.set(86847735, true) // Test with Lychezar's ID
-        const characterList = await Char.find().lean();
-        
-        for (const { character, rank }  of memberList) {
-            const name = character.name;
-            const realmSlug = character.realm.slug;
-            membersMap.set(character.id, rank);
-            // if (name == "Lychezar") debugger;
-
-            const char = await Char.findOne({
-                name: name,
-                'playerRealm.slug' : realmSlug
-            });
-
-            if (char && char.guildMember == false) {
-                await Char.findByIdAndUpdate(char._id, {
-                    guildMember : true,
-                    "guildInsight.rank": roleMap[rank],
-                    "guildInsight.rankNumber": rank,
-                });
-                await delay(300)
-                continue;
-            } else if (!char) {
-                await buildCharacter("eu", realmSlug, name);
-                await delay(2000); // Delay just in case the services are doing update ATM
-                continue;
-            }
-
-        }
-
-        for (const character of characterList) {
-            const isItMember = character.guildMember;
-
-            if (isItMember === true) {
-                const existingRank = membersMap.get(character.blizID);
-
-                if (existingRank !== undefined && existingRank !== null) {
-
-                    await Char.findByIdAndUpdate(character._id, {
-                        guildMember: true,
-                        "guildInsight.rank": roleMap[existingRank],
-                        "guildInsight.rankNumber": existingRank,
-                    });
-
-                    continue;
-                }
-                
-                await Char.findByIdAndUpdate(character._id, {
-                    guildMember: false,
-                    "guildInsight.rank": undefined,
-                    "guildInsight.rankNumber": undefined,
-                });
-            }
-        }
-        jsonResponse(res, 201, memberList);
-
-
-
-    } catch (error) {
-        console.warn(error);
-
-        return jsonMessage(res, 500, "Internal Server ERROR");        
-    }
-
-}
 export default memberCtrl;
 
+// Deprecated
 
-function delay(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
+// async function patchMemberList(req, res) {
+    
+//     try {
+//         const memberList = await helpFetch.getGuildMembers();
+//         const membersMap = new Map();
+
+//         // memberCtrl.set(86847735, true) // Test with Lychezar's ID
+//         const characterList = await Char.find().lean();
+        
+//         for (const { character, rank }  of memberList) {
+//             const name = character.name;
+//             const realmSlug = character.realm.slug;
+//             membersMap.set(character.id, rank);
+//             // if (name == "Lychezar") debugger;
+
+//             const char = await Char.findOne({
+//                 name: name,
+//                 'playerRealm.slug' : realmSlug
+//             });
+
+//             if (char && char.guildMember == false) {
+//                 await Char.findByIdAndUpdate(char._id, {
+//                     guildMember : true,
+//                     "guildInsight.rank": roleMap[rank],
+//                     "guildInsight.rankNumber": rank,
+//                 });
+//                 await delay(300)
+//                 continue;
+//             } else if (!char) {
+//                 await buildCharacter("eu", realmSlug, name);
+//                 await delay(2000); // Delay just in case the services are doing update ATM
+//                 continue;
+//             }
+
+//         }
+
+//         for (const character of characterList) {
+//             const isItMember = character.guildMember;
+
+//             if (isItMember === true) {
+//                 const existingRank = membersMap.get(character.blizID);
+
+//                 if (existingRank !== undefined && existingRank !== null) {
+
+//                     await Char.findByIdAndUpdate(character._id, {
+//                         guildMember: true,
+//                         "guildInsight.rank": roleMap[existingRank],
+//                         "guildInsight.rankNumber": existingRank,
+//                     });
+
+//                     continue;
+//                 }
+                
+//                 await Char.findByIdAndUpdate(character._id, {
+//                     guildMember: false,
+//                     "guildInsight.rank": undefined,
+//                     "guildInsight.rankNumber": undefined,
+//                 });
+//             }
+//         }
+//         jsonResponse(res, 201, memberList);
+
+
+
+//     } catch (error) {
+//         console.warn(error);
+
+//         return jsonMessage(res, 500, "Internal Server ERROR");        
+//     }
+
+// }
