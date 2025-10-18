@@ -18,7 +18,27 @@ const humanReadableName = "Characters Cache";
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
 CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
 CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
-CharCacheEmitter.on("updateRequest", (charData, charID) => {
+CharCacheEmitter.on("updateRequest", async (charData, charID, search = undefined) => {
+    let exist;
+    let id = charData?.id ? charData.id : charData?._id;
+    if (id || charID || search) {
+        if (typeof id !== "string") id = formReadableID(id);
+
+        try {
+            let char;
+            if (search) {
+                char = await Char.findOne({ search: search });
+            } else if (id || charID) {
+                char = await Char.findById(id ? id : charID).lean();
+            }
+            exist = await getCache(char ? char?.search : search);
+        } catch (error) {
+            console.warn(error);
+            return;
+        }
+    }
+    if (exist === null || !exist) return;
+
     cacheOneCharacter(charData, charID);
 });
 
@@ -31,14 +51,14 @@ export async function cacheOneCharacter(charData, charID = undefined) {
     }
 
     if ((!charData || charData === null) && charID !== undefined) {
-        if(typeof charID !== "string") charID = formReadableID(charID);
+        if (typeof charID !== "string") charID = formReadableID(charID);
         charData = await shipCharById(charID);
     }
 
     search = charData?.search;
     if (charData && search) {
         await setCache(search, charData, hashName, -1, 1);
-        await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1)
+        await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1);
     }
 }
 
@@ -58,7 +78,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
         if (character && character !== undefined && character !== null && !character?.code) {
             if (incChecks) {
                 character.checkedCount = character.checkedCount + 1;
-                cacheOneCharacter(character)
+                cacheOneCharacter(character);
             }
             return character;
         } else {
@@ -71,9 +91,9 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 
     // Query database or renew older data |
     //                                    V
-    
+
     const checkedCountClone = character ? character.checkedCount : undefined;
-    
+
     try {
         let checkedCountIncrementation = 0;
         character = await queryCharacterByCredentials(server, realm, name);
@@ -154,13 +174,13 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             // posts can be missing
         }
         try {
-            if (character?.listAchievements?.length !== 0) await character.populate("listAchievements");
-            
+            if (character?.listAchievements?.length !== 0)
+                await character.populate("listAchievements");
         } catch (error) {
-            console.warn(error)
+            console.warn(error);
             console.warn(typeof character);
             console.warn(typeof character?.listAchievements);
-            console.warn(character?.listAchievements)
+            console.warn(character?.listAchievements);
         }
         character = character.toObject();
         await cacheOneCharacter(character);
