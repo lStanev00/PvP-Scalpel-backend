@@ -10,7 +10,7 @@ await startRedisCharSubscriber();
 
 (async () => {
 
-    await delay(5000);
+    await delay(1500);
     
     await startServices();
 })()
