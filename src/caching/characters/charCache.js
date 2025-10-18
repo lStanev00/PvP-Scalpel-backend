@@ -9,6 +9,7 @@ import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
 import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
 import shipCharById from "./utils/shipCharById.js";
+import formReadableID from "../../helpers/formReadableID.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
@@ -29,8 +30,10 @@ export async function cacheOneCharacter(charData, charID = undefined) {
         return null;
     }
 
-    if ((!charData || charData === null) && charID !== undefined)
+    if ((!charData || charData === null) && charID !== undefined) {
+        if(typeof charID !== "string") charID = formReadableID(charID);
         charData = await shipCharById(charID);
+    }
 
     search = charData?.search;
     if (charData && search) {

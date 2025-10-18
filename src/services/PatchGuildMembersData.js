@@ -6,6 +6,7 @@ import Service from "../Models/Services.js";
 import buildCharacter from "../helpers/buildCharacter.js";
 import { delay } from "../helpers/startBGTask.js";
 import updateWeeklyLadder from "./UpdateWeeklyLadder.js";
+import { CharCacheEmitter } from "../caching/characters/charCache.js";
 dotenv.config({ path: "../../../../.env" });
 
 // PLEASE NOTE! Blizzard API have 36,000 requests per hour at a rate of 100 requests per second LIMIT!
@@ -155,17 +156,19 @@ export async function updateGuildMembersData() {
                     realm,
                     name
                 );
-                const updatedCharPvpData = await Char.findByIdAndUpdate(
+                character = await Char.findByIdAndUpdate(
                     character._id,
                     {
                         rating: PvPData,
                     },
-                    { timestamps: false }
+                    { timestamps: false, new: true }
                 );
             } catch (error) {
                 console.warn(error);
             }
         }
+
+        if(character._id) CharCacheEmitter.emit("updateRequest", undefined, character.id)
     }
 
     const endNow = new Date();
