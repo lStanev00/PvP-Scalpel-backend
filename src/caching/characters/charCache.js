@@ -38,7 +38,6 @@ CharCacheEmitter.on("updateRequest", async (charData, charID, search = undefined
         }
     }
     if (exist === null || !exist) return;
-    console.info(exist?.search + "will be recached")
     cacheOneCharacter(charData, charID);
 });
 
