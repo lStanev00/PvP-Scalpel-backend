@@ -31,7 +31,7 @@ CharCacheEmitter.on("updateRequest", async (charData, charID, search = undefined
             } else if (id || charID) {
                 char = await Char.findById(id ? id : charID).lean();
             }
-            exist = await getCache(char ? char?.search : search);
+            exist = await getCache(char ? char?.search : search, hashName, 1);
         } catch (error) {
             console.warn(error);
             return;
