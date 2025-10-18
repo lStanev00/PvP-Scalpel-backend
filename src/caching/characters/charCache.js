@@ -56,7 +56,13 @@ export async function cacheOneCharacter(charData, charID = undefined) {
 
     search = charData?.search;
     if (charData && search) {
-        await setCache(search, charData.toObject(), hashName, -1, 1);
+        try {
+            await setCache(search, charData.toObject(), hashName, -1, 1);
+            
+        } catch (error) {
+            await setCache(search, charData, hashName, -1, 1);
+            
+        }
         await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1);
     }
 }
