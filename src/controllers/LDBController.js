@@ -12,42 +12,30 @@ LDBController.get(`/LDB/BG`, BGGet);
 
 LDBController.get("/LDB/topAll", async (req, res) => {
     try {
-        let baseUrl;
+        const brackets = {
+            "2v2": "2v2",
+            "3v3": "3v3",
+            "solo": "shuffle",
+            "blitz": "blitz",
+            "BG": "rbg"
+        };
 
-        if (process.env.RAILWAY_PRIVATE_DOMAIN) {
-            baseUrl = `http://${process.env.RAILWAY_PRIVATE_DOMAIN}`;
-        } else if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) {
-            baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
-        } else {
-            baseUrl = `http://localhost:${process.env.PORT || 3000}`;
-        }
-        const brackets = ["2v2", "3v3", "solo", "blitz", "BG"];
         const results = {};
 
-        // run in parallel for speed
         const responses = await Promise.all(
-            brackets.map(async (bracket) => {
+            Object.entries(brackets).map(async ([key, value]) => {
                 try {
-                    const resp = await fetch(`${baseUrl}/LDB/${bracket}`, {
-                        headers: { 600: "BasicPass" },
-                    });
-
-                    if (!resp.ok) return [bracket, null];
-
-                    const data = await resp.json();
-                    const arr = data?.data || data; // jsonResponse wrapper or plain array
-                    const top = Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
-
-                    return [bracket, top];
+                    const list = await findRatingAndSort(value);
+                    const top = Array.isArray(list) && list.length > 0 ? list[0] : null;
+                    return [key, top];
                 } catch (err) {
-                    console.warn(`Failed to fetch ${bracket}:`, err.message);
-                    return [bracket, null];
+                    console.warn(`Failed to get ${key}:`, err.message);
+                    return [key, null];
                 }
             })
         );
 
-        // convert to object
-        for (const [bracket, top] of responses) results[bracket] = top;
+        for (const [key, top] of responses) results[key] = top;
 
         return jsonResponse(res, 200, results);
     } catch (error) {
@@ -58,6 +46,7 @@ LDBController.get("/LDB/topAll", async (req, res) => {
         });
     }
 });
+
 
 async function twosGet(req, res) {
     try {
