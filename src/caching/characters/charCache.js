@@ -64,6 +64,11 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 
         if (character && character !== undefined && character !== null && !character?.code) {
             if (incChecks) {
+                Char.findByIdAndUpdate(character._id, {
+                    $inc: {
+                        checkedCount: 1
+                    }
+                }).catch(console.error)
                 character.checkedCount = character.checkedCount + 1;
                 cacheOneCharacter(character);
             }
@@ -79,22 +84,9 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
     // Query database or renew older data |
     //                                    V
 
-    const checkedCountClone = character ? character.checkedCount : undefined;
-
     try {
-        let checkedCountIncrementation = 0;
         character = await queryCharacterByCredentials(server, realm, name);
         if (!character) await Char.findOne({ search: search });
-
-        if (incChecks && character?.checkedCount) {
-            if (checkedCountClone && typeof checkedCountClone === "number") {
-                checkedCountIncrementation = checkedCountClone - data.checkedCount;
-            } else {
-                checkedCountIncrementation = character.checkedCount;
-            }
-            checkedCountIncrementation = checkedCountIncrementation + 1;
-            character.checkedCount = checkedCountIncrementation;
-        }
 
         if (character && (isOlderThanHour(character) || renewCache === true)) {
             const newData = await fetchData(
@@ -129,7 +121,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                     "playerRealm.slug": realm,
                     server: server,
                 },
-                { $set: { checkedCount: checkedCountIncrementation } },
+                { $inc : { checkedCount: incChecks ? 1 : 0 } },
                 { new: true, upsert: false, timestamps: false }
             );
         }
