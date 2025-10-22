@@ -22,8 +22,6 @@ export default async function startRedisCharSubscriber() {
         await subscriber.subscribe("__keyevent@1__:expired", async (key) => {
             if (!key?.startsWith("EXPIRE:")) return;
 
-            console.info(`[Redis:DB1] Key expired → ${key}`);
-
             const keyToLook = key.slice("EXPIRE:".length);
             const data = await getCache(keyToLook, "", 1);
 
@@ -54,9 +52,6 @@ export default async function startRedisCharSubscriber() {
 
                 if (!result) {
                     console.warn(`[Redis:DB1] No Mongo entry found for ${id}`);
-                } else {
-                    await delCache(keyToLook, "", 1);
-                    console.info(`[Redis:DB1] Synced Mongo checkedCount for ${keyToLook}`);
                 }
             } catch (error) {
                 console.error(`[Redis:DB1] Mongo update failed for ${keyToLook}:`, error);
