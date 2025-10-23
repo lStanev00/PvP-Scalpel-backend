@@ -6,7 +6,7 @@ import { delay } from "../helpers/startBGTask.js";
 
 await DBconnect(true);
 await connectRedis(true);
-await startRedisCharSubscriber();
+// await startRedisCharSubscriber();
 
 (async () => {
 
