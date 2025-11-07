@@ -2,6 +2,8 @@
 
 This API manages the database and delivers data to the front-end.
 
+(The API version is online at branch "production")
+
 Stack: Node.js · Express · MongoDB · Redis · Mongoose · Worker Threads
 
 ## REST API Routes
