@@ -23,12 +23,14 @@ export default async function updateWeeklyLadder() {
             try {
                 success = await determinateWeeklyWinners();
             } catch (error) {
+                WeeklyEmitter.emit("error", `AT: UpdateWeeklyLadder\n => During weekly reset \n Logging Error:`);
                 console.error(error);
             } finally {
                 serviceMetaData.running = false;
                 serviceMetaData.lastRun = success ? today : serviceMetaData.lastRun;
-                await serviceMetaData.save();
-                return;
+                const result = await serviceMetaData.save();
+                if (success && result) WeeklyEmitter.emit("update", `Just reseted the weekly and stored in base with id:\n => ${result.id}`)
+                return result;
             }
         }
     }

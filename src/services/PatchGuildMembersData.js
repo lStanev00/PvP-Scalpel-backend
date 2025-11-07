@@ -183,11 +183,7 @@ export async function updateGuildMembersData() {
         const serviceUpdate = await Service.findOneAndUpdate({ service: "PatchPvP" }, updateDoc, {
             new: true,
         });
-        console.log(
-            `[PatchPvP]${
-                fullUpdate ? " Full" : " "
-            }Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `
-        );
+        if (fullUpdate) console.info(`[PatchPvP] Full Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `)
         await updateWeeklyLadder();
         return serviceUpdate;
     } catch (error) {

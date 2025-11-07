@@ -47,7 +47,7 @@ export async function cacheWeeklyData(data = undefined) {
 
     await setCache("lastUpdated", Date.now(), hashName); // set the last updated timestamp
 
-    WeeklyEmitter.emit("update", "Just cached the data for all brackets");
+    // WeeklyEmitter.emit("update", "Just cached the data for all brackets");
 }
 
 export async function getTop10ForABracket(bracketName) {
