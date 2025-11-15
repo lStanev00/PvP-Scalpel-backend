@@ -61,7 +61,7 @@ async function updateCharacterPatch(req, res) {
     const { server, realm, name } = req.params;
     let character;
     try {
-        character = await getCharacter(server, realm, name, true, true);
+        character = await getCharacter(server, realm, name, false, true, true);
         if (character) {
             return jsonResponse(res, 200, character);
         } else if (character === 404) {
