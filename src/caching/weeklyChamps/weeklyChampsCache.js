@@ -82,3 +82,8 @@ export async function getFullWeekly() {
     }
     return data;
 }
+
+export const purgeWeeklyCache = async () => {
+    await delCache(hashName);
+    WeeklyEmitter.emit("update", "The weekly cache just gotr purged.")
+};
