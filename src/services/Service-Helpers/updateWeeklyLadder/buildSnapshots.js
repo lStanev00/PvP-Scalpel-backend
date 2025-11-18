@@ -24,7 +24,7 @@ export async function buildSnapshots(charList = undefined) {
     return await charWeeklySnapshot.find().lean();
 }
 
-const formRatings = (ratings) => {
+export const formRatings = (ratings) => {
     const newRateMap = {
         blitz: [],
         shuffle: [],

@@ -1,6 +1,6 @@
 import Char from "../../../Models/Chars.js";
 import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
-import { buildSnapshots } from "./buildSnapshots.js";
+import { buildSnapshots, formRatings } from "./buildSnapshots.js";
 
 /**
  * Form the data for the weekly brackets
@@ -30,10 +30,23 @@ export default async function formatWeeklyData(guildCharList = undefined) {
 
     for (const { search, rating } of guildCharList) {
         // loop the dbase with existing live chars data since the service start as soon as the patch of the guild mems finish so is a live data
-        const snapshotEntry = weeklySnapshots.find(
+        let snapshotEntry = weeklySnapshots.find(
             (entry) => entry._id.toString() === search
         )?.ratingSnapshot;
-        if (!snapshotEntry) continue;
+        if (!snapshotEntry && typeof search === "string") {
+            try {
+                const newSnapEntry = new charWeeklySnapshot({
+                    _id: search,
+                    ratingSnapshot: formRatings(rating)
+                });
+                
+                snapshotEntry = await newSnapEntry.save();
+                if(!snapshotEntry) continue;
+            } catch (error) {
+                console.warn(error);
+                continue;
+            }
+        }
 
         const charRecords = {
             // define 1 character structure of weekly progess data
