@@ -41,6 +41,7 @@ export default async function formatWeeklyData(guildCharList = undefined) {
                 });
                 
                 snapshotEntry = await newSnapEntry.save();
+                snapshotEntry = newSnapEntry.toObject();
                 if(!snapshotEntry) continue;
             } catch (error) {
                 console.warn(error);
