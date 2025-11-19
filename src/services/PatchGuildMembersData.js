@@ -66,21 +66,25 @@ export async function updateGuildMembersData() {
 
         const exist = members.find((entry) => entry.character.id == blizID);
         if (exist) continue;
-        console.info(dbaseEntry.name);
-
-        const charOut = await Char.findByIdAndUpdate(
-            dbaseEntry._id,
-            {
-                $set: {
-                    guildMember: false,
+        // console.info(dbaseEntry.name);
+        try {
+            const charOut = await Char.findByIdAndUpdate(
+                dbaseEntry._id,
+                {
+                    $set: {
+                        guildMember: false,
+                    },
+                    $unset: {
+                        guildInsight: "",
+                    },
                 },
-                $unset: {
-                    guildInsight: "",
-                },
-            },
-            { new: true }
-        );
-        console.info(`Character: ${charOut.name}'s no longer a guild member`);
+                { new: true }
+            );
+            console.info(`Character: ${charOut.name}'s no longer a guild member`);
+            
+        } catch (error) {
+            console.error(error);
+        }
     }
 
     let delayMS = 500;
@@ -131,6 +135,8 @@ export async function updateGuildMembersData() {
                             rank: guildRanks?.[member?.rank] || "Initiate",
                             rankNumber: member?.rank || 0,
                         };
+                        setter.guildMember = true;
+                        setter.guildName = "PvP Scalpel";
                         for (const [key, value] of Object.entries(setter)) {
                             if (character?.[key] && value) character[key] = value;
                         }
