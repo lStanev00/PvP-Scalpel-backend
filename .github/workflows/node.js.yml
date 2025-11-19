@@ -26,7 +26,12 @@ jobs:
       - name: Merge main into production
         run: |
           git checkout production || git checkout -b production
-          git merge main
+          if git merge main --no-ff -m "Auto deploy main → production"; then
+            echo "Normal merge completed."
+          else
+            echo "Retrying merge with unrelated histories..."
+            git merge main --no-ff --allow-unrelated-histories -m "Initial production merge"
+          fi
           
       - name: Push to production
         env:
