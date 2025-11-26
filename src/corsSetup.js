@@ -20,6 +20,6 @@ export const corsOptions = {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "token", "cache-control", "cache", "600", "ga6n1fa4fcvt"],
+    allowedHeaders: ["Content-Type", "Authorization", "token", "cache-control", "cache", "600", "DESKTOP"],
     optionsSuccessStatus: 204,
 };

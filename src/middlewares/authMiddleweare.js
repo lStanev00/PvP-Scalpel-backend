@@ -12,7 +12,7 @@ export async function authMiddleware(req, res, next) {
     
     const isDesktopOrigin = req.headers.origin === "http://tauri.localhost";
     if(isDesktopOrigin) {
-        const desktopAuth = req.headers['ga6n1fa4fcvt'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
+        const desktopAuth = req.headers['DESKTOP'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
         if(!desktopAuth) return jsonResponse(res, 500);
     }
     
