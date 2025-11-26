@@ -2,13 +2,19 @@ import dotenv from 'dotenv';
 import validateToken from "../helpers/authToken.js";
 import User from '../Models/User.js';
 import { getOptions } from '../helpers/cookieOptions.js';
+import { jsonResponse } from '../helpers/resposeHelpers.js';
 
 const JWT_SECRET = process.env.JWT_SECRET
 export async function authMiddleware(req, res, next) {
     const auth1 = req.headers["600"];
-    if (!auth1 && auth1 !== "BasicPass") return res.status(500).end();
+    if (!auth1 && auth1 !== "BasicPass") return jsonResponse(res, 500);
     // if (req.protocol == "https") console.log(`[${new Date().toLocaleString()}]  ${req.protocol}://${req.get('host')}${req.originalUrl}`);
-
+    
+    const isDesktopOrigin = req.headers.origin === "http://tauri.localhost";
+    if(isDesktopOrigin) {
+        const desktopAuth = req.headers['ga6n1fa4fcvt'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
+        if(!desktopAuth) return jsonResponse(res, 500);
+    }
     
     const JWT = req.cookies.token
     if(!JWT) return next();
