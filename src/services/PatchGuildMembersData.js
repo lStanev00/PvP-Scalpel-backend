@@ -109,7 +109,6 @@ export async function updateGuildMembersData() {
                 );
             } else {
                 const checkedCount = character.checkedCount;
-                const charID = character._id;
 
                 try {
                     const isOlderThanDay =
