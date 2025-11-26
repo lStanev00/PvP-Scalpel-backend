@@ -1,12 +1,13 @@
-export const productionUrl = "https://api.pvpscalpel.com/"
+export const productionUrl = "https://api.pvpscalpel.com/";
 
 const allowedOrigins = [
-  "https://pvpscalpel.com",
-  "https://www.pvpscalpel.com",
-  "https://app.pvpscalpel.com",
-  "https://guid.pvpscalpel.com",
-  productionUrl,
-  "http://localhost:5173" // If needed for local development
+    "https://pvpscalpel.com",
+    "https://www.pvpscalpel.com",
+    "https://app.pvpscalpel.com",
+    "https://guid.pvpscalpel.com",
+    productionUrl,
+    "http://localhost:5173",
+    "http://tauri.localhost",
 ];
 
 export const corsOptions = {
@@ -18,7 +19,7 @@ export const corsOptions = {
         }
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'token', 'cache-control', 'cache', '600'],
-    optionsSuccessStatus: 204
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "token", "cache-control", "cache", "600"],
+    optionsSuccessStatus: 204,
 };
