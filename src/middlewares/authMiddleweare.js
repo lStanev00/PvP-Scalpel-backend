@@ -9,9 +9,10 @@ export async function authMiddleware(req, res, next) {
     const auth1 = req.headers["600"];
     if (!auth1 && auth1 !== "BasicPass") return jsonResponse(res, 500);
     // if (req.protocol == "https") console.log(`[${new Date().toLocaleString()}]  ${req.protocol}://${req.get('host')}${req.originalUrl}`);
-    
+    console.info(req.headers.origin)
     const isDesktopOrigin = req.headers.origin === "http://tauri.localhost";
     if(isDesktopOrigin) {
+        console.info(`is desktop`)
         const desktopAuth = req.headers['DESKTOP'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
         if(!desktopAuth) return jsonResponse(res, 500);
     }
