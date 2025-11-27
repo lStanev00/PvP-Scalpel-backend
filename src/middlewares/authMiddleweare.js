@@ -14,8 +14,8 @@ export async function authMiddleware(req, res, next) {
     if(isDesktopOrigin) {
         console.info(`is desktop`)
         console.info(req.headers)
-        console.info(req.headers["DESKTOP"])
-        const desktopAuth = req.headers['DESKTOP'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
+        console.info(req.headers["desktop"])
+        const desktopAuth = req.headers['desktop'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
         if(!desktopAuth) return jsonResponse(res, 500);
     }
     
