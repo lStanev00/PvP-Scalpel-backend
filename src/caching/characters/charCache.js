@@ -9,6 +9,9 @@ import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
 import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
 import shipCharById from "./utils/shipCharById.js";
+import { findRealmById } from "../realms/realmCache.js";
+import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
+import { getRegionIdsMap } from "../regions/regionCache.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
@@ -20,19 +23,19 @@ CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] $
 CharCacheEmitter.on("updateRequest", async (search) => {
     try {
         const exist = await getCache(search, hashName, 1);
-        
+
         if (exist === null || !exist) return;
         const char = await shipCharById(exist.id);
         cacheOneCharacter(char);
     } catch (error) {
         console.warn(error);
-    }    
+    }
 });
 
 export async function cacheOneCharacter(charData) {
     let search = charData?.search;
     const _id = charData?._id;
-    if ((!_id || !search)) {
+    if (!_id || !search) {
         CharCacheEmitter.emit("error", `cacheOneCharacter invoked with bad params`);
         return null;
     }
@@ -40,10 +43,8 @@ export async function cacheOneCharacter(charData) {
     if (charData && search) {
         try {
             await setCache(search, charData.toObject(), hashName, -1, 1);
-            
         } catch (error) {
             await setCache(search, charData, hashName, -1, 1);
-            
         }
         await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1);
     }
@@ -51,6 +52,24 @@ export async function cacheOneCharacter(charData) {
 
 export async function getCharacter(server, realm, name, incChecks = true, renewCache = false) {
     let character;
+
+    // API try to return accurate data for non english realm eg гордунни => gordunni
+    let realmSlug = realm + ":" + server;
+    let realmExist = await findRealmById(realmSlug.toLowerCase());
+    if (realmExist === null || !realmExist) {
+        const realmSearchExist = await findRealmSearchById(realm.toLowerCase());
+        if (realmSearchExist) {
+            const regionMap = await getRegionIdsMap();
+
+            const entry = [...regionMap.values()].find((e) => e.slug === server.toLowerCase());
+
+            const serverId = entry ? Number(entry._id) : undefined;
+
+            if (!serverId) return 404;
+            const searchRealmExist = await findRealmSearchById(realm.toLowerCase()).relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
+            if (searchRealmExist) realm = searchRealmExist;
+        }
+    }
     const search = buildCharSearch(server, realm, name);
 
     try {
@@ -66,9 +85,9 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             if (incChecks) {
                 Char.findByIdAndUpdate(character._id, {
                     $inc: {
-                        checkedCount: 1
-                    }
-                }).catch(console.error)
+                        checkedCount: 1,
+                    },
+                }).catch(console.error);
                 character.checkedCount = character.checkedCount + 1;
                 cacheOneCharacter(character);
             }
@@ -121,7 +140,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                     "playerRealm.slug": realm,
                     server: server,
                 },
-                { $inc : { checkedCount: incChecks ? 1 : 0 } },
+                { $inc: { checkedCount: incChecks ? 1 : 0 } },
                 { new: true, upsert: false, timestamps: false }
             );
         }
@@ -151,7 +170,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
-            console.warn(error)
+            console.warn(error);
         }
         try {
             if (character?.listAchievements?.length !== 0)
