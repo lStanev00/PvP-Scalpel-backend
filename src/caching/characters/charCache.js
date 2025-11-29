@@ -66,8 +66,12 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             const serverId = entry ? Number(entry._id) : undefined;
 
             if (!serverId) return 404;
-            const searchRealmExist = await findRealmSearchById(realm.toLowerCase()).relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
-            if (searchRealmExist) realm = searchRealmExist;
+            // const searchRealmExist = await findRealmSearchById(realm.toLowerCase())?.relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
+            const searchRealmExist = await findRealmSearchById(realm.toLowerCase());
+            if (searchRealmExist !== null && searchRealmExist && searchRealmExist.relRealms) {
+                const realmName = searchRealmExist.relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
+                if (realmName && typeof realmName === "string") realm = realmName;
+            } else console.info(`getCharacter: ${realm} is missing.`)
         }
     }
     const search = buildCharSearch(server, realm, name);
