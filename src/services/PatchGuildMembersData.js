@@ -105,6 +105,18 @@ export async function updateGuildMembersData() {
                 rank: guildRanks?.[member?.rank] || "Initiate",
                 rankNumber: member?.rank || 0,
             }
+            try {
+                character = await character.save();
+            } catch (error) {
+                if (character) {
+                    console.error("Character:", {
+                        name: character.name,
+                        realm: character?.playerRealm?.slug,
+                        id: character?._id,
+                        blizID: character?.blizID,
+                    });
+                }
+            }
         }
 
         await delay(delayMS);
