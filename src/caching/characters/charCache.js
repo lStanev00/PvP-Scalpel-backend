@@ -9,6 +9,7 @@ import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
 import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
 import shipCharById from "./utils/shipCharById.js";
+import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
@@ -151,16 +152,26 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
-            console.warn(error)
+            console.info("Error at : getCharacter(): " + character?.name + "\n" + character?.posts);
         }
         try {
             if (character?.listAchievements?.length !== 0)
                 await character.populate("listAchievements");
         } catch (error) {
-            console.warn(error);
-            console.warn(typeof character);
-            console.warn(typeof character?.listAchievements);
-            console.warn(character?.listAchievements);
+            if(typeof character.listAchievements === "object") {
+                const shadowAches = [];
+                for (const achId of character.listAchievements) {
+                    const ach = await getOneAchFromAchCache(achId).catch(() => null);
+                    if(ach !== null) shadowAches.push(ach)
+                        else console.info(achId);
+                }
+                if(shadowAches.length !== 0) character.listAchievements = shadowAches;
+            } else {
+                console.warn(error);
+                console.warn(character?.listAchievements);
+                if(character.name) console.info("Errored for this character name:" + character.name);
+                    else console.info("The entry had no name aswell");                
+            }
         }
         await cacheOneCharacter(character);
         character = character.toObject();
