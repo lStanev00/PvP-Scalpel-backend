@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import Achievement from "../../Models/Achievements.js";
-import { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
+import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 import toMap from "../../helpers/toMap.js";
 
@@ -12,6 +12,12 @@ export const getSeasonalIdsMap = async () => {
     const incomming = await hashGetAllCache(hashName);
     return toMap(incomming);
 } 
+
+export const getOneAchFromAchCache = async (key) => {
+    if (typeof key == "number") key = key.toString();
+    const get = await getCache(key, hashName);
+    return get;
+}
 
 export async function setSeasonalIdsMap() {
     const newMap = await mapDBAchieves()
