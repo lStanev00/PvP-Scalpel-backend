@@ -15,7 +15,7 @@ dotenv.config({ path: "../../../../.env" });
 const GUILD_REALM = "chamber-of-aspects"; // Guild's realm slug
 const GUILD_NAME = "pvp-scalpel"; // Guild name slugified
 
-const guildRanks = {
+export const guildRanks = {
     0: "Warlord",
     1: "Council",
     2: "Vanguard",
@@ -98,7 +98,7 @@ export async function updateGuildMembersData() {
         const realm = member?.character.realm?.slug;
         const name = member?.character.name;
         let character = await findCharFromDatabase(server, realm, name);
-        if (!character) character = await buildCharacter(server, realm, name);
+        if (!character) character = await buildCharacter(server, realm, name, member?.rank);
         if(!character) continue;
         if(!character.guildInsight) { // check if there's a missing rank 
             character.guildInsight = {
