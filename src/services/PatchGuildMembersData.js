@@ -28,7 +28,7 @@ const guildRanks = {
     9: "Initiate",
 };
 
-export async function findChar(server, realm, name) {
+async function findCharFromDatabase(server, realm, name) {
     let character = undefined;
 
     try {
@@ -93,12 +93,19 @@ export async function updateGuildMembersData() {
         $push: {},
     };
 
-    for (const member of members) {
-        const server = "eu";
+    for (const member of members) { // start the loop for the members list
+        const server = "eu"; 
         const realm = member?.character.realm?.slug;
         const name = member?.character.name;
-        let character = await findChar(server, realm, name);
+        let character = await findCharFromDatabase(server, realm, name);
         if (!character) character = await buildCharacter(server, realm, name);
+        if(!character) continue;
+        if(!character.guildInsight) { // check if there's a missing rank 
+            character.guildInsight = {
+                rank: guildRanks?.[member?.rank] || "Initiate",
+                rankNumber: member?.rank || 0,
+            }
+        }
 
         await delay(delayMS);
 
@@ -120,12 +127,14 @@ export async function updateGuildMembersData() {
                         undefined,
                         isOlderThanDay
                     );
+                    if (updatedData === false) continue;
                     let setter = undefined;
                     if (updatedData?.code && updatedData?.data?.blizID) {
                         character = await Char.findOne({ blizID: updatedData.data.blizID });
                         if (updatedData.code === 202) setter = updatedData?.data;
                     } else {
-                        setter = updatedData;
+                        if(updatedData.data) setter = updatedData.data; 
+                            else setter = updatedData;
                     }
                     
                     if (setter) {
