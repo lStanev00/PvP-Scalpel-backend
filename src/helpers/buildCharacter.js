@@ -45,14 +45,14 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
         await delCache(key, hashName);
         return null
     }
-    character.checkedCount = 0;
-    if(memberRankNumber) {
-        character.guildInsight = {
-            rank: guildRanks?.[memberRankNumber] || "Initiate",
-            rankNumber: memberRankNumber || 0,
-        }
-    }
     try {
+        character.checkedCount = 0;
+        if(memberRankNumber) {
+            character.guildInsight = {
+                rank: guildRanks?.[memberRankNumber] || "Initiate",
+                rankNumber: memberRankNumber || 0,
+            }
+        }
         const newCharacter = new Char(character);
         const savedChar = await newCharacter.save();
         
