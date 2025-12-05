@@ -10,7 +10,7 @@ import { delay } from "./startBGTask.js";
 // If no mongo entry try updating the db with a new one and send it
 export default async function buildCharacter(server, realm, name, memberRankNumber = undefined) {
     const hashName = "buildingEntries";
-
+    let character;
     const key = `${server + realm + name}`;
     const doesEntryAlreadyBuild = await getCache(key, hashName);
     if (doesEntryAlreadyBuild && doesEntryAlreadyBuild !== null) {
