@@ -105,6 +105,8 @@ export async function updateGuildMembersData() {
                 rank: guildRanks?.[member?.rank] || "Initiate",
                 rankNumber: member?.rank || 0,
             }
+        if(!character.guildMember) character.guildMember = true;
+        if(character.guildName !== "PvP Scalpel") character.guildName = "PvP Scalpel";
             try {
                 character = await character.save();
             } catch (error) {
