@@ -81,7 +81,6 @@ export async function updateGuildMembersData() {
                 { new: true }
             );
             console.info(`Character: ${charOut.name}'s no longer a guild member`);
-            
         } catch (error) {
             console.error(error);
         }
@@ -93,20 +92,33 @@ export async function updateGuildMembersData() {
         $push: {},
     };
 
-    for (const member of members) { // start the loop for the members list
-        const server = "eu"; 
+    for (const member of members) {
+        // start the loop for the members list
+        const server = "eu";
         const realm = member?.character.realm?.slug;
         const name = member?.character.name;
+        if (name === "Illusionaryo") debugger;
         let character = await findCharFromDatabase(server, realm, name);
         if (!character) character = await buildCharacter(server, realm, name, member?.rank);
-        if(!character) continue;
-        if(!character.guildInsight) { // check if there's a missing rank 
+        if (!character) continue;
+        let change = false;
+        if (!character.guildInsight) {
+            // check if there's a missing rank
             character.guildInsight = {
                 rank: guildRanks?.[member?.rank] || "Initiate",
                 rankNumber: member?.rank || 0,
-            }
-        if(!character.guildMember) character.guildMember = true;
-        if(character.guildName !== "PvP Scalpel") character.guildName = "PvP Scalpel";
+            };
+            change = true;
+        }
+        if (!character.guildMember) {
+            character.guildMember = true;
+            change = true;
+        }
+        if (character.guildName !== "PvP Scalpel") {
+            character.guildName = "PvP Scalpel";
+            change = true;
+        }
+        if (change) {
             try {
                 character = await character.save();
             } catch (error) {
@@ -147,10 +159,10 @@ export async function updateGuildMembersData() {
                         character = await Char.findOne({ blizID: updatedData.data.blizID });
                         if (updatedData.code === 202) setter = updatedData?.data;
                     } else {
-                        if(updatedData.data) setter = updatedData.data; 
-                            else setter = updatedData;
+                        if (updatedData.data) setter = updatedData.data;
+                        else setter = updatedData;
                     }
-                    
+
                     if (setter) {
                         setter.checkedCount = checkedCount;
                         setter.guildInsight = {
@@ -169,7 +181,6 @@ export async function updateGuildMembersData() {
                             { new: true }
                         );
                     }
-
                 } catch (error) {
                     console.warn(error);
                 }
@@ -196,7 +207,7 @@ export async function updateGuildMembersData() {
             }
         }
 
-        if(character._id) CharCacheEmitter.emit("updateRequest", character?.search);
+        if (character._id) CharCacheEmitter.emit("updateRequest", character?.search);
     }
 
     const endNow = new Date();
@@ -211,7 +222,10 @@ export async function updateGuildMembersData() {
         const serviceUpdate = await Service.findOneAndUpdate({ service: "PatchPvP" }, updateDoc, {
             new: true,
         });
-        if (fullUpdate) console.info(`[PatchPvP] Full Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `)
+        if (fullUpdate)
+            console.info(
+                `[PatchPvP] Full Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `
+            );
         await updateWeeklyLadder();
         return serviceUpdate;
     } catch (error) {
