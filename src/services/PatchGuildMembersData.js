@@ -97,7 +97,6 @@ export async function updateGuildMembersData() {
         const server = "eu";
         const realm = member?.character.realm?.slug;
         const name = member?.character.name;
-        if (name === "Illusionaryo") debugger;
         let character = await findCharFromDatabase(server, realm, name);
         if (!character) character = await buildCharacter(server, realm, name, member?.rank);
         if (!character) continue;
