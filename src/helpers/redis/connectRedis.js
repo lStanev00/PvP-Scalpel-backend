@@ -1,6 +1,7 @@
 import { createClient } from "redis";
 import { configDotenv } from "dotenv";
 import dns from "dns";
+import { delay } from "../startBGTask.js";
 
 configDotenv();
 
@@ -22,25 +23,33 @@ export const redisCache = createClient({ url, socket: socketOptions });
 export const redisCacheCharacters = createClient({ url, socket: socketOptions });
 
 export default async function connectRedis(silent = false) {
-    try {
-        // Connect both clients
-        await Promise.all([
-            redisCache.connect(),
-            redisCacheCharacters.connect(),
-        ]);
-
-        // Select databases
-        await redisCache.select(0);
-        await redisCacheCharacters.select(1);
-
-        // Enable only expiration notifications for DB1
-        await redisCacheCharacters.configSet("notify-keyspace-events", "Ex");
-
-        if (!silent) console.info("Redis connected: DB0 + DB1 ready!");
-    } catch (error) {
-        console.warn("Redis failed to connect!");
-        console.error(error);
-        process.exit(1);
+    let iter = 0;
+    
+    while (true) {
+        if (iter > 0) await delay(5000);
+        try {
+            // Connect both clients
+            await Promise.all([
+                redisCache.connect(),
+                redisCacheCharacters.connect(),
+            ]);
+    
+            // Select databases
+            await redisCache.select(0);
+            await redisCacheCharacters.select(1);
+    
+            // Enable only expiration notifications for DB1
+            await redisCacheCharacters.configSet("notify-keyspace-events", "Ex");
+    
+            if (!silent) console.info("Redis connected: DB0 + DB1 ready!");
+            break;
+        } catch (error) {
+            console.warn("Redis failed to connect!\n    => The iter == " + iter);
+            iter += 1;
+            // console.error(error);
+            // process.exit(1);
+        }
+        
     }
 }
 
