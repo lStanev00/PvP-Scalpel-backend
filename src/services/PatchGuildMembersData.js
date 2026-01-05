@@ -162,7 +162,13 @@ export async function updateGuildMembersData() {
                         else setter = updatedData;
                     }
 
-                    if (setter) {
+                    if (
+                        setter ||
+                        !character.guildInsight ||
+                        character?.guildInsight.rank === null ||
+                        character?.guildInsight.rank === undefined
+                    ) {
+                        if(setter === null || !setter) setter = {};
                         setter.checkedCount = checkedCount;
                         setter.guildInsight = {
                             rank: guildRanks?.[member?.rank] || "Initiate",
@@ -176,12 +182,12 @@ export async function updateGuildMembersData() {
 
                         character = await Char.findByIdAndUpdate(
                             character._id,
-                            { $set: character },
+                            { $set: setter },
                             { new: true }
                         );
                     }
                 } catch (error) {
-                    console.warn(error);
+                    console.warn(`Error at non full update in guild patch =>\n=>    ${error}`);
                 }
             }
             continue;
