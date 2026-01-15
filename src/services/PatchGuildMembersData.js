@@ -15,7 +15,7 @@ dotenv.config({ path: "../../../../.env" });
 const GUILD_REALM = "chamber-of-aspects"; // Guild's realm slug
 const GUILD_NAME = "pvp-scalpel"; // Guild name slugified
 
-const guildRanks = {
+export const guildRanks = {
     0: "Warlord",
     1: "Council",
     2: "Vanguard",
@@ -28,7 +28,7 @@ const guildRanks = {
     9: "Initiate",
 };
 
-export async function findChar(server, realm, name) {
+async function findCharFromDatabase(server, realm, name) {
     let character = undefined;
 
     try {
@@ -81,7 +81,6 @@ export async function updateGuildMembersData() {
                 { new: true }
             );
             console.info(`Character: ${charOut.name}'s no longer a guild member`);
-            
         } catch (error) {
             console.error(error);
         }
@@ -94,11 +93,44 @@ export async function updateGuildMembersData() {
     };
 
     for (const member of members) {
+        // start the loop for the members list
         const server = "eu";
         const realm = member?.character.realm?.slug;
         const name = member?.character.name;
-        let character = await findChar(server, realm, name);
-        if (!character) character = await buildCharacter(server, realm, name);
+        let character = await findCharFromDatabase(server, realm, name);
+        if (!character) character = await buildCharacter(server, realm, name, member?.rank);
+        if (!character) continue;
+        let change = false;
+        if (!character.guildInsight) {
+            // check if there's a missing rank
+            character.guildInsight = {
+                rank: guildRanks?.[member?.rank] || "Initiate",
+                rankNumber: member?.rank || 0,
+            };
+            change = true;
+        }
+        if (!character.guildMember) {
+            character.guildMember = true;
+            change = true;
+        }
+        if (character.guildName !== "PvP Scalpel") {
+            character.guildName = "PvP Scalpel";
+            change = true;
+        }
+        if (change) {
+            try {
+                character = await character.save();
+            } catch (error) {
+                if (character) {
+                    console.error("Character:", {
+                        name: character.name,
+                        realm: character?.playerRealm?.slug,
+                        id: character?._id,
+                        blizID: character?.blizID,
+                    });
+                }
+            }
+        }
 
         await delay(delayMS);
 
@@ -120,15 +152,23 @@ export async function updateGuildMembersData() {
                         undefined,
                         isOlderThanDay
                     );
+                    if (updatedData === false) continue;
                     let setter = undefined;
                     if (updatedData?.code && updatedData?.data?.blizID) {
                         character = await Char.findOne({ blizID: updatedData.data.blizID });
                         if (updatedData.code === 202) setter = updatedData?.data;
                     } else {
-                        setter = updatedData;
+                        if (updatedData.data) setter = updatedData.data;
+                        else setter = updatedData;
                     }
-                    
-                    if (setter) {
+
+                    if (
+                        setter ||
+                        !character.guildInsight ||
+                        character?.guildInsight.rank === null ||
+                        character?.guildInsight.rank === undefined
+                    ) {
+                        if(setter === null || !setter) setter = {};
                         setter.checkedCount = checkedCount;
                         setter.guildInsight = {
                             rank: guildRanks?.[member?.rank] || "Initiate",
@@ -142,13 +182,12 @@ export async function updateGuildMembersData() {
 
                         character = await Char.findByIdAndUpdate(
                             character._id,
-                            { $set: character },
+                            { $set: setter },
                             { new: true }
                         );
                     }
-
                 } catch (error) {
-                    console.warn(error);
+                    console.warn(`Error at non full update in guild patch =>\n=>    ${error}`);
                 }
             }
             continue;
@@ -173,7 +212,7 @@ export async function updateGuildMembersData() {
             }
         }
 
-        if(character._id) CharCacheEmitter.emit("updateRequest", character?.search);
+        if (character._id) CharCacheEmitter.emit("updateRequest", character?.search);
     }
 
     const endNow = new Date();
@@ -188,7 +227,10 @@ export async function updateGuildMembersData() {
         const serviceUpdate = await Service.findOneAndUpdate({ service: "PatchPvP" }, updateDoc, {
             new: true,
         });
-        if (fullUpdate) console.info(`[PatchPvP] Full Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `)
+        if (fullUpdate)
+            console.info(
+                `[PatchPvP] Full Update succeed: ${now.toLocaleDateString()} ${endNow.toLocaleTimeString()} `
+            );
         await updateWeeklyLadder();
         return serviceUpdate;
     } catch (error) {

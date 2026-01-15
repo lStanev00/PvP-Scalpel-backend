@@ -8,9 +8,8 @@ const JWT_SECRET = process.env.JWT_SECRET
 export async function authMiddleware(req, res, next) {
     const auth1 = req.headers["600"];
     if (!auth1 && auth1 !== "BasicPass") return jsonResponse(res, 500);
-    // console.log(`[${new Date().toLocaleString()}]  ${req.protocol}://${req.get('host')}${req.originalUrl}`);
-
-    if(req.headers.origin === "http://tauri.localhost") {
+    const isDesktopOrigin = req.headers.origin === "http://tauri.localhost";
+    if(isDesktopOrigin) {
         const desktopAuth = req.headers['desktop'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
         if(!desktopAuth) return jsonResponse(res, 500);
     }

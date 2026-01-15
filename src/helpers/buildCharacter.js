@@ -1,5 +1,6 @@
 import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
 import Char from "../Models/Chars.js";
+import { guildRanks } from "../services/PatchGuildMembersData.js";
 import fetchData from "./blizFetch.js";
 import delCache from "./redis/deletersRedis.js";
 import getCache from "./redis/getterRedis.js";
@@ -7,9 +8,9 @@ import setCache from "./redis/setterRedis.js";
 import { delay } from "./startBGTask.js";
 
 // If no mongo entry try updating the db with a new one and send it
-export default async function buildCharacter(server, realm, name, character) {
+export default async function buildCharacter(server, realm, name, memberRankNumber = undefined) {
     const hashName = "buildingEntries";
-
+    let character;
     const key = `${server + realm + name}`;
     const doesEntryAlreadyBuild = await getCache(key, hashName);
     if (doesEntryAlreadyBuild && doesEntryAlreadyBuild !== null) {
@@ -38,13 +39,20 @@ export default async function buildCharacter(server, realm, name, character) {
     await setCache(key, "true", hashName);
 
     character = await fetchData(server, realm, name);
+    if (character.data) character = character.data;
     if (character == false) {
         console.log("Character missing: ",server,realm,name);
         await delCache(key, hashName);
         return null
     }
-    character.checkedCount = 0;
     try {
+        character.checkedCount = 0;
+        if(memberRankNumber) {
+            character.guildInsight = {
+                rank: guildRanks?.[memberRankNumber] || "Initiate",
+                rankNumber: memberRankNumber || 0,
+            }
+        }
         const newCharacter = new Char(character);
         const savedChar = await newCharacter.save();
         
