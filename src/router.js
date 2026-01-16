@@ -7,6 +7,7 @@ import {authMiddleware} from "./middlewares/authMiddleweare.js";
 import postsCTRL from "./controllers/postsCTRL.js";
 import userActionCTRL from "./controllers/userActionsCTRL.js";
 import weeklyLadderCTRL from "./controllers/weeklyLadderCTRL.js";
+import CDNCTRL from "./controllers/CDN.js";
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use(`/`, characterSearchCTRL);
 router.use(`/`, postsCTRL)
 router.use(`/`, userActionCTRL);
 router.use(`/`, weeklyLadderCTRL);
+router.use("/", CDNCTRL);
 
 export default router
