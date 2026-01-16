@@ -1,10 +1,11 @@
 import "dotenv/config";
 const CDNURI = process.env.CDN_PRIVATE_DOMAIN;
+const CDNPORT = process.env.CDN_PORT;
 const AUTH = process.env.JWT_CDN_PUBLIC;
 
 export default async function pullManifest() {
     try {
-        const req = await fetch(CDNURI + "/getManifest", {
+        const req = await fetch(CDNURI + `:${CDNPORT}` + "/getManifest", {
             headers: { 
                 autorization: `Bearer ${AUTH}`
             },
