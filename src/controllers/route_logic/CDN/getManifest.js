@@ -1,5 +1,5 @@
 import "dotenv/config";
-const CDNURI = "http://" + process.env.CDN_PRIVATE_DOMAIN;
+const CDNURI = "http://" + process.env.CDN_PRIVATE_DOMAIN + ":" + process.env.CDN_PORT;
 const AUTH = process.env.JWT_CDN_PUBLIC;
 
 export default async function pullManifest() {
