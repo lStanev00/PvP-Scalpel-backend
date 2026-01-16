@@ -5,13 +5,14 @@ const AUTH = process.env.JWT_CDN_PUBLIC;
 export default async function pullManifest() {
     try {
         const req = await fetch(CDNURI + "/getManifest", {
-            headers: { 
-                autorization: `Bearer ${AUTH}`
+            headers: {
+                Authorization: `Bearer ${AUTH}`,
             },
-            method: "GET"
+
+            method: "GET",
         });
         const data = await req.json();
-        return data
+        return data;
     } catch (error) {
         console.warn(error);
         return null;
