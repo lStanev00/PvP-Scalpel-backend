@@ -1,14 +1,7 @@
-import "dotenv/config";
 import { Router } from "express";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
-import formManifest from "./route_logic/CDN/getManifest.js";
+import pullManifest from "./route_logic/CDN/getManifest.js";
 import newManifest from "./route_logic/CDN/postManifest.js";
-
-const AUTH = process.env.JWT_CDN_PUBLIC;
-
-if (!AUTH) {
-    throw new Error("JWT_CDN_PUBLIC env variable is missing");
-}
 
 const CDNCTRL = Router();
 
@@ -20,7 +13,7 @@ CDNCTRL.post("/CDN/postManifest", postManifest);
  * @param {import("express").Response} res
  */
 async function getManifest(_, res) {
-    const data = await formManifest();
+    const data = await pullManifest();
 
     if (data === null) {
         return jsonResponse(res, 500, { error: "Failed to build manifest" });

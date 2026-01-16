@@ -1,49 +1,17 @@
-// @ts-check
+import "dotenv/config";
+const CDNURI = process.env.CDN_PRIVATE_DOMAIN;
+const AUTH = process.env.JWT_CDN_PUBLIC;
 
-import CDNManifest from "../../../Models/CDNManifest.js";
-
-/**
- * A single CDN manifest entry
- * @typedef {Object} CDNManifestEntry
- * @property {string} version
- * @property {string} path
- */
-
-/**
- * Map of manifest entries keyed by customId
- * @typedef {Object.<string, CDNManifestEntry>} CDNManifestMap
- */
-
-/**
- * Builds a CDN manifest map from the database
- *
- * @returns {Promise<CDNManifestMap | null>}
- */
-export default async function formManifest() {
+export default async function pullManifest() {
     try {
-        const manifests = await CDNManifest.find().lean();
-
-        /** @type {CDNManifestMap} */
-        const result = {};
-
-        for (const manifest of manifests) {
-            if (
-                typeof manifest !== "object" ||
-                manifest === null ||
-                typeof manifest.customId !== "string" ||
-                typeof manifest.version !== "string" ||
-                typeof manifest.path !== "string"
-            ) {
-                continue;
-            }
-
-            result[manifest.customId] = {
-                version: manifest.version,
-                path: manifest.path,
-            };
-        }
-
-        return result;
+        const req = await fetch(CDNURI + "/getManifest", {
+            headers: { 
+                autorization: `Bearer ${AUTH}`
+            },
+            method: "GET"
+        });
+        const data = await req.json();
+        return data
     } catch (error) {
         console.warn(error);
         return null;
