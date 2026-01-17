@@ -7,7 +7,7 @@ import {authMiddleware} from "./middlewares/authMiddleweare.js";
 import postsCTRL from "./controllers/postsCTRL.js";
 import userActionCTRL from "./controllers/userActionsCTRL.js";
 import weeklyLadderCTRL from "./controllers/weeklyLadderCTRL.js";
-import CDNCTRL from "./controllers/CDN.js";
+import CDNCTRL from "./controllers/CDNCTRL.js";
 
 const router = Router();
 
