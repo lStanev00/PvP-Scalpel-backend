@@ -1,59 +1,23 @@
 import { Router } from "express";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
-import pullManifest from "../caching/CDNCache/CDN/pullManifest.js";
-import newManifest from "../caching/CDNCache/CDN/postManifest.js";
+import { getManifest } from "../caching/CDNCache/manifastCache.js";
 
 const CDNCTRL = Router();
 
-CDNCTRL.get("/CDN/getManifest", getManifest);
-CDNCTRL.post("/CDN/postManifest", postManifest);
+CDNCTRL.get("/CDN/manifest", manifestGET);
 
 /**
  * @param {import("express").Request} req
  * @param {import("express").Response} res
  */
-async function getManifest(_, res) {
-    const data = await pullManifest();
+async function manifestGET(_, res) {
+    const data = await getManifest();
 
     if (data === null) {
-        return jsonResponse(res, 500, { error: "Failed to build manifest" });
+        return jsonResponse(res, 500, { error: "Failed to get manifest" });
     }
 
     return jsonResponse(res, 200, data);
-}
-
-/**
- * @param {import("express").Request} req
- * @param {import("express").Response} res
- */
-async function postManifest(req, res) {
-    try {
-        const authHeader = req.headers.authorization;
-
-        if (!authHeader) {
-            return jsonResponse(res, 401, { error: "Missing Authorization header" });
-        }
-
-        const parts = authHeader.split(" ");
-
-        if (parts.length !== 2) {
-            return jsonResponse(res, 401, { error: "Malformed Authorization header" });
-        }
-
-        const [type, token] = parts;
-
-        if (type !== "Bearer" || token !== AUTH) {
-            return jsonResponse(res, 403, { error: "Invalid token" });
-        }
-
-        const ok = await newManifest(req.body);
-
-        if (!ok) return jsonResponse(res, 400, { error: "Invalid manifest payload" });
-
-        return jsonResponse(res, 201, { success: true });
-    } catch (error) {
-        return jsonResponse(res, 500);
-    }
 }
 
 export default CDNCTRL;
