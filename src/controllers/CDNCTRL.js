@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
-import pullManifest from "./route_logic/CDN/getManifest.js";
-import newManifest from "./route_logic/CDN/postManifest.js";
+import pullManifest from "../caching/CDNCache/CDN/pullManifest.js";
+import newManifest from "../caching/CDNCache/CDN/postManifest.js";
 
 const CDNCTRL = Router();
 
