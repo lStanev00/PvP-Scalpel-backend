@@ -1,4 +1,4 @@
-import { CDNURI, AUTH } from "./cdn.config.js";
+import { CDNURI, CDNAUTH } from "./cdn.config.js";
 
 /**
  * @typedef {Object} ManifestEntry
@@ -23,7 +23,7 @@ export default async function pullManifest() {
         const response = await fetch(CDNURI + "/getManifest", {
             method: "GET",
             headers: {
-                Authorization: `Bearer ${AUTH}`,
+                Authorization: `Bearer ${CDNAUTH}`,
             },
         });
 
