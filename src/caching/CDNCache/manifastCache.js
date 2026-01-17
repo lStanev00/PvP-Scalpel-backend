@@ -26,7 +26,7 @@ export async function storeNewManifest() {
         const manifest = await pullManifest();
 
         if (manifest !== null) {
-            await setCache(key, manifest, "", 3600);
+            await setCache(key, manifest, "", 60);
             emitter.emit("update");
             return manifest;
         }
