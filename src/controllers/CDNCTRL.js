@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
-import { getManifest } from "../caching/CDNCache/manifastCache.js";
+import { getManifest } from "../caching/CDNCache/manifestCache.js";
 
 const CDNCTRL = Router();
 
