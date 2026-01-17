@@ -1,4 +1,4 @@
-import { CDNAUTH, CDNURI } from "./cdn.config";
+import { CDNAUTH, CDNURI } from "./cdn.config.js";
 import { getManifest, storeNewManifest } from "../manifestCache.js";
 
 /**
