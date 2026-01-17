@@ -5,7 +5,7 @@ import { getManifest, storeNewManifest } from "../manifestCache.js";
  * Fetch a presigned download URL for a manifest entry.
  * Retries once with a fresh manifest when the CDN reports a missing object.
  * @param {"addon"|"desktop"|"launcher"} targetKey Manifest entry key.
- * @returns {Promise<{version: string, url: string}|null>}
+ * @returns {Promise<{version: string, url: string, expiresIn: number}|null>}
  */
 export default async function pullDownloadUrlForApp(targetKey) {
     try {
@@ -62,7 +62,11 @@ export default async function pullDownloadUrlForApp(targetKey) {
             url:
                 typeof result.download === "string"
                     ? result.download
-                    : result.download?.url,
+                    : result.download?.url || result.download?.downloadUrl,
+            expiresIn:
+                typeof result.download === "string"
+                    ? 0
+                    : result.download?.expiresIn,
         };
     } catch (error) {
         console.error(error);
