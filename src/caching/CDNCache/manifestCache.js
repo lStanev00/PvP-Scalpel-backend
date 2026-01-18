@@ -39,7 +39,8 @@ export async function storeNewManifest() {
 
         if (manifest !== null) {
             await setCache(key, manifest, "", 60);
-            emitter.emit("update");
+            // Prevent emit during development cycle
+            // emitter.emit("update");
             return manifest;
         }
 
