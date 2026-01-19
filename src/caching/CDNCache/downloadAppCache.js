@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
+import { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 import pullDownloadUrlForApp from "./CDN/pullDownloadURL.js";
 
@@ -51,15 +51,12 @@ const extractTtlSeconds = (download) => {
 export const getDownloadMap = async () => await hashGetAllCache(hashName);
 
 /**
- * Get a cached presigned download URL entry or fetch and cache it when missing.
+ * Fetch a fresh presigned download URL entry and update the cache.
  * @param {"addon"|"desktop"|"launcher"} targetKey
  * @returns {Promise<{version: string, url: string, expiresIn: number}|null>}
  */
 export async function getDownloadUrl(targetKey) {
     try {
-        const cached = await getCache(targetKey, hashName);
-        if (cached) return cached;
-
         const fresh = await storeDownloadUrl(targetKey);
         if (fresh) return fresh;
 
