@@ -1,432 +1,135 @@
-# PvP-Scalpel-backend
-
-This API manages the database and delivers data to the front-end.
-
-(The API version is online at branch "production")
-
-Stack: Node.js · Express · MongoDB · Redis · Mongoose · Worker Threads
-
-## REST API Routes
-
-All REST endpoints return data in JSON format.
-
----
-
-### GET `/member/list`
-
-Returns an array of objects containing guild member data.
-
-#### Each player object includes:
-- name
-- realm
-- server
-- guild data
-- character media
-
-Sorted by guild rank (lower number = higher rank).
-
----
-
-### PATCH `/member/patch`
-
-Updates the API's local database with member data and ranks retrieved from the Blizzard API.
-
-Returns an array of updated member objects, sorted by guild rank.
-
----
-
-### GET `/LDB/2v2`, `/LDB/3v3`, `/LDB/solo`, `/LDB/blitz`, `/LDB/BG`
-
-Returns an array of objects sorted by rating for the requested bracket.
-
-#### Each object contains:
-- name
-- realm
-- server
-- race
-- class
-- active player spec
-- rating (for the bracket)
-- achievements (for the bracket)
-- character media
-
----
-
-### GET `/checkCharacter/:server/:realm/:name`
-
-#### Dynamic params:
-- `server`: Player's server name
-- `realm`: Realm slug in kebab-case (e.g. `burning-blade`)
-- `name`: Player's name
-
-#### Response:
-
-**200 OK**
-```json
-{
-  "_id": "string",
-  "blizID": number,
-  "name": "string",
-  "realm": { ... },
-  "level": number,
-  "faction": "string",
-  "class": { ... },
-  "activeSpec": { ... },
-  "rating": { ... },
-  "achieves": { ... },
-  "media": { ... },
-  "checkedCount": number,
-  "server": "string",
-  "gear": { ... },
-  "lastLogin": number,
-  "equipmentStats": { ... },
-  "likes": [],
-  "guildMember": true,
-  "guildInsight": { ... },
-  "posts": []
-}
-```
-
-**404 Not Found**
-```json
-{ "message": "No character with these credentials (bad parameters)" }
-```
-
-**500 Server Error**
-```json
-{ "message": "Error retrieving the data" }
-```
-
----
-
-### PATCH `/patchCharacter/:server/:realm/:name`
-
-#### Logic:
-Fetches and stores fresh data from the Blizzard API.
-
-Returns the same object as the `GET /checkCharacter/:server/:realm/:name` route.
-
----
-
-### PATCH `/patchPvPData/:server/:realm/:name`
-
-#### Logic:
-Fetches and stores fresh PvP data from the Blizzard API.
-
-Returns the full updated character object, same as `GET /checkCharacter`.
-
----
-
-## Authentication / Session Routes
-
-### 🔐 Privacy & Session Tracking Disclaimer
-
-This application tracks user sessions for authentication, security, and account protection purposes.
-
-The following information may be collected during login:
-- Browser type and version
-- Operating system platform
-- Language and timezone
-- Device memory and CPU information
-
-This data may be temporarily stored and used to:
-- Detect suspicious login attempts
-- Manage active sessions across devices
-- Improve security through browser fingerprinting
-
-**Note**: This data is not used for advertising and is never shared with third parties.
-
-By using this application, you agree to this usage for security and session management purposes.
-
----
-
-### 🔐 Encryption
-
-The application does not store passwords or tokens in AS IS format they are encrypted and not readable or reversable.
-
----
-
-### POST `/login`
-
-#### Expected JSON body:
-- `email`: String
-- `password`: String (plaintext)
-- `fingerprint`: Object (see example image below)
-
-![Fingerprint JSON object example](./README_ASSETS/fprint.png)
-
-#### Response:
-
-**200 OK**
-```json
-{
-    "_id": "string",
-    "email": "string",
-    "username": "string",
-    "isVerified": Boolean,
-    "role": "string",
-    "fingerprint": { ... }
-}
-```
-
-**400 - 409 bad credentials**
-
----
-
-### POST `/register`
-
-#### Expected JSON body:
-- `email`: String
-- `username`: String
-- `password`: String (plaintext)
-- `fingerprint`: Object (SAME AS `/login`)
-
-#### Logic:
-Attempt to make a new account
-
-#### Response:
-
-**200 OK**
-```json
-{
-    "_id": "string",
-    "email": "string",
-    "username": "string",
-    "isVerified": Boolean,
-    "role": "string",
-    "fingerprint": { ... }
-}
-```
-and a cookie with jwt for auth and session, sending verification e-mail on the provided one
-
-**400 - 409 bad credentials**
-
----
-
-### PATCH `/change/email`
-
-#### Expected JSON body:
-```json 
-{ "newEmail": "String" } 
-```
-
-#### Expected Signed by the back-end session cookie
-
-#### Logic:
-
-Attempts to change the user email
-
-#### Response:
-
-**201 Created**
-The same JSON as the login request + 
-```json
-{ "newEmail": "String" } 
-```
-
-and sends email with 6 digit code to the provided new email.
-
-**400 Not Valid Email**
-
-The provided new email's invalid
-
-**409 Conflict**
-
-The provided email already exists / being used
-
-**403 Forbiden**
-
-No access due to missing a signed or failing JWT
-
-**500 Internal Server Error**
-
-### PATCH `/change/password`
-
-#### Expected JSON body:
-```json
-{
-  "password": "String (the old password)",
-  "newPassword": "String (the new password)" 
-}
-```
-
-#### Expected Signed by the back-end session cookie
-
-#### Response
-
-**201 Created**
-
-The server successfully patched the old password with the new password
-
-**401 Bad Password**
-
-The provided current Passowrd is not passing the validation (incorect Password)
-
-**500 Internal Server error**
-
----
-
-### PATCH `/change/username`
-
-#### Expected JSON body:
-```json
-{
-  "newUsername": "String (the new username)" 
-}
-```
-
-#### Expected Signed by the back-end session cookie
-
-
-#### Response
-
-**201 Created**
-
-Successfull attempt to change the username
-
-Returning updated login Object in a JSON same as the `/login` route
-
-**403 Not Authorized**
-
-Failing the JWT validation and clears the cookie
-
-**400 New Username**
-
-The new username is the same as the old one
-
-**409 Conflict**
-
-The new username's already in use
-
-**500 Internal Server Error**
-
----
-
-### POST `/reset/password`
-
-#### Expected JSON body:
-
-```json
-{
-  "email": "String (the user's email)",
-  "fingerprint": "Object (check the image in the /login path)"
-}
-```
-
-#### Response
-
-**201 Created**
-
-Successfull attempt to rest the user's password next step is confirmation 
-1. GOTO the profile's email
-2. Click the link (contains link to the Front-End with JWT)
-
-```json
-
-{  "message" : "Email send at ${email}!"  }
-
-```
-
-**404 Not Found**
-
-The email does not exist in the database (no user registered with the provided email)
-
-**400 Already send**
-
-The email for the reset is already sent
-
-**500 Internal Server Error**
-
----
-
-### PATCH `/reset/password`
-    
-#### Logic
-    
-Attempts to store the new password and update it.
-
-#### Expected JSON body:
-
-```json
-  {
-    "JWT": "String (issued by the back-end JWT)",
-    "newPassword": "String (the new password)"
-  }
-```
-
-#### Response
-
-**201 Created**
-
-Successfull password update
-
-**403 Forbiden**
-
-JWT validation fails or bad JWT body 
-
-**500 Internal Server Error**
-
----
-
-### PATCH `/validate/token`
-
-#### Logic
-
-This route is for validationg e-mail vaidations with the 6-digit method
-
-#### Expected JSON body:
-
-```json
-  {
-    "token": "Number (6-digits from the email)",
-    "option": "String (`verify` for email verification after registration or `email` for email change)"
-  }
-```
-
-#### Case `verify`
-
-##### => Response
-
-**201 Created**
-
-A login JSON with object same as in the route `/login` and a session cookie. The user status is now verified.
-
-#### Case `email`
-
-##### => Response
-
-**201 Created**
-
-Successfull attempt on e-mail change returning a signed JWT cookie and a login object in a JSON same as in the route `/login`
-
-#### General Responses (same for both cases)
-
-**401 Bad Token**
-
-The issued token and the provided one differs
-
-**400 Bad option**
-
-The route's supported options are:
-
-1. `verifiy`
-2. `email` 
-
-**500 Internal Server Error**
-
----
-
-### GET `/verify/me`
-
-#### Logic
-
-Check if there's a valid signed session with a JWT issued by the back-end and returns a valid
-login object if all the checkup passes
-
----
-
-### GET `/logout`
-
-### Logic
-
-Delete any existing session cookie and return **Status 200**
+# PvP Scalpel Backend (DBMS)
+
+REST API and background services for the PvP Scalpel guild site. This service
+handles guild rosters, PvP ladders, character search, posts, authentication,
+weekly ladders, and CDN metadata. The API also serves the desktop ecosystem
+for `louncher` and the desktop helper app. Production API lives on branch
+`production`.
+
+## Stack
+- Node.js 20 + Express
+- MongoDB + Mongoose
+- Redis (cache and token storage)
+- Worker threads for background services
+- Resend for transactional email
+- Blizzard API integration
+
+## Project layout
+- `DBMS.js` - API entry point
+- `src/controllers` - REST route handlers
+- `src/Models` - Mongoose schemas
+- `src/caching` - Redis caches and Blizzard token cache
+- `src/services` - background jobs
+- `src/workers` - worker thread bootstrap
+- `src/helpers` - shared utilities
+
+## Quick start
+1. Install dependencies:
+   `npm install`
+2. Create a `.env` in the repo root (same level as `package.json`).
+3. Start MongoDB and Redis locally.
+4. Start the API:
+   `npm start`
+
+The worker thread starts automatically and warms caches in the background.
+
+## Environment variables
+
+Required:
+- `PORT` - API port.
+- `MONGODB_CONNECTION` - MongoDB connection string.
+- `JWT_SECRET` - signing secret for auth cookies.
+- `CLIENT_ID` - Blizzard API client id.
+- `CLIENT_SECRET` - Blizzard API client secret.
+- `RESEND_API_KEY` - Resend API key.
+- `IS_LOCAL` - `true` to use `REDIS_URL`, `false` to use `REDIS_PASSWORD` and `REDISPORT`.
+- `REDIS_URL` - local Redis URL (used when `IS_LOCAL=true`).
+- `REDIS_PASSWORD` - Redis password (used when `IS_LOCAL=false`).
+- `REDISPORT` - Redis port (used when `IS_LOCAL=false`).
+- `CDN_PRIVATE_DOMAIN` - internal CDN host for refreshes.
+- `CDN_PORT` - internal CDN port.
+- `JWT_CDN_PUBLIC` - token for CDN requests.
+
+Optional / legacy:
+- `TESTDEV`
+- `TUNNELNAME`
+- `REDIS_PUBLIC_URL`
+
+## Scripts
+- `npm start` - run the API (`DBMS.js`).
+- `npm run logWeekly` - log weekly ladder data.
+- `npm run patch` - run the guild patch service (legacy script)
+
+## Required headers and auth
+- All requests must include header `600: BasicPass`.
+- If the request `Origin` is `http://tauri.localhost`, also include header
+  `desktop` with the configured value in `src/middlewares/authMiddleweare.js`.
+- Auth uses a signed JWT cookie named `token`.
+- Login and registration require a `fingerprint` object.
+
+![Fingerprint example](README_ASSETS/fprint.png)
+
+## REST API
+All endpoints return JSON and expect JSON bodies where applicable.
+
+### Guild and roster
+- `GET /member/list` - guild roster sorted by rank.
+
+### PvP ladders
+- `GET /LDB/2v2`
+- `GET /LDB/3v3`
+- `GET /LDB/solo`
+- `GET /LDB/blitz`
+- `GET /LDB/BG`
+- `GET /LDB/topAll` - top entry for each bracket.
+
+### Character search and updates
+- `GET /searchCharacter?search=...` - search by character text.
+- `GET /checkCharacter/:server/:realm/:name` - cached character lookup.
+- `PATCH /patchCharacter/:server/:realm/:name` - refresh full character data.
+- `PATCH /patchPvPData/:server/:realm/:name` - refresh PvP rating data only.
+
+### Weekly ladder
+- `GET /weekly` - weekly ladder data for all brackets.
+- `GET /weekly/:bracket` - single bracket, valid values:
+  `2v2`, `3v3`, `shuffle`, `blitz`, `RBG`.
+
+### Posts
+- `POST /new/post`
+- `PATCH /edit/post`
+- `DELETE /delete/post`
+- `GET /get/posts`
+- `GET /get/user/posts`
+
+### User actions
+- `GET /like/:charID` - toggle like for a character.
+- `GET /favorite/:charID` - toggle favorite for a character.
+
+### Authentication and accounts
+- `POST /login`
+- `POST /register`
+- `PATCH /change/email`
+- `PATCH /change/password`
+- `PATCH /change/username`
+- `POST /reset/password` - start password reset.
+- `PATCH /reset/password` - confirm password reset.
+- `PATCH /validate/token` - verify email or email change.
+- `GET /verify/me` - current session info.
+- `GET /logout`
+
+### CDN
+- `GET /CDN/manifest` - current CDN manifest.
+- `GET /CDN/download/:key` - cached download URL for `addon`, `desktop`, or `launcher`.
+- `GET /CDN/download/refresh` - refresh all download URLs.
+- `GET /CDN/download/refresh?key=addon|desktop|launcher` - refresh one key.
+
+## Background services
+The worker thread (`src/workers/servicesWorker.js`) runs scheduled tasks:
+- Initial cache warmup.
+- Realm updates (about every 24.8 days).
+- Guild member refresh (hourly).
+- Achievement refresh (weekly).
+- Weekly ladder rollups are computed during guild updates.
+
+## License
+See `LICENSE.md`.
