@@ -1,4 +1,5 @@
 export const productionUrl = "https://api.pvpscalpel.com/";
+export const publicTestUrl = "https://pvp-scalpel-frontend-production.up.railway.app/";
 
 const allowedOrigins = [
     "https://pvpscalpel.com",
@@ -6,6 +7,7 @@ const allowedOrigins = [
     "https://app.pvpscalpel.com",
     "https://guid.pvpscalpel.com",
     productionUrl,
+    publicTestUrl,
     "http://localhost:5173",
     "http://tauri.localhost",
 ];
