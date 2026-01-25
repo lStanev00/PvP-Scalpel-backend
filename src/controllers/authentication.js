@@ -119,6 +119,7 @@ async function changePassowordPatch(req, res) {
 async function resetPasswordPost(req, res) {
     const email = (req.body.email).trim();
     const fingerprint = req.body.fingerprint;
+    console.info("Attempt to res pwd" + fingerprint)
     
     if(!email) return res.status(500).end();
     
