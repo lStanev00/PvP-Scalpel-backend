@@ -119,19 +119,26 @@ async function changePassowordPatch(req, res) {
 async function resetPasswordPost(req, res) {
     const email = (req.body.email).trim();
     const fingerprint = req.body.fingerprint;
-    console.info("Attempt to res pwd" + fingerprint)
+    console.info("[resetPasswordPost] attempt", { email, hasFingerprint: !!fingerprint });
     
     if(!email) return res.status(500).end();
     
     let user = undefined;
     
     try {
+        console.info("[resetPasswordPost] before findOne", { email });
         user = await User.findOne({ email: email }).lean();
+        console.info("[resetPasswordPost] after findOne", {
+            found: !!user,
+            hasVerifyTokens: !!user?.verifyTokens,
+            hasPasswordToken: !!user?.verifyTokens?.password
+        });
         if (!user){
             return res.status(404).end();
         } 
     
         if (user?.verifyTokens?.password) {
+            console.info("[resetPasswordPost] verifyTokens.password already exists", { email });
             return res.status(400).end();
         }
         
@@ -141,11 +148,18 @@ async function resetPasswordPost(req, res) {
         }
         
         const token = jwt.sign(payload, JWT_SECRET);
+        console.info("[resetPasswordPost] jwt created", { email, tokenLength: token?.length });
         
         mail.sendJWTAuth(user.email, token, `password`);
+        console.info("[resetPasswordPost] mail sent", { email });
+        console.info("[resetPasswordPost] before set verifyTokens.password", {
+            verifyTokens: user?.verifyTokens,
+            passwordToken: user?.verifyTokens?.password
+        });
         
         user.verifyTokens.password.fingerprint = fingerprint;
         user.verifyTokens.password.token = tokenHash;
+        console.info("[resetPasswordPost] after set verifyTokens.password", { verifyTokens: user?.verifyTokens });
         res.status(201).json({  message : `Email send at ${email}!`  });
         
         return await user.save();
