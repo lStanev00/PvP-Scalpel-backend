@@ -1,6 +1,6 @@
 {
   "name": "pvp-scalpel-backend",
-  "version": "1.0.200",
+  "version": "1.0.201",
   "description": "This API controls the database and sends requested data to the front-end.",
   "main": "DBMS.js",
   "type": "module",

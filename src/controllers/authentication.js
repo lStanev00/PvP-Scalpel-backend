@@ -130,7 +130,8 @@ async function resetPasswordPost(req, res) {
             return res.status(404).end();
         } 
     
-        if (user?.verifyTokens?.password) {
+        // Prevent spamming: block if a reset JWT is already recorded.
+        if (user?.verifyTokens?.password?.JWT) {
             return res.status(400).end();
         }
         
@@ -144,6 +145,7 @@ async function resetPasswordPost(req, res) {
         
         mail.sendJWTAuth(user.email, token, `password`);
 
+        // Ensure nested objects exist before assignment.
         if (!user.verifyTokens) user.verifyTokens = {};
         if (!user.verifyTokens.password) user.verifyTokens.password = {};
         
@@ -167,13 +169,34 @@ async function resetPasswordPatch(req, res) {
     const Validate = validateToken(JWT, JWT_SECRET);
 
     // if (!fingerprintsMatch(Validate.fingerprint, fingerprint)) return res.status(403).end();
-    if (!Validate) return res.status(403).end();
+    if (!Validate) {
+        // If token is invalid/expired, clear stored reset token only if it matches this JWT.
+        try {
+            const decoded = jwt.decode(JWT);
+            if (decoded?.email) {
+                const user = await User.findOne({ email: decoded.email });
+                if (user?.verifyTokens?.password?.JWT) {
+                    const matches = await bcrypt.compare(JWT, user.verifyTokens.password.JWT);
+                    if (matches) {
+                        user.verifyTokens.password = undefined;
+                        await user.save();
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn(error);
+        }
+        return res.status(403).end();
+    }
 
     try {
         const user = await User.findOne({ email: Validate.email})
         if (!user) return res.status(403).json();
 
         user.password = newPassword;
+        if (user.verifyTokens?.password) {
+            user.verifyTokens.password = undefined;
+        }
         await user.save();
 
         return res.status(201).end();
