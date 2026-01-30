@@ -33,4 +33,13 @@ app.use(`/`, router);
 app.listen(port, console.info(`REST's running at http://localhost:${port} or ${productionUrl}`));
 
 // start worker for services
-new Worker(new URL("./src/workers/servicesWorker.js", import.meta.url), { type: "module" });    
+const servicesWorker = new Worker(new URL("./src/workers/servicesWorker.js", import.meta.url), { type: "module" });
+servicesWorker.on("error", (error) => {
+    console.error("servicesWorker error:", error);
+    debugger
+});
+servicesWorker.on("exit", (code) => {
+    if (code !== 0) {
+        console.warn(`servicesWorker exited with code ${code}`);
+    }
+});
