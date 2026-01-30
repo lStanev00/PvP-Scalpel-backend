@@ -12,16 +12,15 @@ const GameSpecializationModel = new Schema({
     },
     role: {
         type: String,
-        enum: ["tank", "damage", "heal"],
+        enum: ["tank", "damage", "healer"],
         required: [true, "Role type is required: tank, damage, heal"],
     },
     relClass: {
         type: Number,
         ref: "GameClass",
-        required: true
-    }
+        required: true,
+    },
 });
-
 
 const GameSpecialization = model("GameSpecialization", GameSpecializationModel);
 export default GameSpecialization;

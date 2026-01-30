@@ -15,7 +15,7 @@ const GameClassModel = new Schema(
     {
         toJSON: { virtuals: true },
         toObject: { virtuals: true },
-    }
+    },
 );
 
 GameClassModel.virtual("specs", {
@@ -30,10 +30,8 @@ GameClassModel.pre(/^find/, function (next) {
     next();
 });
 
-
-GameClassModel.set("toObject", {  virtuals: true  });
-GameClassModel.set("toJSON", {  virtuals: true  });
-
+GameClassModel.set("toObject", { virtuals: true });
+GameClassModel.set("toJSON", { virtuals: true });
 
 const GameClass = model("GameClass", GameClassModel);
 export default GameClass;

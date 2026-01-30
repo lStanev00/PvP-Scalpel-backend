@@ -5,10 +5,12 @@ import { initialSetRealmIdsMap } from "./realms/realmCache.js";
 import { initialSetRegionIdsMap } from "./regions/regionCache.js";
 import { initialRealmSearchMap } from "./searchCache/realmSearchCach.js";
 import updateDBAchieves from "../services/updateAchieves.js";
+import updateGameClassAndSpecs from "../services/updateGameClassAndSpecs.js";
 
 export default async function initialCache() {
 
     try {
+        await updateGameClassAndSpecs();
         await updateDBAchieves(); 
         await initialSetRegionIdsMap()
         await initialSetRealmIdsMap();
