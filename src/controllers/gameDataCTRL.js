@@ -41,7 +41,7 @@ async function getGameSpecs(_, res) {
 async function getGameSpellsByIds(req, res) {
     const spellArray = Array.isArray(req.body) ? req.body : req.body?.ids;
     try {
-        const data = retriveValidSpells(spellArray)
+        const data = await retriveValidSpells(spellArray);
         return jsonResponse(res, 200, data);
     } catch (error) {
         console.warn(error);
