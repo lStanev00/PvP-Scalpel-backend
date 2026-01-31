@@ -38,7 +38,7 @@ export default async function retriveValidSpells(spellArray) {
         if (newData === null || !newData) {
             newEntry.name = null;
             const logPayload = { spellId: needsRetrivingID, data: newData };
-            console.info(`Spell fetch returned empty data\n${JSON.stringify(logPayload, null, 2)}`);
+            // console.info(`Spell fetch returned empty data\n${JSON.stringify(logPayload, null, 2)}`);
         } else if (newData.name) {
             newEntry.name = newData.name;
             newEntry.description = newData.description;
