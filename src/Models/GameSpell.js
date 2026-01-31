@@ -1,4 +1,5 @@
 import { model, Schema } from "mongoose";
+import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 
 const GameSpellModel = new Schema({
     _id: Number,
@@ -8,11 +9,11 @@ const GameSpellModel = new Schema({
     },
     description: {
         type: String,
-        default: undefined,
+        required: false,
     },
     media: {
         type: String,
-        default: undefined,
+        required: false,
     },
 }, { versionKey: false });
 
