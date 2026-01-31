@@ -9,20 +9,31 @@ export default async function retriveValidSpells(spellArray) {
         throw new TypeError("All ids must be strings or numbers");
     }
 
-    const spellArraySet = new Set(spellArray);
+    const normalizedIds = spellArray.map((id) => {
+        const asNumber = Number(id);
+        if (Number.isNaN(asNumber)) {
+            throw new TypeError(`Spell id must be numeric. Received: ${id}`);
+        }
+        return asNumber;
+    });
+    const spellArraySet = new Set(normalizedIds);
     const data = await GameSpell.find({ _id: { $in: Array.from(spellArraySet) } }).lean();
 
     const existingSet = data.reduce((acc, entry) => {
-        acc.add(String(entry._id));
+        acc.add(Number(entry._id));
         return acc;
     }, new Set());
 
     for (const existingId of existingSet) spellArraySet.delete(existingId);
 
     for (const needsRetrivingID of spellArraySet) {
-        const newData = await helpFetch.getSpellById(needsRetrivingID);
+        const normalizedId = Number(needsRetrivingID);
+        if (Number.isNaN(normalizedId)) {
+            throw new TypeError(`Spell id must be numeric. Received: ${needsRetrivingID}`);
+        }
+        const newData = await helpFetch.getSpellById(normalizedId);
 
-        const newEntry = { _id: needsRetrivingID };
+        const newEntry = { _id: normalizedId };
 
         if (newData === null || !newData) {
             newEntry.name = null;
@@ -34,10 +45,13 @@ export default async function retriveValidSpells(spellArray) {
             newEntry.media = newData.media;
         }
 
-        const newDBEntry = new GameSpell(newEntry);
-        await newDBEntry.save();
+        const saved = await GameSpell.findOneAndUpdate(
+            { _id: normalizedId },
+            { $setOnInsert: newEntry },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        ).lean();
 
-        data.push(newDBEntry.toObject());
+        if (saved) data.push(saved);
     }
 
     return data;

@@ -461,7 +461,7 @@ const helpFetch = {
             throw new TypeError("The id have to be type of string or number");
         }
 
-        const spellUrl = `https://eu.api.blizzard.com/data/wow/spell/${id}?namespace=static-us`;
+        const spellUrl = `https://eu.api.blizzard.com/data/wow/spell/${id}?namespace=static-eu`;
 
         try {
             const req = await this.fetchBlizzard(spellUrl);
