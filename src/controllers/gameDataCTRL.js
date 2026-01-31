@@ -2,6 +2,7 @@ import { Router } from "express";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import GameClass from "../Models/GameClass.js";
 import GameSpecialization from "../Models/GameSpecialization.js";
+import retriveValidSpells from "./route_logic/gameDataCTRL/retriveValidSpells.js";
 
 const gameDataCTRL = Router();
 
@@ -38,8 +39,9 @@ async function getGameSpecs(_, res) {
 }
 
 async function getGameSpellsByIds(req, res) {
-    const ids = Array.isArray(req.body) ? req.body : req.body?.ids;
+    const spellArray = Array.isArray(req.body) ? req.body : req.body?.ids;
     try {
+        const data = retriveValidSpells(spellArray)
         return jsonResponse(res, 200, data);
     } catch (error) {
         console.warn(error);

@@ -1,4 +1,4 @@
-import helpFetch from "../../../helpers/blizFetch-helpers/endpointFetchesBliz";
+import helpFetch from "../../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import GameSpell from "../../../Models/GameSpell.js";
 
 export default async function retriveValidSpells(spellArray) {
@@ -35,5 +35,9 @@ export default async function retriveValidSpells(spellArray) {
 
         const newDBEntry = new GameSpell(newEntry);
         await newDBEntry.save();
+
+        data.push(newDBEntry.toObject());
     }
+
+    return data
 }
