@@ -2,7 +2,6 @@ import { Router } from "express";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import GameClass from "../Models/GameClass.js";
 import GameSpecialization from "../Models/GameSpecialization.js";
-import GameSpell from "../Models/GameSpell.js";
 
 const gameDataCTRL = Router();
 
