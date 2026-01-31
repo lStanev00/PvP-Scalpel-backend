@@ -449,6 +449,39 @@ const helpFetch = {
         } catch (error) {
             return null
         }
+    },
+    /**
+     * Fetches a spell by id from the Blizzard API and returns a normalized object.
+     * @param {string|number} id - Spell id.
+     * @returns {Promise<{id:number,name:string,description?:string,media?:string}|null|undefined>}
+     * Null when not found or missing required fields; undefined on unexpected errors.
+     */
+    getSpellById: async function (id) {
+        if (typeof id !== "string" && typeof id !== "number") {
+            throw new TypeError("The id have to be type of string or number");
+        }
+
+        const spellUrl = `https://eu.api.blizzard.com/data/wow/spell/${id}?namespace=static-us`;
+
+        try {
+            const req = await this.fetchBlizzard(spellUrl);
+
+            if (req.code === 404 || !req.media || !req.name) return null;
+
+            const { id, name, description } = req;
+
+            const media = await this.getMedia(req, "media");
+
+            return {
+                id,
+                name,
+                description,
+                media
+            }
+        } catch (error) {
+            console.warn("Error ar getSpellById:");
+            console.error(error);
+        }
     }
 }
 
