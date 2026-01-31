@@ -4,7 +4,7 @@ const GameSpellModel = new Schema({
     _id: Number,
     name: {
         type: String,
-        required: [true, "Name is required"],
+        default: null,
     },
     description: {
         type: String,
