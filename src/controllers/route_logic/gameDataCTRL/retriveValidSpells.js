@@ -20,14 +20,15 @@ export default async function retriveValidSpells(spellArray) {
     for (const existingId of existingSet) spellArraySet.delete(existingId);
 
     for (const needsRetrivingID of spellArraySet) {
-        const newData = helpFetch.getSpellById(needsRetrivingID);
+        const newData = await helpFetch.getSpellById(needsRetrivingID);
 
-        const newEntry = {};
+        const newEntry = { _id: needsRetrivingID };
 
         if (newData === null || !newData) {
-            ((newEntry._id = needsRetrivingID), (newEntry.name = newData));
+            newEntry.name = null;
+            const logPayload = { spellId: needsRetrivingID, data: newData };
+            console.info(`Spell fetch returned empty data\n${JSON.stringify(logPayload, null, 2)}`);
         } else if (newData.name) {
-            newEntry._id = needsRetrivingID;
             newEntry.name = newData.name;
             newEntry.description = newData.description;
             newEntry.media = newData.media;
@@ -39,5 +40,5 @@ export default async function retriveValidSpells(spellArray) {
         data.push(newDBEntry.toObject());
     }
 
-    return data
+    return data;
 }
