@@ -75,6 +75,10 @@ All endpoints return JSON and expect JSON bodies where applicable.
 ### Guild and roster
 - `GET /member/list` - guild roster sorted by rank.
 
+### Game data
+- `GET /game/classes` - all game classes. Cached for 10 days.
+- `GET /game/specs` - all game specializations. Cached for 10 days.
+
 ### PvP ladders
 - `GET /LDB/2v2`
 - `GET /LDB/3v3`

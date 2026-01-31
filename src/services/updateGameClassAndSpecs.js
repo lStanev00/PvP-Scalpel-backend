@@ -46,7 +46,7 @@ export default async function updateGameClassAndSpecs() {
                 newClassEntry.save();
             }
         }
-        console.info("Amount of new classes added: " + updatedClasses.length);
+        if (updatedClasses.length !== 0) console.info("Amount of new classes added: " + updatedClasses.length);
         const knownSpecList = await GameSpecialization.find().lean();
         const remoteSpecMap = await getRemoteSpecs(remoteClassList?.classes);
 
@@ -93,7 +93,7 @@ export default async function updateGameClassAndSpecs() {
             await newEntry.save();
         }
 
-        console.info("Amount of new specs added: " + remoteSpecMap.size);
+        if (remoteSpecMap.size !== 0) console.info("Amount of new specs added: " + remoteSpecMap.size);
     } catch (error) {
         console.warn(error);
         debugger;
