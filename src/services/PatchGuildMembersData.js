@@ -28,7 +28,7 @@ export const guildRanks = {
     9: "Initiate",
 };
 
-async function findCharFromDatabase(server, realm, name) {
+export async function findCharFromDatabase(server, realm, name) {
     let character = undefined;
 
     try {

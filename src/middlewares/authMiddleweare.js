@@ -11,7 +11,10 @@ export async function authMiddleware(req, res, next) {
     const isDesktopOrigin = req.headers.origin === "http://tauri.localhost";
     if(isDesktopOrigin) {
         const desktopAuth = req.headers['desktop'] === 'EiDcafRc45$td4aedrgh4615DESKTOP';
-        if(!desktopAuth) return jsonResponse(res, 500);
+        if(!desktopAuth) {
+            console.warn(console.warn("Headers:" + req.headers['desktop']))
+            return jsonResponse(res, 500);
+        }
     }
     
     const JWT = req.cookies.token
