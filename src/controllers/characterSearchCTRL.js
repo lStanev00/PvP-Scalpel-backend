@@ -46,6 +46,7 @@ async function checkCharacterGet(req, res) {
             if (!exists || exists === null) {
                 response.code = 404
                 response.character = undefined
+                console.info(`entered the new edge case`)
             }
         } catch (error) {
             response.code = 500;
