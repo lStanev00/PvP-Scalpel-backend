@@ -6,6 +6,7 @@ import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter.js";
 // import buildCharacter from "../helpers/buildCharacter.js";
 import {  getCharacter } from "../caching/characters/charCache.js";
+import { searchCharFromMap } from "../caching/searchCache/charSearchCache.js";
 
 export const characterSearchCTRL = Router();
 
@@ -38,6 +39,21 @@ async function checkCharacterGet(req, res) {
         code: 0,
         character: null,
     }
+    
+    if (req.headers?.["FE-Ping"] === "front-end") {
+        try {
+            const exists = await searchCharFromMap(`${name}:${realm}:${server}`);
+            if (!exists || exists === null) {
+                response.code = 404
+                response.character = undefined
+            }
+        } catch (error) {
+            response.code = 500;
+        } finally {
+            return jsonResponse(res, response.code, response.character);
+        }
+    }
+
     try {
         const character = await getCharacter(server, realm, name);
 
