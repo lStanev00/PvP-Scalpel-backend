@@ -40,7 +40,7 @@ async function checkCharacterGet(req, res) {
         character: null,
     }
     
-    if (req.headers?.["FE-Ping"] === "front-end") {
+    if (req.headers?.["fe-ping"] === "front-end") {
                 console.info(`entered the new edge case`)
         try {
             const exists = await searchCharFromMap(`${name}:${realm}:${server}`);
