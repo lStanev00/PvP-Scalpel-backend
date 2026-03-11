@@ -41,13 +41,11 @@ async function checkCharacterGet(req, res) {
     }
     
     if (req.headers?.["fe-ping"] === "front-end") {
-                console.info(`entered the new edge case`)
         try {
             const exists = await searchCharFromMap(`${name}:${realm}:${server}`);
             if (!exists || exists === null) {
                 response.code = 404
-                response.character = undefined
-                console.info(`cahr went undefined`)
+                response.character = "show-generic"
 
             }
         } catch (error) {
