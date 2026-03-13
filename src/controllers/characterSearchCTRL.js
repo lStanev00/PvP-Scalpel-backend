@@ -7,6 +7,7 @@ import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter
 // import buildCharacter from "../helpers/buildCharacter.js";
 import {  getCharacter } from "../caching/characters/charCache.js";
 import { searchCharFromMap } from "../caching/searchCache/charSearchCache.js";
+import buildCharSearch from "../helpers/buildCharSearch.js";
 
 export const characterSearchCTRL = Router();
 
@@ -42,21 +43,21 @@ async function checkCharacterGet(req, res) {
     
     if (req.headers?.["fe-ping"] === "front-end") {
         try {
-            const exists = await searchCharFromMap(`${name}:${realm}:${server}`);
+            const exists = await searchCharFromMap(buildCharSearch(server, realm, name));
             if (!exists || exists === null) {
                 response.code = 404
                 response.character = "show-generic"
-
+                return jsonResponse(res, response.code, response.character);
             }
         } catch (error) {
             response.code = 500;
-        } finally {
             return jsonResponse(res, response.code, response.character);
-        }
+        } 
     }
 
     try {
         const character = await getCharacter(server, realm, name);
+
 
         if (character === 404) response.code = 404
             else if (character) response.code = 200
