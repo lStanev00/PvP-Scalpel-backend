@@ -31,7 +31,8 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             class: { name: data.character_class.name },
             race: data.race.name,
             activeSpec: { name: data.active_spec.name },
-            guildMember: false,
+            guildName : data?.guild?.name,
+            guildMember: data?.guild?.name == "PvP Scalpel" ? true : false,
         };
         const guard = await dataGuard(result, forceUpdate);
         if(guard === 304) {
@@ -41,13 +42,6 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             }
         }
 
-        if (data?.guild?.name == "PvP Scalpel") {
-            result.guildMember = true;
-
-        } else {
-            result.guildMember - false;
-        }
-        result.guildName = data?.guild?.name;
         // Fetch dependent data in parallel
         const [
             classMedia,
@@ -101,12 +95,13 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
         // const end = performance.now(); 
         // console.log(`Elapsed: ${end - start} ms`);
 
-        if(guard === 202) {
+
+        if(guard === 202 || guard === 409) {
             return {
-                code: 202,
+                code: guard,
                 data: result
             }
-        }
+        } 
         return result;
     } catch (error) {
         console.log(error)

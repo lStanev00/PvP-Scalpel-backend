@@ -22,8 +22,9 @@ import buildCharSearch from "../buildCharSearch.js";
  * @returns {Promise<Object|Number>}
  * - Returns the `data` object if valid and up to date.
  * - Returns `404` if the character isn’t found.
+ * - Returns `409` if the character search credentails are changed.
  * - Returns `304` if there’s no data change.
- * - Returns `202` if there’s partial change e.g name or race.
+ * - Returns `202` if there’s partial change e.g class or race.
  * - Return `200` if the data is ready to be refreshed.
  */
 export default async function dataGuard(data, forceUpdate) {
@@ -73,7 +74,7 @@ export default async function dataGuard(data, forceUpdate) {
         const newSearch = buildCharSearch(data.server, data.playerRealm.slug, data.name);
         const oldSearch = character.search;
 
-        if (newSearch !== oldSearch) {
+        if (newSearch !== oldSearch && newSearch !== undefined) {
             character.search = newSearch;
             CharSearchCacheEmiter.emit("purge", oldSearch, newSearch)
             // servicesWorker.postMessage({
@@ -82,6 +83,8 @@ export default async function dataGuard(data, forceUpdate) {
             // });
 
 
+            // TODO: jsdoc this return on top of the file
+            return 409;
         }
         return 202;
     }

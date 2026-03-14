@@ -110,9 +110,10 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 
     try {
         character = await queryCharacterByCredentials(server, realm, name);
-        if (!character) await Char.findOne({ search: search });
+        // if (!character) await Char.findOne({ search: search }); // >? not in variable
 
         if (character && (isOlderThanHour(character) || renewCache === true)) {
+            // renews the cache case if it was explicity set or is older then a hour
             const newData = await fetchData(
                 character.server,
                 character.playerRealm.slug,
@@ -123,10 +124,11 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {
                 character = await Char.findOne({ blizID: newData.data.blizID });
-                if (newData.code === 202) setter = newData?.data;
+                if (newData.code === 202 || newData.code === 409) setter = newData?.data;
             } else {
                 setter = newData;
             }
+            
             if (setter) {
                 for (const [key, value] of Object.entries(setter)) {
                     if (character?.[key] && value) character[key] = value;
@@ -175,7 +177,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
-            console.warn(error)
+            console.warn(search + "No posts")
         }
         try {
             if (character?.listAchievements?.length !== 0)
