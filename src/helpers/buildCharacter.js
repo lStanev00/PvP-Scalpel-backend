@@ -2,22 +2,27 @@ import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.j
 import Char from "../Models/Chars.js";
 import { guildRanks } from "../services/PatchGuildMembersData.js";
 import fetchData from "./blizFetch.js";
+import buildCharSearch from "./buildCharSearch.js";
 import delCache from "./redis/deletersRedis.js";
 import getCache from "./redis/getterRedis.js";
 import setCache from "./redis/setterRedis.js";
 import { delay } from "./startBGTask.js";
+const hashName = "buildingEntries";
 
 // If no mongo entry try updating the db with a new one and send it
+// in case that the character/player renamed we need a check if the blizard ID already exist
+// in the database and make a defencive if state to cover the edge case because we evaluate
+// to have a duplication key sicne blizID is indexed and unique as it has to be 
 export default async function buildCharacter(server, realm, name, memberRankNumber = undefined) {
-    const hashName = "buildingEntries";
     let character;
-    const key = `${server + realm + name}`;
+    // const key = `${server + realm + name}`;
+    const key = buildCharSearch(server, realm, name);
     const doesEntryAlreadyBuild = await getCache(key, hashName);
     if (doesEntryAlreadyBuild && doesEntryAlreadyBuild !== null) {
 
         while (true) {
 
-            await delay(300);
+            await delay(200);
             const exist = await getCache(key, hashName);
             if(!exist || exist === null) break;
             
@@ -36,9 +41,12 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
         return character
     }
 
-    await setCache(key, "true", hashName);
+    await setCache(key, true, hashName);
 
     character = await fetchData(server, realm, name);
+    if (character?.status === 409 && character?.data.) {
+
+    }
     if (character.data) character = character.data;
     if (character == false) {
         console.log("Character missing: ",server,realm,name);

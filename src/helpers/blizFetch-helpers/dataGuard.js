@@ -19,12 +19,13 @@ import buildCharSearch from "../buildCharSearch.js";
  * @param {Number} data.lastLogin - Blizzard’s last login timestamp.
  * @param {Boolean} forceUpdate - The new character data fetched from API or cache.
  *
- * @returns {Promise<Object|Number>}
- * - Returns the `data` object if valid and up to date.
- * - Returns `404` if the character isn’t found.
- * - Returns `304` if there’s no data change.
- * - Returns `202` if there’s partial change e.g name or race.
- * - Return `200` if the data is ready to be refreshed.
+ * @returns {Promise<200|202|304|400|404>}
+ * - Returns `400` if the input is invalid or missing `blizID`.
+ * - Returns `404` if the character is not found.
+ * - Returns `304` if there is no relevant data change and `lastLogin` is unchanged.
+ * - Returns `202` if character metadata was updated.
+ * - Returns `200` when no metadata was updated, but a refresh is still required
+ *   because `lastLogin` changed or `forceUpdate` is `true`.
  */
 export default async function dataGuard(data, forceUpdate) {
     // Basic input validation

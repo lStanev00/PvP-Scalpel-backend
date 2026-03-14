@@ -110,9 +110,10 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 
     try {
         character = await queryCharacterByCredentials(server, realm, name);
-        if (!character) await Char.findOne({ search: search });
+        // if (!character) await Char.findOne({ search: search }); // >? not in variable
 
         if (character && (isOlderThanHour(character) || renewCache === true)) {
+            // renews the cache case if it was explicity set or is older then a hour
             const newData = await fetchData(
                 character.server,
                 character.playerRealm.slug,
@@ -127,6 +128,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             } else {
                 setter = newData;
             }
+            
             if (setter) {
                 for (const [key, value] of Object.entries(setter)) {
                     if (character?.[key] && value) character[key] = value;
