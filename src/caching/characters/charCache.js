@@ -124,7 +124,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {
                 character = await Char.findOne({ blizID: newData.data.blizID });
-                if (newData.code === 202) setter = newData?.data;
+                if (newData.code === 202 || newData.code === 409) setter = newData?.data;
             } else {
                 setter = newData;
             }
@@ -177,7 +177,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
-            console.warn(error)
+            console.warn(search + "No posts")
         }
         try {
             if (character?.listAchievements?.length !== 0)

@@ -156,7 +156,7 @@ export async function updateGuildMembersData() {
                     let setter = undefined;
                     if (updatedData?.code && updatedData?.data?.blizID) {
                         character = await Char.findOne({ blizID: updatedData.data.blizID });
-                        if (updatedData.code === 202) setter = updatedData?.data;
+                        if (updatedData.code === 202 || updatedData.code === 409) setter = updatedData?.data;
                     } else {
                         if (updatedData.data) setter = updatedData.data;
                         else setter = updatedData;
