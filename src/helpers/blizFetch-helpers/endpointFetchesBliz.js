@@ -106,7 +106,7 @@ const helpFetch = {
                 const seasonIndex = data.season.id;
 
                 const seasonMatch = seasonIndex == currentSeasonIndex; 
-                // if(seasonIndex != currentSeasonIndex) return null;
+                // if(seasonIndex != currentSeasonIndex) return null; // this if block MUST be richer
                 const match = brackets[index].href.match(/pvp-bracket\/([^?]+)/);
                 const bracketName = match[1];
                 // const pastSeasonCheckURL = `https://${server}.api.blizzard.com/data/wow/pvp-season/${seasonID - 1}/pvp-leaderboard/${bracketName}?namespace=dynamic-${server}&locale=en_US`;
@@ -116,11 +116,11 @@ const helpFetch = {
                 const titlePromise = helpFetch.getPvPTitle(data.tier.key.href);
     
                 // const [lastSeasonLadder, title] = await Promise.all([lastSeasonLadderPromise, titlePromise]);
-                const title = await titlePromise;
+                const title = seasonMatch ? await titlePromise : undefined;
     
                 const curentBracketData = {
                     rating: seasonMatch ? data?.rating : 0,
-                    title: seasonMatch ? title : undefined,
+                    title: title,
                     seasonMatchStatistics: data.season_match_statistics,
                     weeklyMatchStatistics: data.weekly_match_statistics
                 };
