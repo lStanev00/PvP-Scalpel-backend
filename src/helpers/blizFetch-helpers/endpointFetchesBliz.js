@@ -120,7 +120,7 @@ const helpFetch = {
     
                 const curentBracketData = {
                     rating: seasonMatch ? data?.rating : 0,
-                    title: title,
+                    title: seasonMatch ? title : undefined,
                     seasonMatchStatistics: data.season_match_statistics,
                     weeklyMatchStatistics: data.weekly_match_statistics
                 };
