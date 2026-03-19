@@ -67,7 +67,7 @@ const helpFetch = {
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
             let brackets = (await this.fetchBlizzard(path)).brackets;
-            if (brackets == undefined) return {
+            if (brackets == undefined || brackets?.length === 0) return {
                 solo: {
                 },
                 solo_bg: {
@@ -105,7 +105,8 @@ const helpFetch = {
             const processBrackets = allBracketsData.map(async (data, index) => {
                 const seasonIndex = data.season.id;
 
-                if(seasonIndex != currentSeasonIndex) return null;
+                const seasonMatch = seasonIndex == currentSeasonIndex; 
+                // if(seasonIndex != currentSeasonIndex) return null;
                 const match = brackets[index].href.match(/pvp-bracket\/([^?]+)/);
                 const bracketName = match[1];
                 // const pastSeasonCheckURL = `https://${server}.api.blizzard.com/data/wow/pvp-season/${seasonID - 1}/pvp-leaderboard/${bracketName}?namespace=dynamic-${server}&locale=en_US`;
@@ -118,7 +119,7 @@ const helpFetch = {
                 const title = await titlePromise;
     
                 const curentBracketData = {
-                    rating: data?.rating,
+                    rating: seasonMatch ? data?.rating : 0,
                     title: title,
                     seasonMatchStatistics: data.season_match_statistics,
                     weeklyMatchStatistics: data.weekly_match_statistics
