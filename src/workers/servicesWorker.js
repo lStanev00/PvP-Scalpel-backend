@@ -1,20 +1,14 @@
-// version: 1.3.0
-import startServices from "../services/servicesMain.js"
+// version: 1.3.1
+import startServices from "../services/servicesMain.js";
 import { DBconnect } from "../helpers/mongoHelper.js";
 import connectRedis from "../helpers/redis/connectRedis.js";
 // import startRedisCharSubscriber from "../helpers/redis/charSubscriber.js";
 import { delay } from "../helpers/startBGTask.js";
-import { setupHeapDiagnostics } from "./heapDiagnostics.js";
 
-setupHeapDiagnostics("services-worker");
-
-await DBconnect(true);
-await connectRedis(true);
+await DBconnect();
+await connectRedis();
 // await startRedisCharSubscriber();
 
-(async () => {
+await delay(1500);
 
-    await delay(1500);
-    
-    await startServices();
-})()
+await startServices();

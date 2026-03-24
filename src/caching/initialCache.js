@@ -1,4 +1,4 @@
-import { delay } from "../helpers/startBGTask.js";
+// import { delay } from "../helpers/startBGTask.js";
 import { initialCharSearchMap } from "./searchCache/charSearchCache.js";
 import { initialSetSeasonalIdsMap } from "./achievements/achievesEmt.js";
 import { initialSetRealmIdsMap } from "./realms/realmCache.js";
@@ -18,12 +18,14 @@ export default async function initialCache() {
         await initialRealmSearchMap()
         await initialCharSearchMap();
 
-        await delay(1000);
-        console.info("[Cache] Initial cache finished.");
+        // await delay(1000);
 
     } catch (error) {
         console.warn(error);
-        console.info("[Cache] Initial cache failed.")
+        console.info("[Cache] Initial cache failed.");
+        return false;
     }
+
+    return true;
 
 }
