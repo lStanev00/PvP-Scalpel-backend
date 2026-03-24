@@ -2,11 +2,11 @@
   "name": "pvp-scalpel-backend",
   "version": "1.2.9",
   "description": "This API controls the database and sends requested data to the front-end.",
-  "main": "DBMS.js",
+  "main": "boot.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node DBMS.js",
+    "start": "node boot.js",
     "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js",
     "patch": "cd src/services && node Patch"
   },

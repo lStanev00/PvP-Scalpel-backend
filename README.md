@@ -1,4 +1,4 @@
-# PvP Scalpel Backend (DBMS)
+# PvP Scalpel Backend
 
 REST API and background services for the PvP Scalpel guild site. This service
 handles guild rosters, PvP ladders, character search, posts, authentication,
@@ -15,7 +15,7 @@ for `louncher` and the desktop helper app. Production API lives on branch
 - Blizzard API integration
 
 ## Project layout
-- `DBMS.js` - API entry point
+- `boot.js` - API entry point
 - `src/controllers` - REST route handlers
 - `src/Models` - Mongoose schemas
 - `src/caching` - Redis caches and Blizzard token cache
@@ -56,7 +56,7 @@ Optional / legacy:
 - `REDIS_PUBLIC_URL`
 
 ## Scripts
-- `npm start` - run the API (`DBMS.js`).
+- `npm start` - run the API (`boot.js`).
 - `npm run logWeekly` - log weekly ladder data.
 - `npm run patch` - run the guild patch service (legacy script)
 

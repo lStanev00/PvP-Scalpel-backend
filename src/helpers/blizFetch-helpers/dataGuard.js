@@ -1,7 +1,7 @@
 import { CharSearchCacheEmiter } from "../../caching/searchCache/charSearchCache.js";
 import Char from "../../Models/Chars.js";
 import buildCharSearch from "../buildCharSearch.js";
-// import { servicesWorker } from "../../../DBMS.js";
+// import { servicesWorker } from "../../../boot.js";
 
 /**
  * Validates and compares incoming character data with the stored one.
