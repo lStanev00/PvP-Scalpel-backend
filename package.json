@@ -7,6 +7,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node boot.js",
+    "startREST": "node ./src/REST.js",
+    "startWorker": "node ./src/workers/servicesWorker.js",
     "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js",
     "patch": "cd src/services && node Patch"
   },
