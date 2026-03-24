@@ -16,7 +16,7 @@ const hashName = "CharSearch";
             .lean();
         if (data.length === 0) return;
 
-        const THREADS = 3;
+        const THREADS = 6;
         let finished_count = 0;
         const chunkSize = Math.ceil(data.length / THREADS);
         console.info(
