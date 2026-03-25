@@ -5,9 +5,11 @@ import { getRegionIdsMap, setRegionIdsMap } from '../caching/regions/regionCache
 import Realm from '../Models/Realms.js';
 import { getRealmSearchMap, insertOneRealmSearchMap } from '../caching/searchCache/realmSearchCach.js';
 import convertLocale from '../helpers/localeConverter.js';
+import { DBconnect } from '../helpers/mongoHelper.js';
+import connectRedis from '../helpers/redis/connectRedis.js';
 
 
-export default async function updateDBRealms() {
+async function updateDBRealms() {
     
     let storedRegions = await getRegionIdsMap();
 
@@ -118,5 +120,10 @@ export default async function updateDBRealms() {
         
     }
     await setRealmIdsMap();
-
+    process.exit(0)
 }
+
+await DBconnect(true);
+await connectRedis(true);
+
+await updateDBRealms();
