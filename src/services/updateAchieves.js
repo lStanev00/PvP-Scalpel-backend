@@ -93,7 +93,9 @@ export default async function updateDBAchieves() {
         
     } catch (error) {
         console.warn(error)
-        
+        return false
     }
+
+    return true
 
 }
