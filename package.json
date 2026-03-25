@@ -1,14 +1,14 @@
 {
   "name": "pvp-scalpel-backend",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "This API controls the database and sends requested data to the front-end.",
   "main": "boot.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node boot.js",
-    "startREST": "node ./src/REST.js",
-    "startWorker": "node ./src/workers/servicesWorker.js",
+    "startREST": "node ./src/REST.js --trace-deprecation",
+    "startWorker": "node ./src/workers/servicesWorker.js --trace-deprecation",
     "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js",
     "patch": "cd src/services && node Patch"
   },
