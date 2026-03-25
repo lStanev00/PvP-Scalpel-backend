@@ -1,4 +1,3 @@
-import { workerData } from "worker_threads";
 import { exit } from 'node:process';
 import setCache from "../../../helpers/redis/setterRedis.js";
 import connectRedis, { redisCache } from "../../../helpers/redis/connectRedis.js";
@@ -18,8 +17,10 @@ async function loadCache(data) {
     }
 }
 
-const result = await loadCache(workerData);
-const exist = result ? 0 : 1;
+process.once("message", async (data) => {
+    const result = await loadCache(data);
+    const exist = result ? 0 : 1;
 
-await redisCache.quit();
-exit(exist);
+    await redisCache.quit();
+    exit(exist);
+});

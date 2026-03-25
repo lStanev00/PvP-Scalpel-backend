@@ -1,4 +1,4 @@
-import { Worker } from "node:worker_threads";
+import { fork } from "node:child_process";
 import { delay } from "../../../helpers/startBGTask.js";
 import CharSearchModel from "../../../Models/SearchCharacter.js";
 import Char from "../../../Models/Chars.js";
@@ -24,13 +24,11 @@ export default async function setDBChars() {
         );
 
         for (let i = 0; i < THREADS; i++) {
-            const chunk = data.slice(i * chunkSize, (i + 1) * chunkSize);
+            const chunk = data.splice(0, chunkSize);
             if (chunk.length === 0) continue;
 
-            const worker = new Worker(new URL("./setDBWorker.js", import.meta.url), {
-                workerData: chunk,
-                type: "module",
-            });
+            const worker = fork("src/caching/searchCache/helpers/setDBWorker.js");
+            worker.send(chunk);
 
             worker.on("message", (msg) => console.log(`Worker ${i}:`, msg));
             worker.on("error", (err) => console.error(`Worker ${i} error:`, err));
