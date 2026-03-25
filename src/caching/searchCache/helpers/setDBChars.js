@@ -1,5 +1,5 @@
-import { fork } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
+import { delay } from "../../../helpers/startBGTask.js";
 import CharSearchModel from "../../../Models/SearchCharacter.js";
 import Char from "../../../Models/Chars.js";
 import getCache from "../../../helpers/redis/getterRedis.js";
@@ -8,76 +8,46 @@ import { insertOneCharSearchMap } from "../charSearchCache.js";
 export default async function setDBChars() {
     const hashName = "CharSearch";
     try {
-        const THREADS = 6;
-        const CHUNK_SIZE = 250;
-        let workerIndex = 0;
-        let hasData = false;
-        let chunk = [];
-        const activeWorkers = new Set();
-        const childPath = fileURLToPath(new URL("./setDBWorker.js", import.meta.url));
-
-        const startWorker = (workerChunk, index) => {
-            const child = fork(childPath, {
-                stdio: ["ignore", "ignore", "ignore", "ipc"],
-            });
-
-            const workerPromise = new Promise((resolve, reject) => {
-                child.once("message", (msg) => console.log(`[charSearch Warmup] Worker ${index}:`, msg));
-                child.once("error", (err) => {
-                    console.error(`Worker ${index} error:`, err);
-                    reject(err);
-                });
-                child.once("exit", (code) => {
-                    if (code !== 0) {
-                        reject(new Error(`Worker ${index} exited with code ${code}`));
-                        return;
-                    }
-                    resolve();
-                });
-
-                child.send(workerChunk);
-            }).finally(() => {
-                activeWorkers.delete(workerPromise);
-            });
-
-            activeWorkers.add(workerPromise);
-            return workerPromise;
-        };
-
-        const cursor = CharSearchModel.find()
+        const data = await CharSearchModel.find()
             .populate({
                 path: "relChars",
                 select: "_id name playerRealm server class search",
             })
-            .lean()
-            .cursor();
+            .lean();
+        if (data.length === 0) return;
 
-        for await (const entry of cursor) {
-            hasData = true;
-            chunk.push(entry);
+        const THREADS = 6;
+        let finished_count = 0;
+        const chunkSize = Math.ceil(data.length / THREADS);
+        console.info(
+            `[SChar Cache] Total ${data.length} documents, splitting into ${THREADS} chunks...`
+        );
 
-            if (chunk.length < CHUNK_SIZE) continue;
+        for (let i = 0; i < THREADS; i++) {
+            const chunk = data.slice(i * chunkSize, (i + 1) * chunkSize);
+            if (chunk.length === 0) continue;
 
-            startWorker(chunk, workerIndex);
-            workerIndex += 1;
-            chunk = [];
+            const worker = new Worker(new URL("./setDBWorker.js", import.meta.url), {
+                workerData: chunk,
+                type: "module",
+            });
 
-            if (activeWorkers.size >= THREADS) {
-                await Promise.race(activeWorkers);
-            }
+            worker.on("message", (msg) => console.log(`Worker ${i}:`, msg));
+            worker.on("error", (err) => console.error(`Worker ${i} error:`, err));
+            worker.on("exit", (code) => {
+                // console.info(`[SChar Cache] Theread-${i} exited with code ${code}`);
+                finished_count += 1;
+                if (finished_count === THREADS) {
+                    // return true
+                }
+            });
         }
 
-        if (chunk.length > 0) {
-            startWorker(chunk, workerIndex);
+        while (finished_count < THREADS) {
+            await delay(200);
         }
 
-        if (!hasData) return;
-
-        while (activeWorkers.size > 0) {
-            await Promise.race(activeWorkers);
-        }
-
-        const chars = await Char.find({}, { _id: 1, search: 1 }).lean();
+        const chars = await Char.find().lean();
 
         try {
             for (const entry of chars) {
