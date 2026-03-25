@@ -3,6 +3,7 @@ import setCache from "../../../helpers/redis/setterRedis.js";
 import connectRedis, { redisCache } from "../../../helpers/redis/connectRedis.js";
 
 const hashName = "CharSearch";
+await connectRedis(true);
 
 async function loadCache(data) {
     try {
@@ -17,20 +18,9 @@ async function loadCache(data) {
 }
 
 process.once("message", async (data) => {
-    try {
-        await connectRedis(true);
-        const result = await loadCache(data);
-        const exist = result ? 0 : 1;
+    const result = await loadCache(data);
+    const exist = result ? 0 : 1;
 
-        if (typeof process.send === "function") {
-            process.send(result ? "done" : "failed");
-        }
-
-        await redisCache.quit();
-        exit(exist);
-    } catch (error) {
-        console.error(error);
-        await redisCache.quit().catch(() => null);
-        exit(1);
-    }
+    await redisCache.quit();
+    exit(exist);
 });

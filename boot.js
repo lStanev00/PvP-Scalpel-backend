@@ -8,7 +8,7 @@ import { corsOptions, productionUrl } from "./src/corsSetup.js";
 import sanitizer from "./src/middlewares/sanitizer.js";
 import compression from "compression";
 import connectRedis from "./src/helpers/redis/connectRedis.js";
-import { Worker } from "worker_threads";
+import { fork } from "node:child_process";
 import { delay } from "./src/helpers/startBGTask.js";
 
 const app = express();
@@ -33,7 +33,7 @@ app.use(`/`, router);
 app.listen(port, console.info(`REST's running at http://localhost:${port} or ${productionUrl}`));
 
 // start worker for services
-const servicesWorker = new Worker(new URL("./src/workers/servicesWorker.js", import.meta.url), { type: "module" });
+const servicesWorker = fork("src/workers/servicesWorker.js");
 servicesWorker.on("error", (error) => {
     console.error("servicesWorker error:", error);
     debugger
