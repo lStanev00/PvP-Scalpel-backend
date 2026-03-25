@@ -1,12 +1,25 @@
 import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
 import Char from "../Models/Chars.js";
-import { guildRanks } from "../services/PatchGuildMembersData.js";
 import fetchData from "./blizFetch.js";
 import buildCharSearch from "./buildCharSearch.js";
 import delCache from "./redis/deletersRedis.js";
 import getCache from "./redis/getterRedis.js";
 import setCache from "./redis/setterRedis.js";
 import { delay } from "./startBGTask.js";
+
+
+const guildRanks = {
+    0: "Warlord",
+    1: "Council",
+    2: "Vanguard",
+    3: "Envoy",
+    4: "Champion",
+    5: "Gladiator",
+    6: "Slayer",
+    7: "Striker",
+    8: "Alt/Twink",
+    9: "Initiate",
+};
 
 /**
  * Redis hash used as a lightweight lock registry for in-progress character builds.
