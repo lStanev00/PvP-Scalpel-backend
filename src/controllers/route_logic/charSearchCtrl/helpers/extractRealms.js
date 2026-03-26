@@ -33,7 +33,18 @@ export default async function extractRealmsBySearch (charSearch) {
         if(!match) return []; 
     }
     let serverMatch = undefined;
-    if(server !== "!undefined") serverMatch = (await searchRegionFromMapBySlug(server))[0];
+
+    if (server !== "!undefined") {
+        // serverMatch = (await searchRegionFromMapBySlug(server))[0];
+        const retrive = await searchRegionFromMapBySlug(server);
+        try {
+            serverMatch = retrive[0];
+        } catch (error) {
+            serverMatch = undefined;
+            console.warn(`extractRealms.js line 38-43 retive = ${retrive}\n server will evaluate to undefined`);
+            console.error(error)
+        }
+    } 
 
     // const realmSlugMatch = realmSearchMatches?.relRealms.filter(entry => entry.region == serverMatch);
     const realmSlugMatch = realmSearchMatches?.relRealms
