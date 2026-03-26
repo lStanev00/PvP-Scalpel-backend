@@ -18,6 +18,75 @@ export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
 const humanReadableName = "Characters Cache";
 
+/**
+ * @typedef {object} CharacterRealm
+ * @property {string} name
+ * @property {string} slug
+ */
+
+/**
+ * @typedef {object} CharacterClassInfo
+ * @property {string} name
+ * @property {string} media
+ */
+
+/**
+ * @typedef {object} CharacterActiveSpec
+ * @property {string} name
+ * @property {string} media
+ */
+
+/**
+ * @typedef {object} CharacterMedia
+ * @property {string} avatar
+ * @property {string} banner
+ * @property {string} charImg
+ */
+
+/**
+ * @typedef {object} CharacterTalents
+ * @property {string | null} talentsCode
+ * @property {string | null} talentsSpec
+ */
+
+/**
+ * @typedef {object} CharacterGuildInsight
+ * @property {string | undefined} rank
+ * @property {number | undefined} rankNumber
+ */
+
+/**
+ * @typedef {object} CharacterRecord
+ * @property {string} _id
+ * @property {number} blizID
+ * @property {string} name
+ * @property {CharacterRealm} playerRealm
+ * @property {boolean} guildMember
+ * @property {number} level
+ * @property {string} faction
+ * @property {string} race
+ * @property {CharacterClassInfo} class
+ * @property {CharacterActiveSpec} activeSpec
+ * @property {unknown} rating
+ * @property {unknown} achieves
+ * @property {CharacterMedia} media
+ * @property {number} checkedCount
+ * @property {string} server
+ * @property {unknown} gear
+ * @property {number | undefined} lastLogin
+ * @property {unknown} equipmentStats
+ * @property {unknown[]} likes
+ * @property {unknown[]} listAchievements
+ * @property {string | undefined} guildName
+ * @property {CharacterGuildInsight} guildInsight
+ * @property {CharacterTalents} talents
+ * @property {string} search
+ * @property {unknown[]} [posts]
+ * @property {unknown} [favorite]
+ * @property {Date | string | number} createdAt
+ * @property {Date | string | number} updatedAt
+ */
+
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
 CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
 CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
@@ -50,7 +119,26 @@ export async function cacheOneCharacter(charData) {
         await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1);
     }
 }
-
+/**
+ * Resolves a character by region/server, realm and character name.
+ *
+ * Expected inputs:
+ * - `server`: region or server slug used by the Blizzard API and local search keys, for example `eu` or `us`
+ * - `realm`: realm slug or realm name; non-English names may be normalized to a known slug before querying
+ * - `name`: character name used to build the cache/database lookup key
+ * - `incChecks`: when `true`, increments `checkedCount` for an existing character hit
+ * - `renewCache`: when `true`, bypasses the cached value and forces a refresh flow
+ *
+ * @param {string} server Region/server slug.
+ * @param {string} realm Realm slug or raw realm name.
+ * @param {string} name Character name.
+ * @param {boolean} [incChecks=true] Increment `checkedCount` on successful existing lookups.
+ * @param {boolean} [renewCache=false] Ignore current cache and refresh character data.
+ * @returns {Promise<CharacterRecord | 404 | null | undefined>}
+ * Returns a populated character record on success, `404` when the character or mapped realm
+ * cannot be resolved, `null` when caching helpers reject invalid input, or `undefined` if the
+ * request fails before a final value is produced.
+ */
 export async function getCharacter(server, realm, name, incChecks = true, renewCache = false) {
     let character;
 

@@ -1,16 +1,16 @@
-// version: 0.0.5
+// version: 0.1.0
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { DBconnect } from "./helpers/mongoHelper.js";
 import connectRedis from "./helpers/redis/connectRedis.js";
-import GameBrackets from "./Models/GameBrackets.js";
+import { wsMessage } from "./WS/helpers/wsResponseHelpers.js";
+import wsRouter from "./WS/wsRouter.js";
 
 dotenv.config();
 
 const port = process.env.WSPORT || 8080;
 await DBconnect();
 await connectRedis();
-
 
 const wss = new WebSocketServer({ port });
 
@@ -21,45 +21,9 @@ wss.on("listening", () => {
 wss.on("connection", (ws, req) => {
     console.log("client connected", req.socket.remoteAddress);
 
-    ws.send(
-        JSON.stringify({
-            type: "connected",
-            message: "welcome",
-        }),
-    );
+    wsMessage(ws, "connected", "welcome");
 
-    ws.on("message", (raw) => {
-        let msg;
-
-        try {
-            msg = JSON.parse(raw.toString());
-        } catch {
-            ws.send(
-                JSON.stringify({
-                    type: "error",
-                    message: "invalid json",
-                }),
-            );
-            return;
-        }
-
-        if (msg.type === "ping") {
-            ws.send(
-                JSON.stringify({
-                    type: "pong",
-                    at: Date.now(),
-                }),
-            );
-            return;
-        }
-
-        ws.send(
-            JSON.stringify({
-                type: "unknown",
-                receivedType: msg.type ?? null,
-            }),
-        );
-    });
+    ws.on("message", (raw) => wsRouter(ws, raw));
 
     ws.on("close", () => {
         console.log("client disconnected");
