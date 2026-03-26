@@ -1,4 +1,4 @@
-// version: 0.0.0
+// version: 0.0.1
 import { WebSocketServer } from "ws";
 import dotenv from 'dotenv'; dotenv.config({ path: '../.env' });
 
