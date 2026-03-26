@@ -9,6 +9,7 @@ dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
     getCharProfile: async function (server, realm , name) {
+        name = name.toLowerCase();
         const URI = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}?namespace=profile-${server}&locale=en_US`;
         try {
             const data = await this.fetchBlizzard(URI);
