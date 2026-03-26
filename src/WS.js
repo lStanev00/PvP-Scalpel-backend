@@ -1,4 +1,4 @@
-// version: 0.0.5
+// version: 0.1.0
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { DBconnect } from "./helpers/mongoHelper.js";
