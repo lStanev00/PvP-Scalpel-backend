@@ -1,9 +1,10 @@
-// version: 0.0.0
+// version: 0.0.1
 import { WebSocketServer } from "ws";
-import dotenv from 'dotenv'; dotenv.config({ path: '../.env' });
+import dotenv from "dotenv";
 
-const port = process.env.PORT || 8080;
+dotenv.config();
 
+const port = process.env.WSPORT || 8080;
 const wss = new WebSocketServer({ port });
 
 wss.on("listening", () => {
@@ -13,10 +14,12 @@ wss.on("listening", () => {
 wss.on("connection", (ws, req) => {
     console.log("client connected", req.socket.remoteAddress);
 
-    ws.send(JSON.stringify({
-        type: "connected",
-        message: "welcome",
-    }));
+    ws.send(
+        JSON.stringify({
+            type: "connected",
+            message: "welcome",
+        }),
+    );
 
     ws.on("message", (raw) => {
         let msg;
@@ -24,25 +27,31 @@ wss.on("connection", (ws, req) => {
         try {
             msg = JSON.parse(raw.toString());
         } catch {
-            ws.send(JSON.stringify({
-                type: "error",
-                message: "invalid json",
-            }));
+            ws.send(
+                JSON.stringify({
+                    type: "error",
+                    message: "invalid json",
+                }),
+            );
             return;
         }
 
         if (msg.type === "ping") {
-            ws.send(JSON.stringify({
-                type: "pong",
-                at: Date.now(),
-            }));
+            ws.send(
+                JSON.stringify({
+                    type: "pong",
+                    at: Date.now(),
+                }),
+            );
             return;
         }
 
-        ws.send(JSON.stringify({
-            type: "unknown",
-            receivedType: msg.type ?? null,
-        }));
+        ws.send(
+            JSON.stringify({
+                type: "unknown",
+                receivedType: msg.type ?? null,
+            }),
+        );
     });
 
     ws.on("close", () => {
