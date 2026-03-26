@@ -10,6 +10,7 @@
     "startREST": "node --trace-deprecation ./src/REST.js",
     "startWorker": "node --trace-deprecation ./src/workers/servicesWorker.js",
     "startWS": "node --trace-deprecation ./src/WS.js",
+    "devWS": "node --watch ./src/WS.js",
     "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js"
   },
   "repository": {
