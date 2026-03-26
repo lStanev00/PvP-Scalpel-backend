@@ -42,6 +42,7 @@ export default async function extractRealmsBySearch (charSearch) {
         } catch (error) {
             serverMatch = undefined;
             console.warn(`extractRealms.js line 38-43 retive = ${retrive}\n server will evaluate to undefined`);
+            console.error(error)
         }
     } 
 
