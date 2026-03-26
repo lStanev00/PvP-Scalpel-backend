@@ -115,4 +115,5 @@ export default async function queueCheckHandler(ws, msg) {
             console.warn(error);
         }
     }
+    ws.close(1000, "Done");
 }
