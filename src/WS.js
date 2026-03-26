@@ -1,10 +1,15 @@
-// version: 0.0.1
+// version: 0.0.2
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
+import { DBconnect } from "./helpers/mongoHelper.js";
+import connectRedis from "./helpers/redis/connectRedis.js";
 
 dotenv.config();
 
 const port = process.env.WSPORT || 8080;
+await DBconnect();
+await connectRedis();
+
 const wss = new WebSocketServer({ port });
 
 wss.on("listening", () => {
