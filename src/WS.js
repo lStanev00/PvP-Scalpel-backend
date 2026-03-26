@@ -3,7 +3,6 @@ import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { DBconnect } from "./helpers/mongoHelper.js";
 import connectRedis from "./helpers/redis/connectRedis.js";
-import GameBrackets from "./Models/GameBrackets.js";
 
 dotenv.config();
 
