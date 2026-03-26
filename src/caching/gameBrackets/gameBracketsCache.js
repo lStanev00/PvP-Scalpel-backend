@@ -8,8 +8,10 @@ const ttlSeconds = 3600;
 const numericIdPattern = /^\d+$/;
 
 /**
- * @typedef {Object} GameBracketDoc
- * @property {number|string} _id
+ * Cached/read model shape for one game bracket entry.
+ *
+ * @typedef {object} GameBracketDoc
+ * @property {number} _id
  * @property {string} name
  * @property {boolean} isRated
  * @property {boolean} isSolo
@@ -84,10 +86,11 @@ async function fetchGameBracketsFromDB() {
 /**
  * Return the cached bracket list, rebuilding the single Redis list key on miss or bad payload.
  *
- * @returns {Promise<GameBracketDoc[]|undefined>}
+ * @returns {Promise<GameBracketDoc[]>}
  */
 export async function getGameBrackets() {
     try {
+        /** @type {unknown} */
         const cachedGameBrackets = await getCache(key);
 
         if (cachedGameBrackets === null) {
@@ -102,6 +105,7 @@ export async function getGameBrackets() {
         return await storeGameBrackets();
     } catch (error) {
         console.error(error);
+        return [];
     }
 }
 
@@ -111,29 +115,30 @@ export async function getGameBrackets() {
  * than keeping a second by-id cache in sync.
  *
  * @param {number|string} id
- * @returns {Promise<GameBracketDoc|null|undefined>}
+ * @returns {Promise<GameBracketDoc|null>}
  */
 export async function getGameBracketByID(id) {
     const normalizedId = normalizeGameBracketId(id);
 
     try {
+        /** @type {GameBracketDoc[]} */
         const gameBrackets = await getGameBrackets();
-        if (!Array.isArray(gameBrackets)) return null;
 
         for (const entry of gameBrackets) {
-            if (Number(entry._id) === normalizedId) return entry;
+            if (entry._id === normalizedId) return entry;
         }
 
         return null;
     } catch (error) {
         console.error(error);
+        return null;
     }
 }
 
 /**
  * Refresh the Redis list key from MongoDB and return the fresh ordered list.
  *
- * @returns {Promise<GameBracketDoc[]|undefined>}
+ * @returns {Promise<GameBracketDoc[]>}
  */
 export async function storeGameBrackets() {
     try {
@@ -142,5 +147,6 @@ export async function storeGameBrackets() {
         return gameBrackets;
     } catch (error) {
         console.error(error);
+        return [];
     }
 }
