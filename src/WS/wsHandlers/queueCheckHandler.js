@@ -1,8 +1,8 @@
 import { getCharacter } from "../../caching/characters/charCache.js";
 import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
 import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
-import helpFetch from "../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import { wsResponse } from "../helpers/wsResponseHelpers.js";
+// import helpFetch from "../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 
 /**
  * Preserve the current partial queueCheck flow without inventing new behavior.
@@ -21,6 +21,7 @@ export default async function queueCheckHandler(ws, msg) {
     }
     const bracketObj = await getGameBracketByID(data.shift());
     wsResponse(ws, "bracketObj", bracketObj);
+    wsResponse(ws, "playerIDs", data);
 
     // 2
     // |Slothx:ravencrest:eu(251)
