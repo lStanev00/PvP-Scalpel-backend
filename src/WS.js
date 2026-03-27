@@ -1,4 +1,4 @@
-// version: 0.1.3
+// version: 0.1.4
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { DBconnect } from "./helpers/mongoHelper.js";
@@ -20,7 +20,7 @@ wss.on("listening", () => {
 });
 
 wss.on("connection", (ws, req) => {
-    console.log("[WS] client connected", getConnectionLogContext(req));
+    console.log("[WS] client connected", getConnectionLogContext(req).ip);
 
     wsMessage(ws, "connected", "welcome");
 
