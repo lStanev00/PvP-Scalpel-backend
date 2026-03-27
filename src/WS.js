@@ -1,7 +1,8 @@
-// version: 0.1.2
+// version: 0.1.3
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { DBconnect } from "./helpers/mongoHelper.js";
+import { getConnectionLogContext } from "./helpers/ipHelpers.js";
 import connectRedis from "./helpers/redis/connectRedis.js";
 import { wsMessage } from "./WS/helpers/wsResponseHelpers.js";
 import wsRouter from "./WS/wsRouter.js";
@@ -19,7 +20,7 @@ wss.on("listening", () => {
 });
 
 wss.on("connection", (ws, req) => {
-    console.log("client connected", req.socket.remoteAddress);
+    console.log("[WS] client connected", getConnectionLogContext(req));
 
     wsMessage(ws, "connected", "welcome");
 
