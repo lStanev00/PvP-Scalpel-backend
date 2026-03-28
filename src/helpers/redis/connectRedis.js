@@ -18,6 +18,8 @@ const socketOptions = {
 
 // main (DB 0) client
 export const redisCache = createClient({ url, socket: socketOptions });
+// add key notification events
+await redisCache.configSet("notify-keyspace-events", "KEA");
 
 // secondary (DB 1) client for characters
 export const redisCacheCharacters = createClient({ url, socket: socketOptions });
