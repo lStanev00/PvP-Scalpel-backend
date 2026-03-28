@@ -2,6 +2,54 @@ import { getRedisClient } from "./connectRedis.js";
 import checkKey from "./validateRedisKey.js";
 
 /**
+ * Normalize one or many Redis set values to lowercase strings.
+ *
+ * @param {string|string[]} values
+ * @returns {string[]}
+ */
+function normalizeSetValues(values) {
+    const list = Array.isArray(values) ? values : [values];
+
+    if (list.length === 0) {
+        throw new TypeError("The values list cannot be empty!");
+    }
+
+    return list.map((value) => {
+        value = checkKey(value);
+
+        if (typeof value !== "string") {
+            throw new TypeError("The value must be a string!");
+        }
+
+        return value.toLowerCase();
+    });
+}
+
+/**
+ * Validate one or many Redis list values without altering their casing or order.
+ *
+ * @param {string|string[]} values
+ * @returns {string[]}
+ */
+function validateListValues(values) {
+    const list = Array.isArray(values) ? values : [values];
+
+    if (list.length === 0) {
+        throw new TypeError("The values list cannot be empty!");
+    }
+
+    return list.map((value) => {
+        value = checkKey(value);
+
+        if (typeof value !== "string") {
+            throw new TypeError("The value must be a string!");
+        }
+
+        return value;
+    });
+}
+
+/**
  * Uploads an entry to Redis (supports direct key or hash mode)
  * 
  * @param {string} key - Key name or hash field.
@@ -53,6 +101,72 @@ export default async function setCache(key, value, hash = "", ttl = -1, clientIn
         return success;
     } catch (error) {
         console.error(`[Redis Error] Failed to set key "${key}" →`, error);
+        return null;
+    }
+}
+
+/**
+ * Add one or many lowercase string values to a Redis set key.
+ *
+ * @param {string} key
+ * @param {string|string[]} values
+ * @param {number} [ttl=-1]
+ * @param {number} [clientIndex=0]
+ * @returns {Promise<number|null>}
+ */
+export async function addSetCache(key, values, ttl = -1, clientIndex = 0) {
+    if (typeof ttl !== "number") throw new TypeError("The ttl must be a number!");
+    if (ttl !== -1 && ttl < 1) throw new RangeError("TTL must be positive or -1 (no expiry)!");
+
+    const client = getRedisClient(clientIndex);
+
+    try {
+        key = checkKey(key);
+        if (typeof key !== "string") throw new TypeError("The key must be a string!");
+
+        const normalizedValues = normalizeSetValues(values);
+        const success = await client.sAdd(key, normalizedValues);
+
+        if (ttl !== -1) {
+            await client.expire(key, ttl);
+        }
+
+        return success;
+    } catch (error) {
+        console.error(`[Redis Error] Failed to add set values to "${key}" ->`, error);
+        return null;
+    }
+}
+
+/**
+ * Append one or many string values to the tail of a Redis list key.
+ *
+ * @param {string} key
+ * @param {string|string[]} values
+ * @param {number} [ttl=-1]
+ * @param {number} [clientIndex=0]
+ * @returns {Promise<number|null>}
+ */
+export async function pushListCache(key, values, ttl = -1, clientIndex = 0) {
+    if (typeof ttl !== "number") throw new TypeError("The ttl must be a number!");
+    if (ttl !== -1 && ttl < 1) throw new RangeError("TTL must be positive or -1 (no expiry)!");
+
+    const client = getRedisClient(clientIndex);
+
+    try {
+        key = checkKey(key);
+        if (typeof key !== "string") throw new TypeError("The key must be a string!");
+
+        const validatedValues = validateListValues(values);
+        const success = await client.rPush(key, validatedValues);
+
+        if (ttl !== -1) {
+            await client.expire(key, ttl);
+        }
+
+        return Number(success);
+    } catch (error) {
+        console.error(`[Redis Error] Failed to append list values to "${key}" ->`, error);
         return null;
     }
 }

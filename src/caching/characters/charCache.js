@@ -13,6 +13,7 @@ import { findRealmById } from "../realms/realmCache.js";
 import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
 import { getRegionIdsMap } from "../regions/regionCache.js";
 import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
+import { setCharQueueEntry } from "../charQueueCache/charQueueCache.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
@@ -119,6 +120,23 @@ export async function cacheOneCharacter(charData) {
         await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1);
     }
 }
+
+export async function retriveCharacter(params) {
+    const { server, realm, name, search } = params ?? {};
+
+    const nextSearch =
+        typeof search === "string" && search.split(":").length === 3
+            ? search
+            : buildCharSearch(server, realm, name);
+
+    if (!nextSearch) {
+        CharCacheEmitter.emit("error", `retriveCharacter invoked with bad params: ${JSON.stringify(params)}`);
+        return null;
+    }
+
+    return await setCharQueueEntry(nextSearch);
+}
+
 /**
  * Resolves a character by region/server, realm and character name.
  *
@@ -158,9 +176,11 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             // const searchRealmExist = await findRealmSearchById(realm.toLowerCase())?.relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
             const searchRealmExist = await findRealmSearchById(realm.toLowerCase());
             if (searchRealmExist !== null && searchRealmExist && searchRealmExist.relRealms) {
-                const realmName = searchRealmExist.relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
+                const realmName =
+                    searchRealmExist.relRealms.find((entry) => entry.region === serverId)?.slug ||
+                    undefined;
                 if (realmName && typeof realmName === "string") realm = realmName;
-            } else console.info(`getCharacter: ${realm} is missing.`)
+            } else console.info(`getCharacter: ${realm} is missing.`);
         }
     }
     const search = buildCharSearch(server, realm, name);
@@ -207,7 +227,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 character.playerRealm.slug,
                 character.name,
                 character.checkedCount,
-                renewCache
+                renewCache,
             );
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {
@@ -216,7 +236,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             } else {
                 setter = newData;
             }
-            
+
             if (setter) {
                 for (const [key, value] of Object.entries(setter)) {
                     if (character?.[key] && value) character[key] = value;
@@ -225,7 +245,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 character = await Char.findByIdAndUpdate(
                     character._id,
                     { $set: character },
-                    { new: true }
+                    { new: true },
                 );
             }
         } else if (character) {
@@ -236,7 +256,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                     server: server,
                 },
                 { $inc: { checkedCount: incChecks ? 1 : 0 } },
-                { new: true, upsert: false, timestamps: false }
+                { new: true, upsert: false, timestamps: false },
             );
         }
         if (!character) {
@@ -250,7 +270,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                     },
                     hashName,
                     3600,
-                    1
+                    1,
                 );
                 return 404;
             }
@@ -265,25 +285,26 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
-            console.warn(search + "No posts")
+            console.warn(search + "No posts");
         }
         try {
             if (character?.listAchievements?.length !== 0)
                 await character.populate("listAchievements");
         } catch (error) {
-            if(typeof character.listAchievements === "object") {
+            if (typeof character.listAchievements === "object") {
                 const shadowAches = [];
                 for (const achId of character.listAchievements) {
                     const ach = await getOneAchFromAchCache(achId).catch(() => null);
-                    if(ach !== null) shadowAches.push(ach)
-                        else console.info(achId);
+                    if (ach !== null) shadowAches.push(ach);
+                    else console.info(achId);
                 }
-                if(shadowAches.length !== 0) character.listAchievements = shadowAches;
+                if (shadowAches.length !== 0) character.listAchievements = shadowAches;
             } else {
                 console.warn(error);
                 console.warn(character?.listAchievements);
-                if(character.name) console.info("Errored for this character name:" + character.name);
-                    else console.info("The entry had no name aswell");                
+                if (character.name)
+                    console.info("Errored for this character name:" + character.name);
+                else console.info("The entry had no name aswell");
             }
         }
         await cacheOneCharacter(character);
@@ -300,7 +321,7 @@ async function getCharFromCacheBySearch(search) {
         if (!search) {
             CharCacheEmitter.emit(
                 "error",
-                `getCharFromCacheBySearch has been invoked with bad params\n the function will now exit.`
+                `getCharFromCacheBySearch has been invoked with bad params\n the function will now exit.`,
             );
             return null;
         }
