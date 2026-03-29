@@ -13,7 +13,7 @@ import { findRealmById } from "../realms/realmCache.js";
 import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
 import { getRegionIdsMap } from "../regions/regionCache.js";
 import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
-import { setCharQueueEntry } from "../charQueueCache/charQueueCache.js";
+import { enqueueJobQueueEntry } from "../charQueueCache/charQueueCache.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
@@ -134,7 +134,7 @@ export async function retriveCharacter(params) {
         return null;
     }
 
-    return await setCharQueueEntry(nextSearch);
+    return await enqueueJobQueueEntry(nextSearch);
 }
 
 /**
