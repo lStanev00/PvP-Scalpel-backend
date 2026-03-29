@@ -18,6 +18,21 @@ function validateSetValue(value) {
     return value;
 }
 
+/**
+ * Parse one stored Redis list entry back into its original JSON value.
+ *
+ * @param {string} value
+ * @returns {any}
+ */
+function parseListValue(value) {
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        console.error(error);
+        return value;
+    }
+}
+
 export default async function getCache(key, hash = "", clientIndex = 0) {
     if (typeof hash !== "string") throw new TypeError("The hash have to be a string!");
 
@@ -137,13 +152,13 @@ export async function setCardCache(key, clientIndex = 0) {
 }
 
 /**
- * Read ordered string values from a Redis list key.
+ * Read ordered values from a Redis list key and parse their stored JSON payloads.
  *
  * @param {string} key
  * @param {number} [start=0]
  * @param {number} [end=-1]
  * @param {number} [clientIndex=0]
- * @returns {Promise<string[]>}
+ * @returns {Promise<any[]>}
  */
 export async function listValuesCache(key, start = 0, end = -1, clientIndex = 0) {
     const client = getRedisClient(clientIndex);
@@ -155,7 +170,7 @@ export async function listValuesCache(key, start = 0, end = -1, clientIndex = 0)
     }
 
     const result = await client.lRange(key, start, end);
-    return Array.isArray(result) ? result : [];
+    return Array.isArray(result) ? result.map(parseListValue) : [];
 }
 
 /**

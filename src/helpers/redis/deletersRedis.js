@@ -26,12 +26,12 @@ function normalizeSetValues(values) {
 }
 
 /**
- * Validate one or many Redis list values without altering their casing.
+ * Serialize one or many Redis list values for exact removal matching.
  *
- * @param {string|string[]} values
+ * @param {unknown|unknown[]} values
  * @returns {string[]}
  */
-function validateListValues(values) {
+function serializeListValues(values) {
     const list = Array.isArray(values) ? values : [values];
 
     if (list.length === 0) {
@@ -39,14 +39,33 @@ function validateListValues(values) {
     }
 
     return list.map((value) => {
-        value = checkKey(value);
-
-        if (typeof value !== "string") {
-            throw new TypeError("The value must be a string!");
+        if (value === undefined) {
+            throw new TypeError("Invalid value: undefined");
         }
 
-        return value;
+        const serializedValue = JSON.stringify(value);
+
+        if (typeof serializedValue !== "string") {
+            throw new TypeError("The value must be JSON serializable!");
+        }
+
+        return serializedValue;
     });
+}
+
+/**
+ * Parse one stored Redis list entry back into its original JSON value.
+ *
+ * @param {string} value
+ * @returns {any}
+ */
+function parseListValue(value) {
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        console.error(error);
+        return value;
+    }
 }
 
 /**
@@ -115,10 +134,10 @@ export async function removeSetCache(key, values, clientIndex = 0) {
 }
 
 /**
- * Remove one or many string values from a Redis list key.
+ * Remove one or many serialized values from a Redis list key.
  *
  * @param {string} key
- * @param {string|string[]} values
+ * @param {unknown|unknown[]} values
  * @param {number} [count=0]
  * @param {number} [clientIndex=0]
  * @returns {Promise<number|null>}
@@ -131,7 +150,7 @@ export async function removeListCache(key, values, count = 0, clientIndex = 0) {
         if (typeof key !== "string") throw new TypeError("The key must be a string!");
         if (typeof count !== "number") throw new TypeError("The count must be a number!");
 
-        const validatedValues = [...new Set(validateListValues(values))];
+        const validatedValues = [...new Set(serializeListValues(values))];
         let deletedCount = 0;
 
         for (const value of validatedValues) {
@@ -146,7 +165,7 @@ export async function removeListCache(key, values, count = 0, clientIndex = 0) {
 }
 
 /**
- * Remove and return the first value from a Redis list key.
+ * Remove and return the first parsed value from a Redis list key.
  *
  * @param {string} key
  * @param {number} [clientIndex=0]
@@ -159,7 +178,8 @@ export async function shiftListCache(key, clientIndex = 0) {
         key = checkKey(key);
         if (typeof key !== "string") throw new TypeError("The key must be a string!");
 
-        return await client.lPop(key);
+        const value = await client.lPop(key);
+        return value === null ? null : parseListValue(value);
     } catch (error) {
         console.error(`[Redis Error] Failed to shift list value from "${key}":`, error);
         return null;
@@ -167,7 +187,7 @@ export async function shiftListCache(key, clientIndex = 0) {
 }
 
 /**
- * Remove and return the last value from a Redis list key.
+ * Remove and return the last parsed value from a Redis list key.
  *
  * @param {string} key
  * @param {number} [clientIndex=0]
@@ -180,7 +200,8 @@ export async function popListCache(key, clientIndex = 0) {
         key = checkKey(key);
         if (typeof key !== "string") throw new TypeError("The key must be a string!");
 
-        return await client.rPop(key);
+        const value = await client.rPop(key);
+        return value === null ? null : parseListValue(value);
     } catch (error) {
         console.error(`[Redis Error] Failed to pop list value from "${key}":`, error);
         return null;

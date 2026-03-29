@@ -26,12 +26,12 @@ function normalizeSetValues(values) {
 }
 
 /**
- * Validate one or many Redis list values without altering their casing or order.
+ * Serialize one or many Redis list values while preserving input order.
  *
- * @param {string|string[]} values
+ * @param {unknown|unknown[]} values
  * @returns {string[]}
  */
-function validateListValues(values) {
+function serializeListValues(values) {
     const list = Array.isArray(values) ? values : [values];
 
     if (list.length === 0) {
@@ -39,13 +39,17 @@ function validateListValues(values) {
     }
 
     return list.map((value) => {
-        value = checkKey(value);
-
-        if (typeof value !== "string") {
-            throw new TypeError("The value must be a string!");
+        if (value === undefined) {
+            throw new TypeError("Invalid value: undefined");
         }
 
-        return value;
+        const serializedValue = JSON.stringify(value);
+
+        if (typeof serializedValue !== "string") {
+            throw new TypeError("The value must be JSON serializable!");
+        }
+
+        return serializedValue;
     });
 }
 
@@ -139,10 +143,10 @@ export async function addSetCache(key, values, ttl = -1, clientIndex = 0) {
 }
 
 /**
- * Append one or many string values to the tail of a Redis list key.
+ * Append one or many serializable values to the tail of a Redis list key.
  *
  * @param {string} key
- * @param {string|string[]} values
+ * @param {unknown|unknown[]} values
  * @param {number} [ttl=-1]
  * @param {number} [clientIndex=0]
  * @returns {Promise<number|null>}
@@ -157,8 +161,8 @@ export async function pushListCache(key, values, ttl = -1, clientIndex = 0) {
         key = checkKey(key);
         if (typeof key !== "string") throw new TypeError("The key must be a string!");
 
-        const validatedValues = validateListValues(values);
-        const success = await client.rPush(key, validatedValues);
+        const serializedValues = serializeListValues(values);
+        const success = await client.rPush(key, serializedValues);
 
         if (ttl !== -1) {
             await client.expire(key, ttl);
