@@ -18,6 +18,20 @@ function validateSetValue(value) {
     return value;
 }
 
+/**
+ * Read one cached entry from Redis and parse it when the stored value is JSON.
+ *
+ * When `hash` is provided, the function reads field `key` from that Redis hash.
+ * Otherwise it reads the direct Redis key. If the stored payload parses as an
+ * object and contains `_id` or `id`, those identifiers are converted through
+ * `formReadableID()` before the value is returned.
+ *
+ * @param {string} key Redis key name or hash field name.
+ * @param {string} [hash=""] Redis hash name. Leave empty to read a direct key.
+ * @param {number} [clientIndex=0] Redis client/database index selector.
+ * @returns {Promise<any | null>} Parsed cached value, raw string fallback, or
+ * `null` when the key is invalid or no value exists.
+ */
 export default async function getCache(key, hash = "", clientIndex = 0) {
     if (typeof hash !== "string") throw new TypeError("The hash have to be a string!");
 
