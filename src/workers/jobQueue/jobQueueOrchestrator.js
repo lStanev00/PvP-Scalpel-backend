@@ -42,9 +42,10 @@ await subClone.pSubscribe(`__keyspace@0__:${key}`, async (event, channel) => {
             } else if (type === "bulkRetrieveCharacter") {
                 if (!Array.isArray(data)) {
                     JQOLog.error("For bulkRetrieveCharacter job type the data has to be an array");
+                    continue;
                 }
                 if (data.length <= 2) {
-                    for (const jobData of data) QueueWorker2.retrieveCharacter(jobData);
+                    for (const jobData of data) await QueueWorker2.retrieveCharacter(jobData);
                     continue;
     
                 }
@@ -62,7 +63,6 @@ await subClone.pSubscribe(`__keyspace@0__:${key}`, async (event, channel) => {
 
     } finally {
         draining = false;
-
     }
 });
 
