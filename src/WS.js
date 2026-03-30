@@ -1,4 +1,4 @@
-// version: 0.1.5
+// version: 0.1.6
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { getConnectionLogContext } from "./helpers/ipHelpers.js";
