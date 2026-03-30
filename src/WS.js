@@ -1,4 +1,4 @@
-// version: 0.1.8
+// version: 0.1.9
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { getConnectionLogContext } from "./helpers/ipHelpers.js";
@@ -34,12 +34,22 @@ wss.on("listening", () => {
 
 wss.on("connection", (ws, req) => {
     ws.isAlive = true;
+    const connectionContext = getConnectionLogContext(req);
 
-    console.log("[WS] client connected", getConnectionLogContext(req).ip);
+    console.log("[WS] client connected", connectionContext.ip);
 
     wsMessage(ws, "connected", "welcome");
 
-    ws.on("message", (raw) => wsRouter(ws, raw));
+    ws.on("message", async (raw) => {
+        try {
+            await wsRouter(ws, raw);
+        } catch (err) {
+            console.error("[WS] message handler failed", {
+                ip: connectionContext.ip,
+                error: err,
+            });
+        }
+    });
     ws.on("pong", () => {
         ws.isAlive = true;
     });
