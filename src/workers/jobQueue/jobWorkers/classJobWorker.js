@@ -103,11 +103,11 @@ export default class QueueWorker {
      *
      * @returns {Promise<void>}
      */
-    async handleExit() {
+    async handleExit(shouldKill = true) {
         await setCache("isRunning", false, this.name);
         // await setCache("jobs", [], this.name);
 
-        this.processRef.kill("SIGKILL");
+        if (shouldKill) this.processRef.kill("SIGKILL");
         this.isRunning = false;
         this.processRef = undefined;
         this.listenerRef = undefined;
@@ -171,7 +171,7 @@ export default class QueueWorker {
                     }
                 }
             }),
-            exit: this.processRef.on("exit", async () => await this.handleExit()),
+            exit: this.processRef.on("exit", async () => await this.handleExit(false)),
         };
     }
 }
