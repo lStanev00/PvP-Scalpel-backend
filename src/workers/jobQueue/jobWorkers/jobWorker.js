@@ -60,6 +60,6 @@ process.on("message", async (jobInfo) => {
     } finally {
         isDraining = false;
         // await setWorkerRunning(false);
-        process.exit(0);
+        // process.exit(0);
     }
 });
