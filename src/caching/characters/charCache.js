@@ -20,7 +20,7 @@ import { findRealmById } from "../realms/realmCache.js";
 import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
 import { getRegionIdsMap } from "../regions/regionCache.js";
 import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
-import { enqueueJobQueueEntry } from "../charQueueCache/charQueueCache.js";
+import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
