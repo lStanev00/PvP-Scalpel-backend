@@ -19,7 +19,7 @@ export async function registerCharCacheEventListener(silent = false) {
     });
     started = true;
 
-    if (!silent) console.info(`[CharCacheEventListener] subed`);
+    // if (!silent) console.info(`[CharCacheEventListener] subed`);
 
     return subscriber;
 }

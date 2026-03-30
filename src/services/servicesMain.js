@@ -5,6 +5,8 @@ import workerUpdateRealm from "../workers/updateRealm/workerUpdateRealm.js";
 import { fork } from "node:child_process";
 
 export default async function startServices() {
+    fork("src/workers/jobQueue/jobQueueOrchestrator.js");
+    
     let warmupFinished = false;
 
     const cacheWormupTask = fork("src/workers/initialChace/workerInitialCache.js");
@@ -21,7 +23,6 @@ export default async function startServices() {
     workerPatchGuildMembersData()
     workerupdateDBAchieves();
 
-    fork("src/workers/jobQueue/jobQueueOrchestrator.js");
 
     console.info("[Cache] All workers started.");
 
