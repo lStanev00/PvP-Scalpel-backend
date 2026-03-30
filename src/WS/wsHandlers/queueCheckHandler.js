@@ -96,6 +96,7 @@ export default async function queueCheckHandler(ws, msg) {
                 incChecks: false,
             }
         }
+        console.log(JSON.stringify(entries));
         for (const [name, realm, serverAndIsSoloCheckNeeded] of entries.map((x) => x.split(":"))) {
             let server;
             let spec;
@@ -117,7 +118,7 @@ export default async function queueCheckHandler(ws, msg) {
 
             try {
                 const initSearch = [name, realm, serverAndIsSoloCheckNeeded].join(":");
-                const legitSearch = [name,realm,server].join(":");
+                const legitSearch = [name,realm, server].join(":");
                 jobBuild.data.push(buildEntryJob(legitSearch));
                 registerCharacterResultListener(legitSearch, initSearch, spec);
 
