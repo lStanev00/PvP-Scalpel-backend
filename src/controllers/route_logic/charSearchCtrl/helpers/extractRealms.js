@@ -36,12 +36,12 @@ export default async function extractRealmsBySearch (charSearch) {
 
     if (server !== "!undefined") {
         // serverMatch = (await searchRegionFromMapBySlug(server))[0];
-        const retrive = await searchRegionFromMapBySlug(server);
+        const retrieve = await searchRegionFromMapBySlug(server);
         try {
-            serverMatch = retrive[0];
+            serverMatch = retrieve[0];
         } catch (error) {
             serverMatch = undefined;
-            console.warn(`extractRealms.js line 38-43 retive = ${retrive}\n server will evaluate to undefined`);
+            console.warn(`extractRealms.js line 38-43 retrieve = ${retrieve}\n server will evaluate to undefined`);
             console.error(error)
         }
     } 

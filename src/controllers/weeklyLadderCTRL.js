@@ -27,7 +27,7 @@ async function getWeekly(req, res) {
 async function getAllWeekly(req, res) {
     try {
         const data = await getFullWeekly();
-        if(data === 404) return jsonResponse(res, 404, "Fail to retrive data");
+        if(data === 404) return jsonResponse(res, 404, "Fail to retrieve data");
 
         // res.set("Cache-Control", "public, max-age=1000");
         return jsonResponse(res, 200, data);

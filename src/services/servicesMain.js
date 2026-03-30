@@ -20,6 +20,9 @@ export default async function startServices() {
     workerUpdateRealm();
     workerPatchGuildMembersData()
     workerupdateDBAchieves();
+
+    fork("src/workers/jobQueue/jobQueueOrchestrator.js");
+
     console.info("[Cache] All workers started.");
 
 }
