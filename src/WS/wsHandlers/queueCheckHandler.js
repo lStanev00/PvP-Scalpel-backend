@@ -1,4 +1,4 @@
-import { CharCacheEmitter, getCharacter, retrieveCharacter } from "../../caching/characters/charCache.js";
+import { CharCacheEmitter } from "../../caching/characters/charCache.js";
 import { enqueueJobQueueEntry } from "../../caching/charQueueCache/jobQueueCache.js";
 import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
 import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
@@ -15,6 +15,14 @@ import { wsResponse } from "../helpers/wsResponseHelpers.js";
 export default async function queueCheckHandler(ws, msg) {
     const rawData = typeof msg?.data === "string" ? msg.data : "";
     const data = rawData.split("|");
+    const listenerCleanup = new Set();
+
+    const clearPendingListeners = () => {
+        for (const cleanup of listenerCleanup) cleanup();
+        listenerCleanup.clear();
+    };
+
+    ws.once("close", clearPendingListeners);
 
     if (data.length === 0 || rawData.length === 0) {
         wsResponse(ws, "error", { at: Date.now() });
@@ -33,6 +41,49 @@ export default async function queueCheckHandler(ws, msg) {
     // |Мотумбатор:свежевательдуш:eu(267)
     // |Lychezar:chamber-of-aspects:eu(73)
     // |Hetma:burning-legion:eu(1468)
+
+    function registerCharacterResultListener(search, initSearch, spec) {
+        const eventName = `retrieveCharacter:${search}`;
+        const onResult = (msg) => {
+            clearTimeout(timeoutId);
+            listenerCleanup.delete(cleanup);
+
+            const { character } = msg;
+
+            if (character === 404 || character === null || character === undefined || !character?._id) {
+                wsResponse(ws, "charData", {
+                    initSearch,
+                    data: undefined,
+                });
+                return;
+            }
+
+            wsResponse(ws, "charData", {
+                initSearch,
+                searchSpecRequested: spec ?? null,
+                data: {
+                    ...character,
+                },
+            });
+        };
+
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            CharCacheEmitter.off(eventName, onResult);
+        };
+
+        const timeoutId = setTimeout(() => {
+            cleanup();
+            listenerCleanup.delete(cleanup);
+            wsResponse(ws, "charData", {
+                initSearch,
+                data: undefined,
+            });
+        }, 30000);
+
+        CharCacheEmitter.once(eventName, onResult);
+        listenerCleanup.add(cleanup);
+    }
 
     async function processEntries(entries) {
         const jobBuild = {
@@ -66,38 +117,9 @@ export default async function queueCheckHandler(ws, msg) {
 
             try {
                 const initSearch = [name, realm, serverAndIsSoloCheckNeeded].join(":");
-                // const char = await getCharacter(server, realm, name);
                 const legitSearch = [name,realm,server].join(":");
                 jobBuild.data.push(buildEntryJob(legitSearch));
-                // retrieveCharacter({search : legitSearch});
-                CharCacheEmitter.on("retrieveCharacter", async (msg) => {
-                    const {search, character, status} = msg;
-                   if (search !== legitSearch) return;
-
-                   if (character === 404 || character === null || character === undefined) {
-                       wsResponse(ws, "charData", {
-                           initSearch,
-                           data: undefined,
-                       });
-                    //    continue;
-                   }
-   
-                   if (!character?._id) {
-                       wsResponse(ws, "charData", {
-                           initSearch,
-                           data: undefined,
-                       });
-                    //    continue;
-                   }
-   
-                   wsResponse(ws, "charData", {
-                       initSearch,
-                       searchSpecRequested: spec ?? null,
-                       data: {
-                           ...character,
-                       },
-                   });
-                })
+                registerCharacterResultListener(legitSearch, initSearch, spec);
 
 
                 // to be optimized this ise demo version atm
@@ -137,6 +159,6 @@ export default async function queueCheckHandler(ws, msg) {
         }
         await enqueueJobQueueEntry(jobBuild);
     }
-    processEntries(data)
+    await processEntries(data)
     // ws.close(1000, "Done");
 }

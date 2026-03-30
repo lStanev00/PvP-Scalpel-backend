@@ -1,12 +1,25 @@
 import { CharCacheEmitter } from "../../caching/characters/charCache.js";
 import { redisCache } from "./connectRedis.js";
 
+let subscriber = undefined;
+let started = false;
+
 export async function registerCharCacheEventListener(silent = false) {
-    const redisDubPub = redisCache.duplicate();
-    await redisDubPub.connect();
-    redisDubPub.subscribe("job:retrieveCharacter", async (data) => {
-        CharCacheEmitter.emit("retrieveCharacter", JSON.parse(data));
+    if (started) {
+        return subscriber;
+    }
+
+    subscriber = redisCache.duplicate();
+    await subscriber.connect();
+    await subscriber.subscribe("job:retrieveCharacter", async (data) => {
+        const payload = JSON.parse(data);
+        if (!payload?.search) return;
+
+        CharCacheEmitter.emit(`retrieveCharacter:${payload.search}`, payload);
     });
-    if (!silent) console.info(`redis sub connected`);
-    
+    started = true;
+
+    if (!silent) console.info(`[CharCacheEventListener] subed`);
+
+    return subscriber;
 }
