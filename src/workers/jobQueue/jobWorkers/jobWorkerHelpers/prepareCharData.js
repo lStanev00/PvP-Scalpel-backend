@@ -2,7 +2,7 @@ import { getCharacter } from "../../../../caching/characters/charCache.js";
 
 export default async function prepareCharData(data) {
     const { search, incChecks, incChechks, renewCache } = data ?? {};
-    console.info(data);
+    console.warn(data);
     const result = {
         search,
         character: null,
@@ -11,6 +11,7 @@ export default async function prepareCharData(data) {
 
     try {
         if (typeof search !== "string") {
+            console.warn(typeof search  +"\n"+ search)
             result.status = 400;
             return result;
         }
