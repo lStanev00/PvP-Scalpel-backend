@@ -23,13 +23,11 @@ const getWorkerJobs = async () => {
 const setWorkerJobs = async (jobs) => await setCache("jobs", jobs, workerName);
 
 process.on("message", async (jobInfo) => {
+    if (isDraining) return;
     const jobs = await getWorkerJobs();
     jobs.push(jobInfo);
     await setWorkerJobs(jobs);
 
-    if (isDraining) {
-        return;
-    }
 
     isDraining = true;
 
