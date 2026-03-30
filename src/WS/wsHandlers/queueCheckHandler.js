@@ -96,7 +96,6 @@ export default async function queueCheckHandler(ws, msg) {
                 incChecks: false,
             }
         }
-        console.log(JSON.stringify(entries));
         for (const [name, realm, serverAndIsSoloCheckNeeded] of entries.map((x) => x.split(":"))) {
             let server;
             let spec;
@@ -122,7 +121,15 @@ export default async function queueCheckHandler(ws, msg) {
                 jobBuild.data.push(buildEntryJob(legitSearch));
                 registerCharacterResultListener(legitSearch, initSearch, spec);
 
-
+            } catch (error) {
+                console.warn(error);
+            }
+        }
+        await enqueueJobQueueEntry(jobBuild);
+    }
+    await processEntries(data)
+    // ws.close(1000, "Done");
+}
                 // to be optimized this ise demo version atm
                 // const char = await helpFetch.getCharProfile(server, realm, name);
                 // if (!char || !char?.id) {
@@ -154,12 +161,3 @@ export default async function queueCheckHandler(ws, msg) {
                 //     guildName: char?.guild?.name,
                 //     guildMember: char?.guild?.name == "PvP Scalpel" ? true : false,
                 // };
-            } catch (error) {
-                console.warn(error);
-            }
-        }
-        await enqueueJobQueueEntry(jobBuild);
-    }
-    await processEntries(data)
-    // ws.close(1000, "Done");
-}
