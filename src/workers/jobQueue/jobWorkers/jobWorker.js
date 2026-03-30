@@ -21,20 +21,17 @@ const getWorkerJobs = async () => {
     return Array.isArray(jobs) ? jobs : [];
 };
 const setWorkerJobs = async (jobs) => await setCache("jobs", jobs, workerName);
-const isWorkerRunning = async () => (await getCache("isRunning", workerName)) === true;
-const setWorkerRunning = async (value) => await setCache("isRunning", Boolean(value), workerName);
 
 process.on("message", async (jobInfo) => {
     const jobs = await getWorkerJobs();
     jobs.push(jobInfo);
     await setWorkerJobs(jobs);
 
-    if (isDraining || (await isWorkerRunning())) {
+    if (isDraining) {
         return;
     }
 
     isDraining = true;
-    await setWorkerRunning(true);
 
     try {
         while (true) {
@@ -63,7 +60,7 @@ process.on("message", async (jobInfo) => {
         }
     } finally {
         isDraining = false;
-        await setWorkerRunning(false);
+        // await setWorkerRunning(false);
         process.exit(0);
     }
 });
