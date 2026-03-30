@@ -16,6 +16,7 @@ export async function registerCharCacheEventListener(silent = false) {
         if (!payload?.search) return;
 
         CharCacheEmitter.emit(`retrieveCharacter:${payload.search}`, payload);
+        console.log("bootlvl: " + JSON.stringify(payload))
     });
     started = true;
 

@@ -1,5 +1,5 @@
-// version: 0.1.7
-import { WebSocketServer } from "ws";
+// version: 0.1.8
+import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { getConnectionLogContext } from "./helpers/ipHelpers.js";
 import { wsMessage } from "./WS/helpers/wsResponseHelpers.js";
@@ -12,17 +12,37 @@ const port = process.env.WSPORT || 8080;
 await threadBoot()
 
 const wss = new WebSocketServer({ port });
+const heartbeatInterval = setInterval(() => {
+    for (const client of wss.clients) {
+        if (client.readyState !== WebSocket.OPEN) continue;
+
+        if (client.isAlive === false) {
+            client.terminate();
+            continue;
+        }
+
+        client.isAlive = false;
+        client.ping();
+    }
+}, 30000);
+
+heartbeatInterval.unref?.();
 
 wss.on("listening", () => {
     console.log(`WS running on ws://localhost:${port} or wss://ws.pvpscalpel.com`);
 });
 
 wss.on("connection", (ws, req) => {
+    ws.isAlive = true;
+
     console.log("[WS] client connected", getConnectionLogContext(req).ip);
 
     wsMessage(ws, "connected", "welcome");
 
     ws.on("message", (raw) => wsRouter(ws, raw));
+    ws.on("pong", () => {
+        ws.isAlive = true;
+    });
 
     ws.on("close", () => {
         console.log("client disconnected");
@@ -31,4 +51,8 @@ wss.on("connection", (ws, req) => {
     ws.on("error", (err) => {
         console.error("ws error", err);
     });
+});
+
+wss.on("close", () => {
+    clearInterval(heartbeatInterval);
 });

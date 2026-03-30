@@ -2,6 +2,7 @@ import { redisCache } from "../../../helpers/redis/connectRedis.js";
 import getCache from "../../../helpers/redis/getterRedis.js";
 import setCache from "../../../helpers/redis/setterRedis.js";
 import threadBoot from "../../../helpers/threadBoot.js";
+import JQOLog from "../JQOLoog.js";
 import prepareCharData from "./jobWorkerHelpers/prepareCharData.js";
 
 await threadBoot(true);
@@ -36,6 +37,7 @@ process.on("message", async (jobInfo) => {
             if (queuedJobs.length === 0) break;
 
             const [currentJobInfo, ...remainingJobs] = queuedJobs;
+            JQOLog.info(JSON.stringify(currentJobInfo));
             await setWorkerJobs(remainingJobs);
 
             const { type, data } = currentJobInfo ?? {};
