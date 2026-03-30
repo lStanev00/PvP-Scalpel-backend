@@ -1,17 +1,15 @@
 // version: 0.1.5
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
-import { DBconnect } from "./helpers/mongoHelper.js";
 import { getConnectionLogContext } from "./helpers/ipHelpers.js";
-import connectRedis from "./helpers/redis/connectRedis.js";
 import { wsMessage } from "./WS/helpers/wsResponseHelpers.js";
 import wsRouter from "./WS/wsRouter.js";
+import threadBoot from "./helpers/threadBoot.js";
 
 dotenv.config();
 
 const port = process.env.WSPORT || 8080;
-await DBconnect();
-await connectRedis();
+await threadBoot()
 
 const wss = new WebSocketServer({ port });
 

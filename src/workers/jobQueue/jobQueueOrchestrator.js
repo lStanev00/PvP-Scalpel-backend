@@ -1,66 +1,50 @@
-import { parentPort } from "node:worker_threads";
-import { DBconnect } from "../../helpers/mongoHelper.js";
-import connectRedis, { redisCache } from "../../helpers/redis/connectRedis.js";
-import getCache from "../../helpers/redis/getterRedis.js";
-import setCache from "../../helpers/redis/setterRedis.js";
+import { getJobQueueEntries, getJobQueueSize } from "../../caching/charQueueCache/jobQueueCache.js";
+import JQOLog from "./JQOLoog.js";
+import QueueWorker from "./jobWorkers/calssJobWorker.js";
+import threadBoot from "../../helpers/threadBoot.js";
+import { redisCache } from "../../helpers/redis/connectRedis.js";
 
-await DBconnect(true);
-await connectRedis(true);
+await threadBoot(true)
 
 const key = "JobQueue";
-export default function JQOLog(msg, type= undefined ) {
-    let printText = `[JQOrchestrator] ${msg ? msg : type}`;
 
-    if(!type) return console.info(printText);
+const QueueWorker1 = new QueueWorker("QueueWorker1");
+const QueueWorker2 = new QueueWorker("QueueWorker2");
 
-    switch(type) {
-
-        case "log": console.log(printText);
-
-        case "info": console.info(printText);
-
-        case "warn": console.warn(printText);
-        
-        case "error": console.error(printText);
-
-    }
-}
-
+let draining = false;
 const subClone = redisCache.duplicate();
-export const isQueueWorker1Up = async () => await getCache("worker1");
-export const isQueueWorker2Up = async () => await getCache("worker2");
-
-//todo as above make 2 seters this is 
-
-
+await subClone.connect();
 await subClone.pSubscribe(`__keyspace@0__:${key}`, async (event, channel) => {
-    if (!(event.includes("push"))) return
+    if (!event.includes("push") || draining) return;
+    draining = true;
 
-    if(await getCache(isQueueWorker1Up) !== true ) {
-        // boot
-        // await setCache(worker1, true);
-    }
+    //start the job queueing
+    while ((await getJobQueueSize()) !== 0) {
+        // run till queue is drained
+        //get curent job
+        const currentJobInfo = (await getJobQueueEntries()).shift();
+        const { type, data } = currentJobInfo;
 
-    // return send the work
+        if (type === "retrieveCharacter") {
+            return await QueueWorker1.retrieveCharacter(data);
+        } else if (type === "bulkRetrieveCharacter") {
+            if (!Array.isArray(data)) {
+                JQOLog.error("For bulkRetrieveCharacter job type the data has to be an array");
+            }
+            if (data.length <= 2)
+                data.forEach(async (jobData) => await QueueWorker1.retrieveCharacter(jobData));
 
-    if (job.type = "bulkCharSearch") {
-        if(await getCache(isQueueWorker2Up) !== true) {
-            // boot
-            // await setCache(worker1, true);
-
+            for (i = 0; i <= data.length; i++) {
+                const jobData = data[i];
+                if (i <= Math.floor(data.length / 2)) {
+                    await QueueWorker1.retrieveCharacter(jobData)
+                } else {
+                    await QueueWorker2.retrieveCharacter(jobData)
+                }
+            }
         }
-
     }
-    
-})
+});
 
-
-parentPort.on("message", async (jobInfo) => {
-
-    const { type, data } = jobInfo;
-
-})
-
-JQOLog("BOOTED", "info");
-
+JQOLog.info("BOOTED");
 // Hello buddy how're ya doing?

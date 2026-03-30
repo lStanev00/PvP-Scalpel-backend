@@ -1,3 +1,10 @@
+/** @typedef {import("./charCache.types").CharacterRealm} CharacterRealm */
+/** @typedef {import("./charCache.types").CharacterClassInfo} CharacterClassInfo */
+/** @typedef {import("./charCache.types").CharacterActiveSpec} CharacterActiveSpec */
+/** @typedef {import("./charCache.types").CharacterMedia} CharacterMedia */
+/** @typedef {import("./charCache.types").CharacterTalents} CharacterTalents */
+/** @typedef {import("./charCache.types").CharacterGuildInsight} CharacterGuildInsight */
+/** @typedef {import("./charCache.types").CharacterRecord} CharacterRecord */
 import { EventEmitter } from "node:events";
 import setCache from "../../helpers/redis/setterRedis.js";
 import convertSearch from "../../helpers/convertSearch.js";
@@ -19,75 +26,6 @@ export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
 const humanReadableName = "Characters Cache";
 
-/**
- * @typedef {object} CharacterRealm
- * @property {string} name
- * @property {string} slug
- */
-
-/**
- * @typedef {object} CharacterClassInfo
- * @property {string} name
- * @property {string} media
- */
-
-/**
- * @typedef {object} CharacterActiveSpec
- * @property {string} name
- * @property {string} media
- */
-
-/**
- * @typedef {object} CharacterMedia
- * @property {string} avatar
- * @property {string} banner
- * @property {string} charImg
- */
-
-/**
- * @typedef {object} CharacterTalents
- * @property {string | null} talentsCode
- * @property {string | null} talentsSpec
- */
-
-/**
- * @typedef {object} CharacterGuildInsight
- * @property {string | undefined} rank
- * @property {number | undefined} rankNumber
- */
-
-/**
- * @typedef {object} CharacterRecord
- * @property {string} _id
- * @property {number} blizID
- * @property {string} name
- * @property {CharacterRealm} playerRealm
- * @property {boolean} guildMember
- * @property {number} level
- * @property {string} faction
- * @property {string} race
- * @property {CharacterClassInfo} class
- * @property {CharacterActiveSpec} activeSpec
- * @property {unknown} rating
- * @property {unknown} achieves
- * @property {CharacterMedia} media
- * @property {number} checkedCount
- * @property {string} server
- * @property {unknown} gear
- * @property {number | undefined} lastLogin
- * @property {unknown} equipmentStats
- * @property {unknown[]} likes
- * @property {unknown[]} listAchievements
- * @property {string | undefined} guildName
- * @property {CharacterGuildInsight} guildInsight
- * @property {CharacterTalents} talents
- * @property {string} search
- * @property {unknown[]} [posts]
- * @property {unknown} [favorite]
- * @property {Date | string | number} createdAt
- * @property {Date | string | number} updatedAt
- */
-
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
 CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
 CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
@@ -102,6 +40,7 @@ CharCacheEmitter.on("updateRequest", async (search) => {
         console.warn(error);
     }
 });
+
 
 export async function cacheOneCharacter(charData) {
     let search = charData?.search;
@@ -121,7 +60,7 @@ export async function cacheOneCharacter(charData) {
     }
 }
 
-export async function retriveCharacter(params) {
+export async function retrieveCharacter(params) {
     const { server, realm, name, search } = params ?? {};
 
     const nextSearch =
@@ -130,11 +69,19 @@ export async function retriveCharacter(params) {
             : buildCharSearch(server, realm, name);
 
     if (!nextSearch) {
-        CharCacheEmitter.emit("error", `retriveCharacter invoked with bad params: ${JSON.stringify(params)}`);
+        CharCacheEmitter.emit(
+            "error",
+            `retrieveCharacter invoked with bad params: ${JSON.stringify(params)}`,
+        );
         return null;
     }
 
-    return await enqueueJobQueueEntry(nextSearch);
+    return await enqueueJobQueueEntry({
+        type: "retrieveCharacter",
+        data: {
+            search: nextSearch,
+        },
+    });
 }
 
 /**

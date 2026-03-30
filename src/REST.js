@@ -1,14 +1,13 @@
 import express from "express";
 import dotenv from 'dotenv'; dotenv.config({ path: '../.env' });
-import { DBconnect } from "./helpers/mongoHelper.js";
 import router from "./router.js";
 import cors from 'cors';
 import cookieParser from "cookie-parser";
 import { corsOptions, productionUrl } from "./corsSetup.js";
 import sanitizer from "./middlewares/sanitizer.js";
 import compression from "compression";
-import connectRedis from "./helpers/redis/connectRedis.js";
 import { delay } from "./helpers/startBGTask.js";
+import threadBoot from "./helpers/threadBoot.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -16,8 +15,7 @@ const port = process.env.PORT || 8080;
 app.disable("x-powered-by");
 app.set('trust proxy', true);
 
-await DBconnect();
-await connectRedis();
+await threadBoot();
 
 await delay(500);
 app.use(compression());

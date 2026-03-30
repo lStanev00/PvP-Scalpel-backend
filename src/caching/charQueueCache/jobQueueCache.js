@@ -7,14 +7,34 @@ const key = "JobQueue";
 const humanReadableName = "Job Queue Cache";
 
 /**
+ * One job entry stored in the global Redis queue.
+ *
+ * @typedef {object} QueueJob
+ * @property {string} type
+ * @property {{ search: string, incChecks?: boolean, incChechks?: boolean, renewCache?: boolean }} data
+ */
+
+/**
  * Validate one job queue entry before using it against Redis.
  *
- * @param {string} jobEntry
- * @returns {string}
+ * @param {QueueJob} jobEntry
+ * @returns {QueueJob}
  */
 function validateJobQueueEntry(jobEntry) {
-    if (typeof jobEntry !== "string") {
-        throw new TypeError("Job queue entry must be a string.");
+    if (!jobEntry || typeof jobEntry !== "object" || Array.isArray(jobEntry)) {
+        throw new TypeError("Job queue entry must be an object.");
+    }
+
+    if (typeof jobEntry.type !== "string") {
+        throw new TypeError("Job queue entry type must be a string.");
+    }
+
+    if (!jobEntry.data || typeof jobEntry.data !== "object" || Array.isArray(jobEntry.data)) {
+        throw new TypeError("Job queue entry data must be an object.");
+    }
+
+    if (jobEntry.type === "retrieveCharacter" && typeof jobEntry.data.search !== "string") {
+        throw new TypeError("retrieveCharacter jobs require data.search to be a string.");
     }
 
     return jobEntry;
@@ -29,7 +49,7 @@ JobQueueCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INF
 /**
  * Read the queue from oldest queued job entry to newest queued job entry.
  *
- * @returns {Promise<string[]>}
+ * @returns {Promise<QueueJob[]>}
  */
 export async function getJobQueueEntries() {
     return await listValuesCache(key);
@@ -38,17 +58,18 @@ export async function getJobQueueEntries() {
 /**
  * Check whether one job queue entry already exists in the ordered queue.
  *
- * @param {string} jobEntry
+ * @param {QueueJob} jobEntry
  * @returns {Promise<boolean>}
  */
 export async function hasJobQueueEntry(jobEntry) {
     try {
         const validatedJobEntry = validateJobQueueEntry(jobEntry);
         const jobEntries = await listValuesCache(key);
+        const serializedJobEntry = JSON.stringify(validatedJobEntry);
 
-        return jobEntries.includes(validatedJobEntry);
+        return jobEntries.some((entry) => JSON.stringify(entry) === serializedJobEntry);
     } catch (error) {
-        JobQueueCacheEmitter.emit("error", `hasJobQueueEntry invoked with invalid job entry: ${jobEntry}`);
+        JobQueueCacheEmitter.emit("error", `hasJobQueueEntry invoked with invalid job entry.`);
         console.warn(error);
         return false;
     }
@@ -58,7 +79,7 @@ export async function hasJobQueueEntry(jobEntry) {
  * Append one job queue entry to the global Redis list when it is not already queued.
  * Existing entries stay in place so duplicate enqueue attempts are a no-op.
  *
- * @param {string} jobEntry
+ * @param {QueueJob} jobEntry
  * @param {number} [ttl=-1]
  * @returns {Promise<number|null>}
  */
@@ -66,15 +87,16 @@ export async function enqueueJobQueueEntry(jobEntry, ttl = -1) {
     try {
         const validatedJobEntry = validateJobQueueEntry(jobEntry);
         const jobEntries = await listValuesCache(key);
+        const serializedJobEntry = JSON.stringify(validatedJobEntry);
 
-        if (jobEntries.includes(validatedJobEntry)) {
+        if (jobEntries.some((entry) => JSON.stringify(entry) === serializedJobEntry)) {
             return 0;
         }
 
         const result = await pushListCache(key, validatedJobEntry, ttl);
 
         if (result !== null) {
-            JobQueueCacheEmitter.emit("update", `Queued job entry: ${validatedJobEntry}`);
+            JobQueueCacheEmitter.emit("update", `Queued job entry: ${validatedJobEntry.type}`);
         }
 
         return result;
@@ -89,7 +111,7 @@ export async function enqueueJobQueueEntry(jobEntry, ttl = -1) {
  * Remove one job queue entry from the global Redis list.
  * If stale duplicates exist, all matching entries are removed.
  *
- * @param {string} jobEntry
+ * @param {QueueJob} jobEntry
  * @returns {Promise<boolean>}
  */
 export async function deleteJobQueueEntry(jobEntry) {
@@ -98,13 +120,13 @@ export async function deleteJobQueueEntry(jobEntry) {
         const deletedCount = await removeListCache(key, validatedJobEntry);
         const deleted = deletedCount !== null && deletedCount > 0;
 
-        if (deleted) {
-            JobQueueCacheEmitter.emit("info", `Deleted job queue entry: ${validatedJobEntry}`);
-        }
+        // if (deleted) {
+        //     JobQueueCacheEmitter.emit("info", `Deleted job queue entry: ${validatedJobEntry}`);
+        // }
 
         return deleted;
     } catch (error) {
-        JobQueueCacheEmitter.emit("error", `deleteJobQueueEntry invoked with invalid job entry: ${jobEntry}`);
+        JobQueueCacheEmitter.emit("error", `deleteJobQueueEntry invoked with invalid job entry.`);
         console.warn(error);
         return false;
     }

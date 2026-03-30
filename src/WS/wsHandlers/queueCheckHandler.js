@@ -1,4 +1,5 @@
-import { getCharacter } from "../../caching/characters/charCache.js";
+import { CharCacheEmitter, getCharacter, retrieveCharacter } from "../../caching/characters/charCache.js";
+import { enqueueJobQueueEntry } from "../../caching/charQueueCache/jobQueueCache.js";
 import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
 import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import { wsResponse } from "../helpers/wsResponseHelpers.js";
@@ -34,6 +35,16 @@ export default async function queueCheckHandler(ws, msg) {
     // |Hetma:burning-legion:eu(1468)
 
     async function processEntries(entries) {
+        const jobBuild = {
+            type : "bulkRetrieveCharacter",
+            data: []
+        }
+        const buildEntryJob = (searchString) => {
+            return {
+                search: searchString,
+                incChecks: false,
+            }
+        }
         for (const [name, realm, serverAndIsSoloCheckNeeded] of entries.map((x) => x.split(":"))) {
             let server;
             let spec;
@@ -52,33 +63,42 @@ export default async function queueCheckHandler(ws, msg) {
                 server = serverAndIsSoloCheckNeeded;
             }
 
+
             try {
                 const initSearch = [name, realm, serverAndIsSoloCheckNeeded].join(":");
-                const char = await getCharacter(server, realm, name);
+                // const char = await getCharacter(server, realm, name);
+                const legitSearch = [name,realm,server].join(":");
+                jobBuild.data.push(buildEntryJob(legitSearch));
+                // retrieveCharacter({search : legitSearch});
+                CharCacheEmitter.on("retrieveCharacter", async (msg) => {
+                    const {search, character, status} = msg;
+                   if (search !== legitSearch) return;
 
-                if (char === 404 || char === null || char === undefined) {
-                    wsResponse(ws, "charData", {
-                        initSearch,
-                        data: undefined,
-                    });
-                    continue;
-                }
+                   if (character === 404 || character === null || character === undefined) {
+                       wsResponse(ws, "charData", {
+                           initSearch,
+                           data: undefined,
+                       });
+                    //    continue;
+                   }
+   
+                   if (!character?._id) {
+                       wsResponse(ws, "charData", {
+                           initSearch,
+                           data: undefined,
+                       });
+                    //    continue;
+                   }
+   
+                   wsResponse(ws, "charData", {
+                       initSearch,
+                       searchSpecRequested: spec ?? null,
+                       data: {
+                           ...character,
+                       },
+                   });
+                })
 
-                if (!char?._id) {
-                    wsResponse(ws, "charData", {
-                        initSearch,
-                        data: undefined,
-                    });
-                    continue;
-                }
-
-                wsResponse(ws, "charData", {
-                    initSearch,
-                    searchSpecRequested: spec ?? null,
-                    data: {
-                        ...char,
-                    },
-                });
 
                 // to be optimized this ise demo version atm
                 // const char = await helpFetch.getCharProfile(server, realm, name);
@@ -115,12 +135,8 @@ export default async function queueCheckHandler(ws, msg) {
                 console.warn(error);
             }
         }
+        await enqueueJobQueueEntry(jobBuild);
     }
-
-    const midpoint = Math.ceil(data.length / 2);
-    const firstHalf = data.slice(0, midpoint);
-    const secondHalf = data.slice(midpoint);
-
-    await Promise.all([processEntries(firstHalf), processEntries(secondHalf)]);
-    ws.close(1000, "Done");
+    processEntries(data)
+    // ws.close(1000, "Done");
 }
