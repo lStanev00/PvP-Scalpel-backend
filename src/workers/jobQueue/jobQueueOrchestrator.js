@@ -23,38 +23,47 @@ await subClone.pSubscribe(`__keyspace@0__:${key}`, async (event, channel) => {
     draining = true;
 
     //start the job queueing
-    while ((await getJobQueueSize()) !== 0) {
-        // run till queue is drained
-        //get curent job
-        const currentJobInfo = (await getJobQueueEntries()).shift();
-        await deleteJobQueueEntry(currentJobInfo);
-        if (!currentJobInfo) {
-            JQOLog.warn("There's a falsy job:" + currentJobInfo);
-            continue;
-        }
 
-        const { type, data } = currentJobInfo;
-
-        if (type === "retrieveCharacter") {
-            await QueueWorker1.retrieveCharacter(data);
-        } else if (type === "bulkRetrieveCharacter") {
-            if (!Array.isArray(data)) {
-                JQOLog.error("For bulkRetrieveCharacter job type the data has to be an array");
+    try {
+        while ((await getJobQueueSize()) !== 0) {
+            // run till queue is drained
+            //get curent job
+            const currentJobInfo = (await getJobQueueEntries()).shift();
+            await deleteJobQueueEntry(currentJobInfo);
+            if (!currentJobInfo) {
+                JQOLog.warn("There's a falsy job:" + currentJobInfo);
+                continue;
             }
-            if (data.length <= 2)
-                for (const jobData of data) QueueWorker2.retrieveCharacter(jobData);
-
-            for (i = 0; i <= data.length; i++) {
-                const jobData = data[i];
-                if (i <= Math.floor(data.length / 2)) {
-                    await QueueWorker1.retrieveCharacter(jobData);
-                } else {
-                    await QueueWorker2.retrieveCharacter(jobData);
+    
+            const { type, data } = currentJobInfo;
+    
+            if (type === "retrieveCharacter") {
+                await QueueWorker1.retrieveCharacter(data);
+            } else if (type === "bulkRetrieveCharacter") {
+                if (!Array.isArray(data)) {
+                    JQOLog.error("For bulkRetrieveCharacter job type the data has to be an array");
+                }
+                if (data.length <= 2) {
+                    for (const jobData of data) QueueWorker2.retrieveCharacter(jobData);
+                    continue;
+    
+                }
+    
+                for (let i = 0; i < data.length; i++) {
+                    const jobData = data[i];
+                    if (i <= Math.floor(data.length / 2)) {
+                        await QueueWorker1.retrieveCharacter(jobData);
+                    } else {
+                        await QueueWorker2.retrieveCharacter(jobData);
+                    }
                 }
             }
         }
+
+    } finally {
+        draining = false;
+
     }
-    draining = false;
 });
 
 JQOLog.info("BOOTED");
