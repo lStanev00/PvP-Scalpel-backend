@@ -95,6 +95,7 @@ export default class QueueWorker {
     async pushJob(jobInfo) {
         if (this.processRef === undefined) await this.initWorker();
 
+        await this.addWorkerJob(jobInfo);
         return this.processRef.send(jobInfo);
     }
 
@@ -156,8 +157,9 @@ export default class QueueWorker {
                 const { type, data } = msg;
 
                 if (type === "retrieveCharacter") {
-                    const { succeed, search } = data;
+                    const { succeed, search, job } = data;
                     if (search) await dequeueCharacterSearch(search).catch(JQOLog.error);
+                    if (job) await this.removeWorkerJob(job);
                     if (!succeed && search) {
                         await WorkerError.create({
                             workerName: this.name,
@@ -173,5 +175,63 @@ export default class QueueWorker {
             }),
             exit: this.processRef.on("exit", async () => await this.handleExit(false)),
         };
+    }
+
+    /**
+     * Reads the current Redis-backed job list for this worker.
+     *
+     * @returns {Promise<QueueWorkerJob[]>}
+     */
+    async getWorkerJobs() {
+        const jobs = await getCache("jobs", this.name);
+        return Array.isArray(jobs) ? jobs : [];
+    }
+
+    /**
+     * Replaces the Redis-backed job list for this worker.
+     *
+     * @param {QueueWorkerJob[]} jobs
+     * @returns {Promise<boolean>}
+     */
+    setWorkerJobs = async (jobs) => await setCache("jobs", jobs, this.name);
+
+    /**
+     * Appends one job to this worker's Redis-backed job list.
+     *
+     * @param {QueueWorkerJob} job
+     * @returns {Promise<void>}
+     */
+    async addWorkerJob(job) {
+        const jobs = await this.getWorkerJobs();
+        jobs.push(job)
+        await this.setWorkerJobs(jobs);
+    }
+
+    /**
+     * Removes the first matching job from this worker's Redis-backed job list.
+     *
+     * Matching prefers direct object identity and falls back to JSON equality.
+     *
+     * @param {QueueWorkerJob} job
+     * @returns {Promise<boolean>}
+     */
+    async removeWorkerJob(job) {
+        const jobs = await this.getWorkerJobs();
+        const directIndex = jobs.indexOf(job);
+
+        if (directIndex !== -1) {
+            jobs.splice(directIndex, 1);
+            await this.setWorkerJobs(jobs);
+            return true;
+        }
+
+        const serializedJob = JSON.stringify(job);
+        const jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+
+        if (jobIndex === -1) return false;
+
+        jobs.splice(jobIndex, 1);
+        await this.setWorkerJobs(jobs);
+        return true;
     }
 }

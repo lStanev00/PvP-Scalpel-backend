@@ -1,6 +1,6 @@
 import { redisCache } from "../../../helpers/redis/connectRedis.js";
-import getCache from "../../../helpers/redis/getterRedis.js";
-import setCache from "../../../helpers/redis/setterRedis.js";
+// import getCache from "../../../helpers/redis/getterRedis.js";
+// import setCache from "../../../helpers/redis/setterRedis.js";
 import threadBoot from "../../../helpers/threadBoot.js";
 import prepareCharData from "./jobWorkerHelpers/prepareCharData.js";
 
@@ -16,27 +16,19 @@ if (workerName !== "QueueWorker1" && workerName !== "QueueWorker2") {
 const publishRetrieveCharacter = (result) =>
     redisCache.publish("job:retrieveCharacter", JSON.stringify(result));
 
-const getWorkerJobs = async () => {
-    const jobs = await getCache("jobs", workerName);
-    return Array.isArray(jobs) ? jobs : [];
-};
-const setWorkerJobs = async (jobs) => await setCache("jobs", jobs, workerName);
+const jobs = [];
 
 process.on("message", async (jobInfo) => {
-    const jobs = await getWorkerJobs();
+
     jobs.push(jobInfo);
-    await setWorkerJobs(jobs);
 
     if (isDraining) return;
     isDraining = true;
 
     try {
-        while (true) {
-            const queuedJobs = await getWorkerJobs();
-            if (queuedJobs.length === 0) break;
+        while (jobs.length !== 0) {
 
-            const [currentJobInfo, ...remainingJobs] = queuedJobs;
-            await setWorkerJobs(remainingJobs);
+            const currentJobInfo = jobs.shift();
 
             const { type, data } = currentJobInfo ?? {};
 
@@ -49,6 +41,7 @@ process.on("message", async (jobInfo) => {
                         search: result.search,
                         succeed: result.status === 200,
                         status: result.status,
+                        job: currentJobInfo
                     },
                 });
             }
@@ -57,6 +50,10 @@ process.on("message", async (jobInfo) => {
         console.error(e);
     } finally {
         isDraining = false;
+
+        process.send({
+            type: "jobLess"
+        })
         // await setWorkerRunning(false);
         // process.exit(0);
     }
