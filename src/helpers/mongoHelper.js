@@ -21,6 +21,7 @@ export async function DBconnect(silent = false) {
         await import("../Models/Services.js")
         await import("../Models/User.js")
         await import("../Models/WeeklyWinnersRecord.js")
+        await import("../Models/WorkerErrors.js")
         if(silent === false) console.log("MongoDB Connected Successfully and models registered!");
     } catch (err) {
         console.error("MongoDB Connection Error:", err.message);

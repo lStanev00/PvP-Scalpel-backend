@@ -1,16 +1,17 @@
 {
   "name": "pvp-scalpel-backend",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "This API controls the database and sends requested data to the front-end.",
   "main": "boot.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node boot.js",
-    "startREST": "node ./src/REST.js --trace-deprecation",
-    "startWorker": "node ./src/workers/servicesWorker.js --trace-deprecation",
-    "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js",
-    "patch": "cd src/services && node Patch"
+    "startREST": "node --trace-deprecation ./src/REST.js",
+    "startWorker": "node --trace-deprecation ./src/workers/servicesWorker.js",
+    "startWS": "node --trace-deprecation ./src/WS.js",
+    "devWS": "node --watch ./src/WS.js",
+    "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js"
   },
   "repository": {
     "type": "git",
@@ -63,10 +64,11 @@
     "mongoose-autopopulate": "^1.1.0",
     "redis": "^5.8.2",
     "resend": "^6.1.3",
-    "sanitize-html": "^2.17.0"
+    "sanitize-html": "^2.17.0",
+    "ws": "^8.20.0"
   },
   "engines": {
-    "node": "24.x"
+    "node": "22.x"
   },
   "devDependencies": {
     "@types/node": "^24.0.13"
