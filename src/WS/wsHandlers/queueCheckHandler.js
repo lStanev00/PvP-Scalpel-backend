@@ -139,7 +139,7 @@ export default async function queueCheckHandler(ws, msg) {
                 initSearch,
                 data: undefined,
             });
-        }, 30000);
+        }, 60000);
 
         CharCacheEmitter.once(eventName, onResult);
         listenerCleanup.add(cleanup);
