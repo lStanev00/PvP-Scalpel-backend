@@ -4,6 +4,7 @@ import setCache, { addSetCache } from "../../../helpers/redis/setterRedis.js";
 import JQOLog from "../JQOLoog.js";
 import { removeSetCache } from "../../../helpers/redis/deletersRedis.js";
 import WorkerError from "../../../Models/WorkerErrors.js";
+import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.js";
 
 const queuedCharKey = "queuedCharSet";
 const queueCharacterSearch = async (search) => await addSetCache(queuedCharKey, search);
@@ -43,7 +44,10 @@ export default class QueueWorker {
         if (typeof name !== "string") throw new TypeError("The name value has to be a string");
         this.name = name;
         this.processRef = undefined;
-        this.listenerRef = undefined;
+        this.listenerRef = {
+            message: undefined,
+            exit: undefined,
+        };
         this.isRunning = false;
     }
 
@@ -64,7 +68,7 @@ export default class QueueWorker {
         });
         this.isRunning = true;
 
-        await this.onMessage();
+        await this.registerListeners();
         JQOLog.info(`${this.name} spawned`);
     }
 
@@ -95,6 +99,7 @@ export default class QueueWorker {
     async pushJob(jobInfo) {
         if (this.processRef === undefined) await this.initWorker();
 
+        await this.addWorkerJob(jobInfo);
         return this.processRef.send(jobInfo);
     }
 
@@ -103,14 +108,23 @@ export default class QueueWorker {
      *
      * @returns {Promise<void>}
      */
-    async handleExit(shouldKill = true) {
-        await setCache("isRunning", false, this.name);
-        // await setCache("jobs", [], this.name);
+    handleExit = async () => {
+        const processRef = this.processRef;
+        const { message, exit } = this.listenerRef;
 
-        if (shouldKill) this.processRef.kill("SIGKILL");
+        await setCache("isRunning", false, this.name);
+
+        if (processRef !== undefined) {
+            if (message !== undefined) processRef.removeListener("message", message);
+            if (exit !== undefined) processRef.removeListener("exit", exit);
+        }
+
         this.isRunning = false;
         this.processRef = undefined;
-        this.listenerRef = undefined;
+        this.listenerRef = {
+            message: undefined,
+            exit: undefined,
+        };
     }
 
     /**
@@ -129,49 +143,124 @@ export default class QueueWorker {
      * @returns {Promise<boolean | undefined>}
      */
     async retrieveCharacter(data) {
-        const { search } = data;
+        const search = normalizeCharacterSearch(data?.search);
+        if (!search) {
+            JQOLog.warn(
+                `Skipping retrieveCharacter for ${this.name} because search is invalid: ${JSON.stringify(data?.search)}`,
+            );
+            return false;
+        }
 
         const charQueued = await hasQueuedCharacterSearch(search);
         if (charQueued) return;
 
         const queueJob = {
             type: "retrieveCharacter",
-            data: data,
+            data: {
+                ...data,
+                search,
+            },
         };
         await queueCharacterSearch(search);
         return await this.pushJob(queueJob);
     }
 
-    async onMessage() {
+    async registerListeners() {
         if (!this.isRunning || this.processRef === undefined) {
             return JQOLog.warn(
                 `Can't register on message event listener for worker ${this.name} the proccess's not running`,
             );
         }
-        if (this.listenerRef !== undefined)
+        if (this.listenerRef.message !== undefined || this.listenerRef.exit !== undefined)
             return JQOLog.warn(`The listrener is already registered for ${this.name}`);
 
-        this.listenerRef = {
-            message: this.processRef.on("message", async (msg) => {
-                const { type, data } = msg;
+        const onWorkerMessage = this.onWorkerMessage;
+        const onWorkerExit = this.handleExit;
 
-                if (type === "retrieveCharacter") {
-                    const { succeed, search } = data;
-                    if (search) await dequeueCharacterSearch(search).catch(JQOLog.error);
-                    if (!succeed && search) {
-                        await WorkerError.create({
-                            workerName: this.name,
-                            source: "QueueWorker.onMessage",
-                            jobType: type,
-                            search,
-                            message: `Worker ${this.name} failed to process retrieveCharacter job.`,
-                            stack: typeof data?.stack === "string" ? data.stack : undefined,
-                            context: data,
-                        }).catch(JQOLog.error);
-                    }
-                }
-            }),
-            exit: this.processRef.on("exit", async () => await this.handleExit(false)),
+        this.processRef.on("message", onWorkerMessage);
+        this.processRef.once("exit", onWorkerExit);
+        this.listenerRef = {
+            message: onWorkerMessage,
+            exit: onWorkerExit,
         };
+    }
+
+    /**
+     * Reads the current Redis-backed job list for this worker.
+     *
+     * @returns {Promise<QueueWorkerJob[]>}
+     */
+    async getWorkerJobs() {
+        const jobs = await getCache("jobs", this.name);
+        return Array.isArray(jobs) ? jobs : [];
+    }
+
+    /**
+     * Replaces the Redis-backed job list for this worker.
+     *
+     * @param {QueueWorkerJob[]} jobs
+     * @returns {Promise<boolean>}
+     */
+    setWorkerJobs = async (jobs) => await setCache("jobs", jobs, this.name);
+
+    /**
+     * Appends one job to this worker's Redis-backed job list.
+     *
+     * @param {QueueWorkerJob} job
+     * @returns {Promise<void>}
+     */
+    async addWorkerJob(job) {
+        const jobs = await this.getWorkerJobs();
+        jobs.push(job)
+        await this.setWorkerJobs(jobs);
+    }
+
+    /**
+     * Removes the first matching job from this worker's Redis-backed job list.
+     *
+     * Matching prefers direct object identity and falls back to JSON equality.
+     *
+     * @param {QueueWorkerJob} job
+     * @returns {Promise<boolean>}
+     */
+    async removeWorkerJob(job) {
+        const jobs = await this.getWorkerJobs();
+        const directIndex = jobs.indexOf(job);
+
+        if (directIndex !== -1) {
+            jobs.splice(directIndex, 1);
+            await this.setWorkerJobs(jobs);
+            return true;
+        }
+
+        const serializedJob = JSON.stringify(job);
+        const jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+
+        if (jobIndex === -1) return false;
+
+        jobs.splice(jobIndex, 1);
+        await this.setWorkerJobs(jobs);
+        return true;
+    }
+
+    onWorkerMessage = async (msg) => {
+        const { type, data } = msg;
+
+        if (type === "retrieveCharacter") {
+            const { succeed, search, job } = data;
+            if (search) await dequeueCharacterSearch(search).catch(JQOLog.error);
+            if (job) await this.removeWorkerJob(job);
+            if (!succeed && search) {
+                await WorkerError.create({
+                    workerName: this.name,
+                    source: "QueueWorker.onMessage",
+                    jobType: type,
+                    search,
+                    message: `Worker ${this.name} failed to process retrieveCharacter job.`,
+                    stack: typeof data?.stack === "string" ? data.stack : undefined,
+                    context: data,
+                }).catch(JQOLog.error);
+            }
+        }
     }
 }

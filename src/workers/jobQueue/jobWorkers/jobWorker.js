@@ -1,10 +1,10 @@
 import { redisCache } from "../../../helpers/redis/connectRedis.js";
-import getCache from "../../../helpers/redis/getterRedis.js";
-import setCache from "../../../helpers/redis/setterRedis.js";
 import threadBoot from "../../../helpers/threadBoot.js";
 import prepareCharData from "./jobWorkerHelpers/prepareCharData.js";
 
 await threadBoot(true);
+const IDLE_TIMEOUT_MS = 30_000;
+let idleTimer = undefined;
 
 const workerName = process.env.WORKER_NAME;
 let isDraining = false;
@@ -16,27 +16,19 @@ if (workerName !== "QueueWorker1" && workerName !== "QueueWorker2") {
 const publishRetrieveCharacter = (result) =>
     redisCache.publish("job:retrieveCharacter", JSON.stringify(result));
 
-const getWorkerJobs = async () => {
-    const jobs = await getCache("jobs", workerName);
-    return Array.isArray(jobs) ? jobs : [];
-};
-const setWorkerJobs = async (jobs) => await setCache("jobs", jobs, workerName);
+const jobs = [];
 
 process.on("message", async (jobInfo) => {
-    const jobs = await getWorkerJobs();
+    clearIdleShutdown();
     jobs.push(jobInfo);
-    await setWorkerJobs(jobs);
 
     if (isDraining) return;
     isDraining = true;
 
     try {
-        while (true) {
-            const queuedJobs = await getWorkerJobs();
-            if (queuedJobs.length === 0) break;
-
-            const [currentJobInfo, ...remainingJobs] = queuedJobs;
-            await setWorkerJobs(remainingJobs);
+        while (jobs.length !== 0) {
+            clearIdleShutdown();
+            const currentJobInfo = jobs.shift();
 
             const { type, data } = currentJobInfo ?? {};
 
@@ -49,6 +41,7 @@ process.on("message", async (jobInfo) => {
                         search: result.search,
                         succeed: result.status === 200,
                         status: result.status,
+                        job: currentJobInfo,
                     },
                 });
             }
@@ -57,7 +50,27 @@ process.on("message", async (jobInfo) => {
         console.error(e);
     } finally {
         isDraining = false;
-        // await setWorkerRunning(false);
-        // process.exit(0);
+        scheduleIdleShutdown();
+
+        // process.send({
+        //     type: "jobLess"
+        // })
     }
 });
+
+function clearIdleShutdown() {
+    if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = undefined;
+    }
+}
+
+function scheduleIdleShutdown() {
+    clearIdleShutdown();
+
+    idleTimer = setTimeout(() => {
+        if (jobs.length !== 0 || isDraining) return;
+        process.disconnect?.();
+        process.exit(0);
+    }, IDLE_TIMEOUT_MS);
+}
