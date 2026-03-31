@@ -1,4 +1,4 @@
-import { delay } from "../helpers/startBGTask.js";
+// import { delay } from "../helpers/startBGTask.js";
 import workerPatchGuildMembersData from "../workers/PatchGuildMembersData/workerPatchGuildMembersData.js";
 import workerupdateDBAchieves from "../workers/updateDBAchievements/workerUDBA.js";
 import workerUpdateRealm from "../workers/updateRealm/workerUpdateRealm.js";
