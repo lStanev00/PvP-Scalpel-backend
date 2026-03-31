@@ -45,7 +45,7 @@ export default class QueueWorker {
         this.processRef = undefined;
         this.listenerRef = {
             message: undefined,
-            exit: undefined
+            exit: undefined,
         };
         this.isRunning = false;
     }
@@ -107,18 +107,23 @@ export default class QueueWorker {
      *
      * @returns {Promise<void>}
      */
-    async handleExit() {
+    handleExit = async () => {
+        const processRef = this.processRef;
+        const { message, exit } = this.listenerRef;
+
         await setCache("isRunning", false, this.name);
-        // await setCache("jobs", [], this.name);
 
-        // if (shouldKill) this.processRef.kill("SIGKILL");
-
-        this.processRef.removeListener("message", this.onWorkerMessage);
-        this.processRef.removeListener("exit", this.handleExit);
+        if (processRef !== undefined) {
+            if (message !== undefined) processRef.removeListener("message", message);
+            if (exit !== undefined) processRef.removeListener("exit", exit);
+        }
 
         this.isRunning = false;
         this.processRef = undefined;
-        this.listenerRef = undefined;
+        this.listenerRef = {
+            message: undefined,
+            exit: undefined,
+        };
     }
 
     /**
@@ -159,9 +164,14 @@ export default class QueueWorker {
         if (this.listenerRef.message !== undefined || this.listenerRef.exit !== undefined)
             return JQOLog.warn(`The listrener is already registered for ${this.name}`);
 
+        const onWorkerMessage = this.onWorkerMessage;
+        const onWorkerExit = this.handleExit;
+
+        this.processRef.on("message", onWorkerMessage);
+        this.processRef.once("exit", onWorkerExit);
         this.listenerRef = {
-            message: this.processRef.on("message", this.onWorkerMessage),
-            exit: this.processRef.on("exit", this.handleExit),
+            message: onWorkerMessage,
+            exit: onWorkerExit,
         };
     }
 

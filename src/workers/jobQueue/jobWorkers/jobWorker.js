@@ -1,10 +1,10 @@
 import { redisCache } from "../../../helpers/redis/connectRedis.js";
-// import getCache from "../../../helpers/redis/getterRedis.js";
-// import setCache from "../../../helpers/redis/setterRedis.js";
 import threadBoot from "../../../helpers/threadBoot.js";
 import prepareCharData from "./jobWorkerHelpers/prepareCharData.js";
 
 await threadBoot(true);
+const IDLE_TIMEOUT_MS = 30_000;
+let idleTimer = undefined;
 
 const workerName = process.env.WORKER_NAME;
 let isDraining = false;
@@ -19,7 +19,7 @@ const publishRetrieveCharacter = (result) =>
 const jobs = [];
 
 process.on("message", async (jobInfo) => {
-
+    clearIdleShutdown();
     jobs.push(jobInfo);
 
     if (isDraining) return;
@@ -27,7 +27,7 @@ process.on("message", async (jobInfo) => {
 
     try {
         while (jobs.length !== 0) {
-
+            clearIdleShutdown();
             const currentJobInfo = jobs.shift();
 
             const { type, data } = currentJobInfo ?? {};
@@ -41,7 +41,7 @@ process.on("message", async (jobInfo) => {
                         search: result.search,
                         succeed: result.status === 200,
                         status: result.status,
-                        job: currentJobInfo
+                        job: currentJobInfo,
                     },
                 });
             }
@@ -50,11 +50,27 @@ process.on("message", async (jobInfo) => {
         console.error(e);
     } finally {
         isDraining = false;
+        scheduleIdleShutdown();
 
-        process.send({
-            type: "jobLess"
-        })
-        // await setWorkerRunning(false);
-        // process.exit(0);
+        // process.send({
+        //     type: "jobLess"
+        // })
     }
 });
+
+function clearIdleShutdown() {
+    if (idleTimer) {
+        clearTimeout(idleTimer);
+        idleTimer = undefined;
+    }
+}
+
+function scheduleIdleShutdown() {
+    clearIdleShutdown();
+
+    idleTimer = setTimeout(() => {
+        if (jobs.length !== 0 || isDraining) return;
+        process.disconnect?.();
+        process.exit(0);
+    }, IDLE_TIMEOUT_MS);
+}
