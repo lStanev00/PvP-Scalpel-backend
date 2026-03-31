@@ -62,10 +62,11 @@ export async function cacheOneCharacter(charData) {
 
 export async function retrieveCharacter(params) {
     const { server, realm, name, search } = params ?? {};
+    const searchParts = typeof search === "string" ? search.split(":") : [];
 
     const nextSearch =
-        typeof search === "string" && search.split(":").length === 3
-            ? search
+        searchParts.length === 3
+            ? buildCharSearch(searchParts[2], searchParts[1], searchParts[0])
             : buildCharSearch(server, realm, name);
 
     if (!nextSearch) {
