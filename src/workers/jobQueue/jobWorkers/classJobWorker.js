@@ -4,17 +4,12 @@ import setCache, { addSetCache } from "../../../helpers/redis/setterRedis.js";
 import JQOLog from "../JQOLoog.js";
 import { removeSetCache } from "../../../helpers/redis/deletersRedis.js";
 import WorkerError from "../../../Models/WorkerErrors.js";
-import buildCharSearch from "../../../helpers/buildCharSearch.js";
+import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.js";
 
 const queuedCharKey = "queuedCharSet";
 const queueCharacterSearch = async (search) => await addSetCache(queuedCharKey, search);
 const hasQueuedCharacterSearch = async (search) => await setHasValueCache(queuedCharKey, search);
 const dequeueCharacterSearch = async (search) => await removeSetCache(queuedCharKey, search);
-const normalizeCharacterSearch = (search) => {
-    const searchParts = typeof search === "string" ? search.split(":") : [];
-    if (searchParts.length !== 3) return undefined;
-    return buildCharSearch(searchParts[2], searchParts[1], searchParts[0]);
-};
 
 /**
  * Payload for the `retrieveCharacter` job handled by `jobWorker.js`.

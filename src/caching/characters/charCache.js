@@ -12,6 +12,7 @@ import getCache from "../../helpers/redis/getterRedis.js";
 import isOlderThanHour from "../../helpers/isOlderThanHour.js";
 import Char from "../../Models/Chars.js";
 import buildCharSearch from "../../helpers/buildCharSearch.js";
+import normalizeCharacterSearch from "../../helpers/normalizeCharacterSearch.js";
 import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
 import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
@@ -62,12 +63,7 @@ export async function cacheOneCharacter(charData) {
 
 export async function retrieveCharacter(params) {
     const { server, realm, name, search } = params ?? {};
-    const searchParts = typeof search === "string" ? search.split(":") : [];
-
-    const nextSearch =
-        searchParts.length === 3
-            ? buildCharSearch(searchParts[2], searchParts[1], searchParts[0])
-            : buildCharSearch(server, realm, name);
+    const nextSearch = normalizeCharacterSearch(search) ?? buildCharSearch(server, realm, name);
 
     if (!nextSearch) {
         CharCacheEmitter.emit(
