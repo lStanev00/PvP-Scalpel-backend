@@ -5,7 +5,7 @@ import { getGameSpecializationByID } from "../../caching/gameSpecializations/gam
 import buildCharSearch from "../../helpers/buildCharSearch.js";
 import { wsMessage, wsResponse } from "../helpers/wsResponseHelpers.js";
 // import helpFetch from "../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-const matchRegex = /(?<bracket>\d)(?<team1>\[.+\])(?<team2>\[.+\])/gm;
+const matchRegex = /(?<bracketID>\d)(?<team1String>\[.+\])(?<team2String>\[.+\])/gm;
 
 /**
  * Preserve the current partial queueCheck flow without inventing new behavior.
@@ -16,9 +16,32 @@ const matchRegex = /(?<bracket>\d)(?<team1>\[.+\])(?<team2>\[.+\])/gm;
  */
 export default async function queueCheckHandler(ws, msg) {
     const rawData = typeof msg?.data === "string" ? msg.data : "";
-    const data = rawData.split("|");
+    if (rawData.length === 0) {
+        wsResponse(ws, "error", { at: Date.now() });
+        return;
+    }
     const listenerCleanup = new Set();
-    
+
+    matchRegex.lastIndex = 0;
+    const match = matchRegex.exec(rawData);
+
+    const {bracketID, team1String, team2String} = match?.groups;
+
+    if (match && (!bracketID || !team1String || !team2String)) {
+        wsMessage(ws, "error", "Invalid queueCheck group payload.", {
+            at: Date.now(),
+            rawData,
+        });
+        return;
+    }
+
+    team1String.replace("[", "");
+    team1String.replace("]", "");
+    team2String.replace("[", "");
+    team2String.replace("]", "");
+
+    const team1 = team1String.split("|");
+    const team2 = team2String.split("|");
 
     const clearPendingListeners = () => {
         for (const cleanup of listenerCleanup) cleanup();
@@ -27,13 +50,10 @@ export default async function queueCheckHandler(ws, msg) {
 
     ws.once("close", clearPendingListeners);
 
-    if (data.length === 0 || rawData.length === 0) {
-        wsResponse(ws, "error", { at: Date.now() });
-        return;
-    }
-    const bracketObj = await getGameBracketByID(data.shift());
+    const bracketObj = await getGameBracketByID(bracketID);
     wsResponse(ws, "bracketObj", bracketObj);
-    wsResponse(ws, "playerIDs", data);
+    wsResponse(ws, "team1IDs", team1);
+    wsResponse(ws, "team2IDs", team2);
 
     // 2
     // |Slothx:ravencrest:eu(251)
@@ -197,7 +217,8 @@ export default async function queueCheckHandler(ws, msg) {
         await enqueueJobQueueEntry(jobBuild);
     }
 
-    await processEntries(data);
+    await processEntries([...team1, ...team2]);
+
     // ws.close(1000, "Done");
 }
                 // to be optimized this ise demo version atm
