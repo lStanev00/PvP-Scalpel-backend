@@ -1,4 +1,4 @@
-// version: 0.2.1
+// version: 0.2.2
 import http from "node:http";
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
@@ -121,3 +121,4 @@ wss.on("close", () => {
 });
 
 server.listen(port);
+// 2[Adventureman:argent-dawn:eu(254)|Oifik:frostmane:eu(1480)|Zamruka:ravenholdt:eu(261)|Калмычка:gordunni:eu(256)|Akemi:eredar:eu(252)|Øéyx:ravencrest:eu(1468)|Lychezar:chamber-of-aspects:eu(73)|Снюсловер:gordunni:eu(102)][Aylanur:ravencrest:eu(103)|Balúr:thrall:eu(264)|Canhalli:the-maelstrom:eu(270)|Causality:sylvanas:eu(577)|Ledva:drakthul:eu(70)|Onlylock:ragnaros:eu(267)|Tyranorde:hyjal:eu(73)|Zaijko:stormscale:eu(251)]
