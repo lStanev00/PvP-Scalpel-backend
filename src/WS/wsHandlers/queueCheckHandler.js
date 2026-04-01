@@ -5,6 +5,7 @@ import { getGameSpecializationByID } from "../../caching/gameSpecializations/gam
 import buildCharSearch from "../../helpers/buildCharSearch.js";
 import { wsMessage, wsResponse } from "../helpers/wsResponseHelpers.js";
 // import helpFetch from "../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
+const matchRegex = /(?<bracket>\d)(?<team1>\[.+\])(?<team2>\[.+\])/gm;
 
 /**
  * Preserve the current partial queueCheck flow without inventing new behavior.
@@ -17,6 +18,7 @@ export default async function queueCheckHandler(ws, msg) {
     const rawData = typeof msg?.data === "string" ? msg.data : "";
     const data = rawData.split("|");
     const listenerCleanup = new Set();
+    
 
     const clearPendingListeners = () => {
         for (const cleanup of listenerCleanup) cleanup();
