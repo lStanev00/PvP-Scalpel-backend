@@ -5,7 +5,7 @@ import { getGameSpecializationByID } from "../../caching/gameSpecializations/gam
 import buildCharSearch from "../../helpers/buildCharSearch.js";
 import { wsMessage, wsResponse } from "../helpers/wsResponseHelpers.js";
 // import helpFetch from "../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-const matchRegex = /(?<bracketID>\d)(?<team1String>\[.+\])(?<team2String>\[.+\])/gm;
+const matchRegex = /(?<bracketID>\d)\[(?<team1String>.+)\]\[(?<team2String>.+)\]/gm;
 
 /**
  * Preserve the current partial queueCheck flow without inventing new behavior.
@@ -34,11 +34,6 @@ export default async function queueCheckHandler(ws, msg) {
         });
         return;
     }
-
-    team1String.replace("[", "");
-    team1String.replace("]", "");
-    team2String.replace("[", "");
-    team2String.replace("]", "");
 
     const team1 = team1String.split("|");
     const team2 = team2String.split("|");
@@ -252,3 +247,5 @@ export default async function queueCheckHandler(ws, msg) {
                 //     guildName: char?.guild?.name,
                 //     guildMember: char?.guild?.name == "PvP Scalpel" ? true : false,
                 // };
+
+// 2[Adventureman:argent-dawn:eu(254)|Oifik:frostmane:eu(1480)|Zamruka:ravenholdt:eu(261)|Калмычка:gordunni:eu(256)|Akemi:eredar:eu(252)|Øéyx:ravencrest:eu(1468)|Lychezar:chamber-of-aspects:eu(73)|Снюсловер:gordunni:eu(102)][Aylanur:ravencrest:eu(103)|Balúr:thrall:eu(264)|Canhalli:the-maelstrom:eu(270)|Causality:sylvanas:eu(577)|Ledva:drakthul:eu(70)|Onlylock:ragnaros:eu(267)|Tyranorde:hyjal:eu(73)|Zaijko:stormscale:eu(251)]
