@@ -5,7 +5,7 @@
 /** @typedef {import("./charCache.types").CharacterTalents} CharacterTalents */
 /** @typedef {import("./charCache.types").CharacterGuildInsight} CharacterGuildInsight */
 /** @typedef {import("./charCache.types").CharacterRecord} CharacterRecord */
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
 import setCache from "../../helpers/redis/setterRedis.js";
 import convertSearch from "../../helpers/convertSearch.js";
 import getCache from "../../helpers/redis/getterRedis.js";
@@ -26,6 +26,11 @@ import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
 const humanReadableName = "Characters Cache";
+
+function resolveCharacterSearch(params) {
+    const { server, realm, name, search } = params ?? {};
+    return normalizeCharacterSearch(search) ?? buildCharSearch(server, realm, name);
+}
 
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
 CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
@@ -62,8 +67,8 @@ export async function cacheOneCharacter(charData) {
 }
 
 export async function retrieveCharacter(params) {
-    const { server, realm, name, search } = params ?? {};
-    const nextSearch = normalizeCharacterSearch(search) ?? buildCharSearch(server, realm, name);
+    const { incChecks, incChechks, renewCache } = params ?? {};
+    const nextSearch = resolveCharacterSearch(params);
 
     if (!nextSearch) {
         CharCacheEmitter.emit(
@@ -77,8 +82,68 @@ export async function retrieveCharacter(params) {
         type: "retrieveCharacter",
         data: {
             search: nextSearch,
+            ...(typeof incChecks !== "undefined" ? { incChecks } : {}),
+            ...(typeof incChechks !== "undefined" ? { incChechks } : {}),
+            ...(typeof renewCache !== "undefined" ? { renewCache } : {}),
         },
     });
+}
+
+/**
+ * Queue one worker-based character retrieval and wait for its published result once.
+ *
+ * @param {{ server?: string, realm?: string, name?: string, search?: string, incChecks?: boolean, incChechks?: boolean, renewCache?: boolean }} params
+ * @param {{ timeoutMs?: number, signal?: AbortSignal, enqueue?: boolean }} [options]
+ * @returns {Promise<any | null>}
+ */
+export async function retrieveCharacterViaWorker(
+    params,
+    { timeoutMs = 60000, signal, enqueue = true } = {},
+) {
+    const nextSearch = resolveCharacterSearch(params);
+
+    if (!nextSearch) {
+        CharCacheEmitter.emit(
+            "error",
+            `retrieveCharacterViaWorker invoked with bad params: ${JSON.stringify(params)}`,
+        );
+        return null;
+    }
+
+    if (enqueue) {
+        const enqueued = await retrieveCharacter({
+            ...params,
+            search: nextSearch,
+        });
+
+        if (enqueued === null) {
+            return null;
+        }
+    }
+
+    const eventName = `retrieveCharacter:${nextSearch}`;
+    const timeoutSignal = Number.isFinite(timeoutMs) ? AbortSignal.timeout(timeoutMs) : undefined;
+    const waitSignal = signal && timeoutSignal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : (signal ?? timeoutSignal);
+
+    try {
+        const [payload] = waitSignal
+            ? await once(CharCacheEmitter, eventName, { signal: waitSignal })
+            : await once(CharCacheEmitter, eventName);
+
+        return payload ?? null;
+    } catch (error) {
+        if (error?.name === "AbortError") {
+            if (signal?.aborted) {
+                throw error;
+            }
+
+            return null;
+        }
+
+        throw error;
+    }
 }
 
 /**
