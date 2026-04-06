@@ -1,4 +1,5 @@
 import { fork } from "node:child_process";
+import { getJobQueueSize } from "../../caching/charQueueCache/jobQueueCache.js";
 import { redisCache } from "../../helpers/redis/connectRedis.js";
 
 /**
@@ -27,16 +28,22 @@ export default class JobQueue {
      */
     async onSubscribe(event, _) {
         if (!event.includes("push")) return;
-        if (this.procRef) return;
-
-        if (this.subClone?.isOpen && this.isSubscribed) await this.cacheCommand.unSub()
+        if (this.procRef) {
+            if (this.procRef.connected) {
+                this.procRef.send("newJob");
+            }
+            return;
+        }
 
         this.procRef = fork("src/workers/jobQueue/JQORefacture.js");
 
         this.procRef.on("exit", async (code, signal) => {
             console.info(`${this.name} exited with code: ${code}, signal: ${signal}`);
             this.procRef = null;
-            await this.cacheCommand.sub();
+
+            if ((await getJobQueueSize()) !== 0) {
+                await this.onSubscribe("push", "");
+            }
         });
     }
 
@@ -55,19 +62,6 @@ export default class JobQueue {
     }
 
     cacheCommand = {
-        /**
-         * Closes and clears the duplicated Redis client.
-         *
-         * @returns {Promise<void>}
-         */
-        unSub: async () => {
-            if (this.isSubscribed) {
-                await this.subClone.pUnsubscribe(this.redisKeySpace, this.onSubscribe);
-            }
-
-            this.isSubscribed = false;
-        },
-
         /**
          * Connects the duplicated Redis client and ensures the keyspace listener is subscribed.
          *

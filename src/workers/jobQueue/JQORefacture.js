@@ -16,6 +16,7 @@ const QueueWorker2 = new QueueWorker("QueueWorker2");
 let draining = false;
 let currentJobInfo = null;
 let stopRequested = false;
+let newJobRequested = false;
 JQOLog.info("BOOTED");
 
 process.on("message", (msg) => {
@@ -24,6 +25,11 @@ process.on("message", (msg) => {
     if (msg === "stop") {
         stopRequested = true;
         void waitForDrainAndExit();
+        return;
+    }
+
+    if (msg === "newJob") {
+        newJobRequested = true;
     }
 });
 
@@ -38,13 +44,17 @@ async function waitForDrainAndExit() {
     process.exit(0);
 }
 
-async function waitForWorkersToExit() {
+async function waitForWorkersToExit(interruptOnNewJob = false) {
     while (true) {
+        if (interruptOnNewJob && newJobRequested) {
+            return "interrupted";
+        }
+
         const queueWorker1Exited = QueueWorker1.processRef === undefined || QueueWorker1.processRef === null;
         const queueWorker2Exited = QueueWorker2.processRef === undefined || QueueWorker2.processRef === null;
 
         if (queueWorker1Exited && queueWorker2Exited) {
-            return;
+            return "exited";
         }
 
         await delay(300);
@@ -92,13 +102,20 @@ async function startQueue() {
     } finally {
         currentJobInfo = null;
         draining = false;
-        await waitForWorkersToExit();
+        const waitResult = await waitForWorkersToExit(!stopRequested);
 
         const queueSize = await getJobQueueSize();
         if (stopRequested || queueSize === 0) {
+            if (!stopRequested && waitResult === "interrupted") {
+                newJobRequested = false;
+                void startQueue();
+                return;
+            }
+
             process.exit(0);
         }
 
+        newJobRequested = false;
         void startQueue();
     }
 };
