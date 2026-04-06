@@ -1,5 +1,5 @@
 import { fork } from "node:child_process";
-import getCache, { setHasValueCache } from "../../../helpers/redis/getterRedis.js";
+import getCache from "../../../helpers/redis/getterRedis.js";
 import setCache, { addSetCache } from "../../../helpers/redis/setterRedis.js";
 import JQOLog from "../JQOLoog.js";
 import { removeSetCache } from "../../../helpers/redis/deletersRedis.js";
@@ -8,7 +8,6 @@ import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.
 
 const queuedCharKey = "queuedCharSet";
 const queueCharacterSearch = async (search) => await addSetCache(queuedCharKey, search);
-const hasQueuedCharacterSearch = async (search) => await setHasValueCache(queuedCharKey, search);
 const dequeueCharacterSearch = async (search) => await removeSetCache(queuedCharKey, search);
 
 /**
@@ -151,9 +150,6 @@ export default class QueueWorker {
             return false;
         }
 
-        const charQueued = await hasQueuedCharacterSearch(search);
-        if (charQueued) return;
-
         const queueJob = {
             type: "retrieveCharacter",
             data: {
@@ -161,7 +157,10 @@ export default class QueueWorker {
                 search,
             },
         };
-        await queueCharacterSearch(search);
+
+        const queueClaim = await queueCharacterSearch(search);
+        if (queueClaim !== 1) return queueClaim === null ? false : undefined;
+
         return await this.pushJob(queueJob);
     }
 
