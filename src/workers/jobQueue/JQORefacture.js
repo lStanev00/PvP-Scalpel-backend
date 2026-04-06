@@ -15,23 +15,32 @@ const QueueWorker2 = new QueueWorker("QueueWorker2");
 
 let draining = false;
 let currentJobInfo = null;
+let stopRequested = false;
 JQOLog.info("BOOTED");
 
 process.on("message", (msg) => {
     console.log("received:", msg);
 
     if (msg === "stop") {
-        while (currentJobInfo !== null) delay(300).catch()
-        process.exit(0);
+        stopRequested = true;
+        void waitForDrainAndExit();
     }
 });
 
 startQueue();
 
+async function waitForDrainAndExit() {
+    while (draining) {
+        await delay(300);
+    }
+
+    process.exit(0);
+}
+
 async function startQueue() {
     try {
         draining = true;
-        while ((await getJobQueueSize()) !== 0) {
+        while (!stopRequested && (await getJobQueueSize()) !== 0) {
             // run till queue is drained
             //get curent job
             currentJobInfo = (await getJobQueueEntries()).shift();
@@ -67,7 +76,15 @@ async function startQueue() {
             currentJobInfo = null;
         }
     } finally {
+        currentJobInfo = null;
         draining = false;
+
+        const queueSize = await getJobQueueSize();
+        if (stopRequested || queueSize === 0) {
+            process.exit(0);
+        }
+
+        void startQueue();
     }
 };
 
