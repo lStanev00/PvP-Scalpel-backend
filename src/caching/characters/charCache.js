@@ -26,6 +26,7 @@ import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
 const humanReadableName = "Characters Cache";
+const inFlightWorkerCharacters = new Map();
 
 function resolveCharacterSearch(params) {
     const { server, realm, name, search } = params ?? {};
@@ -46,7 +47,6 @@ CharCacheEmitter.on("updateRequest", async (search) => {
         console.warn(error);
     }
 });
-
 
 export async function cacheOneCharacter(charData) {
     let search = charData?.search;
@@ -123,9 +123,10 @@ export async function retrieveCharacterViaWorker(
 
     const eventName = `retrieveCharacter:${nextSearch}`;
     const timeoutSignal = Number.isFinite(timeoutMs) ? AbortSignal.timeout(timeoutMs) : undefined;
-    const waitSignal = signal && timeoutSignal
-        ? AbortSignal.any([signal, timeoutSignal])
-        : (signal ?? timeoutSignal);
+    const waitSignal =
+        signal && timeoutSignal
+            ? AbortSignal.any([signal, timeoutSignal])
+            : (signal ?? timeoutSignal);
 
     try {
         const [payload] = waitSignal
@@ -144,6 +145,82 @@ export async function retrieveCharacterViaWorker(
 
         throw error;
     }
+}
+
+/**
+ * Resolve one character through the worker/pub-sub path while preserving the
+ * direct `getCharacter()` return contract for REST callers.
+ *
+ * @param {string} server
+ * @param {string} realm
+ * @param {string} name
+ * @param {boolean} [incChecks=true]
+ * @param {boolean} [renewCache=false]
+ * @returns {Promise<CharacterRecord | 404 | null | undefined>}
+ */
+export async function getCharacterViaWorker(
+    server,
+    realm,
+    name,
+    incChecks = true,
+    renewCache = false,
+) {
+    const search = resolveCharacterSearch({ server, realm, name });
+
+    if (!search) {
+        CharCacheEmitter.emit(
+            "error",
+            `getCharacterViaWorker invoked with bad params: ${JSON.stringify({ server, realm, name })}`,
+        );
+        return null;
+    }
+
+    let inFlightPromise = inFlightWorkerCharacters.get(search);
+    if (!inFlightPromise) {
+        inFlightPromise = (async () => {
+            try {
+                const payload = await retrieveCharacterViaWorker(
+                    {
+                        server,
+                        realm,
+                        name,
+                        search,
+                        incChecks,
+                        renewCache,
+                    },
+                    { timeoutMs: 60000 },
+                );
+
+                if (!payload || typeof payload !== "object") {
+                    return undefined;
+                }
+
+                if (payload.status === 404) {
+                    return 404;
+                }
+
+                if (payload.status !== 200) {
+                    return undefined;
+                }
+
+                const { character } = payload;
+                if (character === 404 || character === null || character === undefined) {
+                    return 404;
+                }
+
+                return character;
+            } catch (error) {
+                console.warn(error);
+                return undefined;
+            } finally {
+                inFlightWorkerCharacters.delete(search);
+            }
+        })();
+
+        inFlightWorkerCharacters.set(search, inFlightPromise);
+    }
+
+    return await inFlightPromise;
 }
 
 /**
