@@ -1,4 +1,5 @@
-// version: 1.4.4
+// version: 1.4.5
+import threadBoot from "../helpers/threadBoot.js";
 import startServices from "../services/servicesMain.js";
 // import { DBconnect } from "../helpers/mongoHelper.js";
 // import connectRedis from "../helpers/redis/connectRedis.js";
@@ -8,4 +9,5 @@ import startServices from "../services/servicesMain.js";
 // await connectRedis();
 // await startRedisCharSubscriber();
 
+await threadBoot();
 await startServices();

@@ -38,7 +38,7 @@ export default class JobQueue {
         this.procRef = fork("src/workers/jobQueue/JQORefacture.js");
 
         this.procRef.on("exit", async (code, signal) => {
-            console.info(`${this.name} exited with code: ${code}, signal: ${signal}`);
+            // console.info(`${this.name} exited with code: ${code}, signal: ${signal}`);
             this.procRef = null;
 
             if ((await getJobQueueSize()) !== 0) {
