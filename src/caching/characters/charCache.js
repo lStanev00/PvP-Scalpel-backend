@@ -1,10 +1,18 @@
-import { EventEmitter } from "node:events";
+/** @typedef {import("./charCache.types").CharacterRealm} CharacterRealm */
+/** @typedef {import("./charCache.types").CharacterClassInfo} CharacterClassInfo */
+/** @typedef {import("./charCache.types").CharacterActiveSpec} CharacterActiveSpec */
+/** @typedef {import("./charCache.types").CharacterMedia} CharacterMedia */
+/** @typedef {import("./charCache.types").CharacterTalents} CharacterTalents */
+/** @typedef {import("./charCache.types").CharacterGuildInsight} CharacterGuildInsight */
+/** @typedef {import("./charCache.types").CharacterRecord} CharacterRecord */
+import { EventEmitter, once } from "node:events";
 import setCache from "../../helpers/redis/setterRedis.js";
 import convertSearch from "../../helpers/convertSearch.js";
 import getCache from "../../helpers/redis/getterRedis.js";
 import isOlderThanHour from "../../helpers/isOlderThanHour.js";
 import Char from "../../Models/Chars.js";
 import buildCharSearch from "../../helpers/buildCharSearch.js";
+import normalizeCharacterSearch from "../../helpers/normalizeCharacterSearch.js";
 import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
 import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
@@ -13,10 +21,17 @@ import { findRealmById } from "../realms/realmCache.js";
 import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
 import { getRegionIdsMap } from "../regions/regionCache.js";
 import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
+import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const hashName = "";
 const humanReadableName = "Characters Cache";
+const inFlightWorkerCharacters = new Map();
+
+function resolveCharacterSearch(params) {
+    const { server, realm, name, search } = params ?? {};
+    return normalizeCharacterSearch(search) ?? buildCharSearch(server, realm, name);
+}
 
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
 CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
@@ -51,6 +66,183 @@ export async function cacheOneCharacter(charData) {
     }
 }
 
+export async function retrieveCharacter(params) {
+    const { incChecks, incChechks, renewCache } = params ?? {};
+    const nextSearch = resolveCharacterSearch(params);
+
+    if (!nextSearch) {
+        CharCacheEmitter.emit(
+            "error",
+            `retrieveCharacter invoked with bad params: ${JSON.stringify(params)}`,
+        );
+        return null;
+    }
+
+    return await enqueueJobQueueEntry({
+        type: "retrieveCharacter",
+        data: {
+            search: nextSearch,
+            ...(typeof incChecks !== "undefined" ? { incChecks } : {}),
+            ...(typeof incChechks !== "undefined" ? { incChechks } : {}),
+            ...(typeof renewCache !== "undefined" ? { renewCache } : {}),
+        },
+    });
+}
+
+/**
+ * Queue one worker-based character retrieval and wait for its published result once.
+ *
+ * @param {{ server?: string, realm?: string, name?: string, search?: string, incChecks?: boolean, incChechks?: boolean, renewCache?: boolean }} params
+ * @param {{ timeoutMs?: number, signal?: AbortSignal, enqueue?: boolean }} [options]
+ * @returns {Promise<any | null>}
+ */
+export async function retrieveCharacterViaWorker(
+    params,
+    { timeoutMs = 60000, signal, enqueue = true } = {},
+) {
+    const nextSearch = resolveCharacterSearch(params);
+
+    if (!nextSearch) {
+        CharCacheEmitter.emit(
+            "error",
+            `retrieveCharacterViaWorker invoked with bad params: ${JSON.stringify(params)}`,
+        );
+        return null;
+    }
+
+    if (enqueue) {
+        const enqueued = await retrieveCharacter({
+            ...params,
+            search: nextSearch,
+        });
+
+        if (enqueued === null) {
+            return null;
+        }
+    }
+
+    const eventName = `retrieveCharacter:${nextSearch}`;
+    const timeoutSignal = Number.isFinite(timeoutMs) ? AbortSignal.timeout(timeoutMs) : undefined;
+    const waitSignal =
+        signal && timeoutSignal
+            ? AbortSignal.any([signal, timeoutSignal])
+            : (signal ?? timeoutSignal);
+
+    try {
+        const [payload] = waitSignal
+            ? await once(CharCacheEmitter, eventName, { signal: waitSignal })
+            : await once(CharCacheEmitter, eventName);
+
+        return payload ?? null;
+    } catch (error) {
+        if (error?.name === "AbortError") {
+            if (signal?.aborted) {
+                throw error;
+            }
+
+            return null;
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Resolve one character through the worker/pub-sub path while preserving the
+ * direct `getCharacter()` return contract for REST callers.
+ *
+ * @param {string} server
+ * @param {string} realm
+ * @param {string} name
+ * @param {boolean} [incChecks=true]
+ * @param {boolean} [renewCache=false]
+ * @returns {Promise<CharacterRecord | 404 | null | undefined>}
+ */
+export async function getCharacterViaWorker(
+    server,
+    realm,
+    name,
+    incChecks = true,
+    renewCache = false,
+) {
+    const search = resolveCharacterSearch({ server, realm, name });
+
+    if (!search) {
+        CharCacheEmitter.emit(
+            "error",
+            `getCharacterViaWorker invoked with bad params: ${JSON.stringify({ server, realm, name })}`,
+        );
+        return null;
+    }
+
+    let inFlightPromise = inFlightWorkerCharacters.get(search);
+    if (!inFlightPromise) {
+        inFlightPromise = (async () => {
+            try {
+                const payload = await retrieveCharacterViaWorker(
+                    {
+                        server,
+                        realm,
+                        name,
+                        search,
+                        incChecks,
+                        renewCache,
+                    },
+                    { timeoutMs: 60000 },
+                );
+
+                if (!payload || typeof payload !== "object") {
+                    return undefined;
+                }
+
+                if (payload.status === 404) {
+                    return 404;
+                }
+
+                if (payload.status !== 200) {
+                    return undefined;
+                }
+
+                const { character } = payload;
+                if (character === 404 || character === null || character === undefined) {
+                    return 404;
+                }
+
+                return character;
+            } catch (error) {
+                console.warn(error);
+                return undefined;
+            } finally {
+                inFlightWorkerCharacters.delete(search);
+            }
+        })();
+
+        inFlightWorkerCharacters.set(search, inFlightPromise);
+    }
+
+    return await inFlightPromise;
+}
+
+/**
+ * Resolves a character by region/server, realm and character name.
+ *
+ * Expected inputs:
+ * - `server`: region or server slug used by the Blizzard API and local search keys, for example `eu` or `us`
+ * - `realm`: realm slug or realm name; non-English names may be normalized to a known slug before querying
+ * - `name`: character name used to build the cache/database lookup key
+ * - `incChecks`: when `true`, increments `checkedCount` for an existing character hit
+ * - `renewCache`: when `true`, bypasses the cached value and forces a refresh flow
+ *
+ * @param {string} server Region/server slug.
+ * @param {string} realm Realm slug or raw realm name.
+ * @param {string} name Character name.
+ * @param {boolean} [incChecks=true] Increment `checkedCount` on successful existing lookups.
+ * @param {boolean} [renewCache=false] Ignore current cache and refresh character data.
+ * @returns {Promise<CharacterRecord | 404 | null | undefined>}
+ * Returns a populated character record on success, `404` when the character or mapped realm
+ * cannot be resolved, `null` when caching helpers reject invalid input, or `undefined` if the
+ * request fails before a final value is produced.
+ */
 export async function getCharacter(server, realm, name, incChecks = true, renewCache = false) {
     let character;
 
@@ -70,9 +262,11 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             // const searchRealmExist = await findRealmSearchById(realm.toLowerCase())?.relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
             const searchRealmExist = await findRealmSearchById(realm.toLowerCase());
             if (searchRealmExist !== null && searchRealmExist && searchRealmExist.relRealms) {
-                const realmName = searchRealmExist.relRealms.find((entry) => entry.region === serverId)?.slug || undefined;
+                const realmName =
+                    searchRealmExist.relRealms.find((entry) => entry.region === serverId)?.slug ||
+                    undefined;
                 if (realmName && typeof realmName === "string") realm = realmName;
-            } else console.info(`getCharacter: ${realm} is missing.`)
+            } else console.info(`getCharacter: ${realm} is missing.`);
         }
     }
     const search = buildCharSearch(server, realm, name);
@@ -119,7 +313,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 character.playerRealm.slug,
                 character.name,
                 character.checkedCount,
-                renewCache
+                renewCache,
             );
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {
@@ -128,7 +322,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             } else {
                 setter = newData;
             }
-            
+
             if (setter) {
                 for (const [key, value] of Object.entries(setter)) {
                     if (character?.[key] && value) character[key] = value;
@@ -137,7 +331,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 character = await Char.findByIdAndUpdate(
                     character._id,
                     { $set: character },
-                    { new: true }
+                    { new: true },
                 );
             }
         } else if (character) {
@@ -148,7 +342,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                     server: server,
                 },
                 { $inc: { checkedCount: incChecks ? 1 : 0 } },
-                { new: true, upsert: false, timestamps: false }
+                { new: true, upsert: false, timestamps: false },
             );
         }
         if (!character) {
@@ -162,7 +356,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                     },
                     hashName,
                     3600,
-                    1
+                    1,
                 );
                 return 404;
             }
@@ -177,25 +371,26 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
-            console.warn(search + "No posts")
+            console.warn(search + "No posts");
         }
         try {
             if (character?.listAchievements?.length !== 0)
                 await character.populate("listAchievements");
         } catch (error) {
-            if(typeof character.listAchievements === "object") {
+            if (typeof character.listAchievements === "object") {
                 const shadowAches = [];
                 for (const achId of character.listAchievements) {
                     const ach = await getOneAchFromAchCache(achId).catch(() => null);
-                    if(ach !== null) shadowAches.push(ach)
-                        else console.info(achId);
+                    if (ach !== null) shadowAches.push(ach);
+                    else console.info(achId);
                 }
-                if(shadowAches.length !== 0) character.listAchievements = shadowAches;
+                if (shadowAches.length !== 0) character.listAchievements = shadowAches;
             } else {
                 console.warn(error);
                 console.warn(character?.listAchievements);
-                if(character.name) console.info("Errored for this character name:" + character.name);
-                    else console.info("The entry had no name aswell");                
+                if (character.name)
+                    console.info("Errored for this character name:" + character.name);
+                else console.info("The entry had no name aswell");
             }
         }
         await cacheOneCharacter(character);
@@ -212,7 +407,7 @@ async function getCharFromCacheBySearch(search) {
         if (!search) {
             CharCacheEmitter.emit(
                 "error",
-                `getCharFromCacheBySearch has been invoked with bad params\n the function will now exit.`
+                `getCharFromCacheBySearch has been invoked with bad params\n the function will now exit.`,
             );
             return null;
         }

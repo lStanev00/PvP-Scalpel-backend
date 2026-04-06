@@ -1,0 +1,123 @@
+import {
+    deleteJobQueueEntry,
+    getJobQueueEntries,
+    getJobQueueSize,
+} from "../../caching/charQueueCache/jobQueueCache.js";
+import JQOLog from "./JQOLoog.js";
+import QueueWorker from "./jobWorkers/classJobWorker.js";
+import threadBoot from "../../helpers/threadBoot.js";
+import { delay } from "../../helpers/startBGTask.js";
+
+await threadBoot(true);
+
+const QueueWorker1 = new QueueWorker("QueueWorker1");
+const QueueWorker2 = new QueueWorker("QueueWorker2");
+
+let draining = false;
+let currentJobInfo = null;
+let stopRequested = false;
+let newJobRequested = false;
+JQOLog.info("BOOTED");
+
+process.on("message", (msg) => {
+    // console.log("received:", msg);
+
+    if (msg === "stop") {
+        stopRequested = true;
+        void waitForDrainAndExit();
+        return;
+    }
+
+    if (msg === "newJob") {
+        newJobRequested = true;
+    }
+});
+
+startQueue();
+
+async function waitForDrainAndExit() {
+    while (draining) {
+        await delay(300);
+    }
+
+    await waitForWorkersToExit();
+    process.exit(0);
+}
+
+async function waitForWorkersToExit(interruptOnNewJob = false) {
+    while (true) {
+        if (interruptOnNewJob && newJobRequested) {
+            return "interrupted";
+        }
+
+        const queueWorker1Exited = QueueWorker1.processRef === undefined || QueueWorker1.processRef === null;
+        const queueWorker2Exited = QueueWorker2.processRef === undefined || QueueWorker2.processRef === null;
+
+        if (queueWorker1Exited && queueWorker2Exited) {
+            return "exited";
+        }
+
+        await delay(300);
+    }
+}
+
+async function startQueue() {
+    try {
+        draining = true;
+        while (!stopRequested && (await getJobQueueSize()) !== 0) {
+            // run till queue is drained
+            //get curent job
+            currentJobInfo = (await getJobQueueEntries()).shift();
+            await deleteJobQueueEntry(currentJobInfo);
+            if (!currentJobInfo) {
+                JQOLog.warn("There's a falsy job:" + currentJobInfo);
+                continue;
+            }
+
+            const { type, data } = currentJobInfo;
+
+            if (type === "retrieveCharacter") {
+                await QueueWorker1.retrieveCharacter(data);
+            } else if (type === "bulkRetrieveCharacter") {
+                if (!Array.isArray(data)) {
+                    JQOLog.error("For bulkRetrieveCharacter job type the data has to be an array");
+                    continue;
+                }
+                if (data.length <= 2) {
+                    for (const jobData of data) await QueueWorker2.retrieveCharacter(jobData);
+                    continue;
+                }
+
+                for (let i = 0; i < data.length; i++) {
+                    const jobData = data[i];
+                    if (i <= Math.floor(data.length / 2)) {
+                        await QueueWorker1.retrieveCharacter(jobData);
+                    } else {
+                        await QueueWorker2.retrieveCharacter(jobData);
+                    }
+                }
+            }
+            currentJobInfo = null;
+        }
+    } finally {
+        currentJobInfo = null;
+        draining = false;
+        const waitResult = await waitForWorkersToExit(!stopRequested);
+
+        const queueSize = await getJobQueueSize();
+        if (stopRequested || queueSize === 0) {
+            if (!stopRequested && waitResult === "interrupted") {
+                newJobRequested = false;
+                void startQueue();
+                return;
+            }
+
+            process.exit(0);
+        }
+
+        newJobRequested = false;
+        void startQueue();
+    }
+};
+
+// Hello buddy how're ya doing?

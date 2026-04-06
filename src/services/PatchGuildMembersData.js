@@ -7,10 +7,11 @@ import buildCharacter from "../helpers/buildCharacter.js";
 import { delay } from "../helpers/startBGTask.js";
 import updateWeeklyLadder from "./UpdateWeeklyLadder.js";
 import { CharCacheEmitter } from "../caching/characters/charCache.js";
-import { DBconnect } from "../helpers/mongoHelper.js";
-import connectRedis from "../helpers/redis/connectRedis.js";
 import findCharFromDatabase from "../helpers/findCharFromDatabase.js";
+import threadBoot from "../helpers/threadBoot.js";
 dotenv.config({ path: "../../../../.env" });
+
+await threadBoot(true);
 
 // PLEASE NOTE! Blizzard API have 36,000 requests per hour at a rate of 100 requests per second LIMIT!
 
@@ -63,8 +64,6 @@ async function checkIfShouldUpdateFull() {
     return nowMS - lastMS >= sixHours;
 }
 
-await DBconnect(true);
-await connectRedis(true);
 
 const now = new Date();
 const fullUpdate = await checkIfShouldUpdateFull();

@@ -7,7 +7,6 @@ dotenv.config({ path: '../../.env' });
 
 async function fetchData(server, realm, name, checkedCount = undefined, forceUpdate = false) {
     // const start = performance.now();
-    name = name.toLowerCase();
 
     try {
         // Fetch the main character profile

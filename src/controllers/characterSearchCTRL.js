@@ -5,7 +5,7 @@ import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter.js";
 // import buildCharacter from "../helpers/buildCharacter.js";
-import {  getCharacter } from "../caching/characters/charCache.js";
+import { getCharacterViaWorker } from "../caching/characters/charCache.js";
 import { searchCharFromMap } from "../caching/searchCache/charSearchCache.js";
 import buildCharSearch from "../helpers/buildCharSearch.js";
 
@@ -56,7 +56,7 @@ async function checkCharacterGet(req, res) {
     }
 
     try {
-        const character = await getCharacter(server, realm, name);
+        const character = await getCharacterViaWorker(server, realm, name);
 
 
         if (character === 404) response.code = 404
@@ -79,7 +79,7 @@ async function updateCharacterPatch(req, res) {
     const { server, realm, name } = req.params;
     let character;
     try {
-        character = await getCharacter(server, realm, name, false, true, true);
+        character = await getCharacterViaWorker(server, realm, name, false, true, true);
         if (character) {
             return jsonResponse(res, 200, character);
         } else if (character === 404) {
@@ -121,7 +121,7 @@ async function patchPvPData(req, res) {
 
         } else {
 
-            const newChar = await getCharacter(server, realm, name);
+            const newChar = await getCharacterViaWorker(server, realm, name);
 
             return jsonResponse(res, 201, newChar)
 

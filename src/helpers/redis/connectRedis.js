@@ -18,6 +18,7 @@ const socketOptions = {
 
 // main (DB 0) client
 export const redisCache = createClient({ url, socket: socketOptions });
+// add key notification events
 
 // secondary (DB 1) client for characters
 export const redisCacheCharacters = createClient({ url, socket: socketOptions });
@@ -40,6 +41,9 @@ export default async function connectRedis(silent = false) {
     
             // Enable only expiration notifications for DB1
             await redisCacheCharacters.configSet("notify-keyspace-events", "Ex");
+            // Enable messaging events
+            await redisCache.configSet("notify-keyspace-events", "KEA");
+
     
             if (!silent) console.info("Redis connected: DB0 + DB1 ready!");
             break;

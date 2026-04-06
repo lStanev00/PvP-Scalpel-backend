@@ -2,6 +2,51 @@ import formReadableID from "../formReadableID.js";
 import { getRedisClient } from "./connectRedis.js";
 import checkKey from "./validateRedisKey.js";
 
+/**
+ * Validate one Redis set value input and keep the public helpers strict.
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
+function validateSetValue(value) {
+    value = checkKey(value);
+
+    if (typeof value !== "string") {
+        throw new TypeError("The value have to be a string!");
+    }
+
+    return value;
+}
+
+/**
+ * Parse one stored Redis list entry back into its original JSON value.
+ *
+ * @param {string} value
+ * @returns {any}
+ */
+function parseListValue(value) {
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        console.error(error);
+        return value;
+    }
+}
+
+/**
+ * Read one cached entry from Redis and parse it when the stored value is JSON.
+ *
+ * When `hash` is provided, the function reads field `key` from that Redis hash.
+ * Otherwise it reads the direct Redis key. If the stored payload parses as an
+ * object and contains `_id` or `id`, those identifiers are converted through
+ * `formReadableID()` before the value is returned.
+ *
+ * @param {string} key Redis key name or hash field name.
+ * @param {string} [hash=""] Redis hash name. Leave empty to read a direct key.
+ * @param {number} [clientIndex=0] Redis client/database index selector.
+ * @returns {Promise<any | null>} Parsed cached value, raw string fallback, or
+ * `null` when the key is invalid or no value exists.
+ */
 export default async function getCache(key, hash = "", clientIndex = 0) {
     if (typeof hash !== "string") throw new TypeError("The hash have to be a string!");
 
@@ -64,4 +109,97 @@ export async function hashGetAllCache(hash, clientIndex = 0) {
     }
 
     return parsed;
+}
+
+/**
+ * Read every string value from a Redis set key.
+ *
+ * @param {string} key
+ * @param {number} [clientIndex=0]
+ * @returns {Promise<string[]>}
+ */
+export async function setValuesCache(key, clientIndex = 0) {
+    const client = getRedisClient(clientIndex);
+
+    key = checkKey(key);
+    if (typeof key !== "string") throw new TypeError("The key have to be a string!");
+
+    const result = await client.sMembers(key);
+    return Array.isArray(result) ? result : [];
+}
+
+/**
+ * Check whether a Redis set key contains a specific string value.
+ *
+ * @param {string} key
+ * @param {string} value
+ * @param {number} [clientIndex=0]
+ * @returns {Promise<boolean>}
+ */
+export async function setHasValueCache(key, value, clientIndex = 0) {
+    const client = getRedisClient(clientIndex);
+
+    key = checkKey(key);
+    value = validateSetValue(value);
+
+    if (typeof key !== "string") throw new TypeError("The key have to be a string!");
+
+    const result = await client.sIsMember(key, value);
+    return Boolean(result);
+}
+
+/**
+ * Read the cardinality of a Redis set key.
+ *
+ * @param {string} key
+ * @param {number} [clientIndex=0]
+ * @returns {Promise<number>}
+ */
+export async function setCardCache(key, clientIndex = 0) {
+    const client = getRedisClient(clientIndex);
+
+    key = checkKey(key);
+    if (typeof key !== "string") throw new TypeError("The key have to be a string!");
+
+    const result = await client.sCard(key);
+    return Number(result);
+}
+
+/**
+ * Read ordered values from a Redis list key and parse their stored JSON payloads.
+ *
+ * @param {string} key
+ * @param {number} [start=0]
+ * @param {number} [end=-1]
+ * @param {number} [clientIndex=0]
+ * @returns {Promise<any[]>}
+ */
+export async function listValuesCache(key, start = 0, end = -1, clientIndex = 0) {
+    const client = getRedisClient(clientIndex);
+
+    key = checkKey(key);
+    if (typeof key !== "string") throw new TypeError("The key have to be a string!");
+    if (typeof start !== "number" || typeof end !== "number") {
+        throw new TypeError("The start and end have to be numbers!");
+    }
+
+    const result = await client.lRange(key, start, end);
+    return Array.isArray(result) ? result.map(parseListValue) : [];
+}
+
+/**
+ * Read the length of a Redis list key.
+ *
+ * @param {string} key
+ * @param {number} [clientIndex=0]
+ * @returns {Promise<number>}
+ */
+export async function listLengthCache(key, clientIndex = 0) {
+    const client = getRedisClient(clientIndex);
+
+    key = checkKey(key);
+    if (typeof key !== "string") throw new TypeError("The key have to be a string!");
+
+    const result = await client.lLen(key);
+    return Number(result);
 }

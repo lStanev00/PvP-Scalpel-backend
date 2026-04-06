@@ -1,7 +1,7 @@
 import helpFetch from "../../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import GameSpell from "../../../Models/GameSpell.js";
 
-export default async function retriveValidSpells(spellArray) {
+export default async function retrieveValidSpells(spellArray) {
     if (!Array.isArray(spellArray)) {
         throw new TypeError("The argument have to be type of Array");
     }
