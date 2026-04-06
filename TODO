@@ -3,7 +3,7 @@ proccesses still consume ram, every getCharacter() and other operations with big
 tasks has to be in a separate proccess (not worker) to be fire return and forget so it releases the ram alocation
 for the proccess.
 
-Am (the autorh) already works on a resolution in the workers service with a pub/sub patter for tasks eventualy the orchestrator
+Am (the autorh) already working on a resolution in the workers service with a pub/sub patter for tasks eventualy the orchestrator
 has to be "cold started" aswell cuz still manage the job for the workers we need a higher lvl spawner in the main thread,
 it's purpose will be only to address if there's work and spawn the orchestrator, then the orchestrator will be managing the 
 data/works/jobs to keep te main thread ram reserve free. 
