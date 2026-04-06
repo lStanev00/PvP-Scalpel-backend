@@ -1,4 +1,4 @@
-// version: 1.4.1
+// version: 1.4.2
 import startServices from "../services/servicesMain.js";
 // import { DBconnect } from "../helpers/mongoHelper.js";
 // import connectRedis from "../helpers/redis/connectRedis.js";

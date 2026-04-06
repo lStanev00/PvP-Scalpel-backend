@@ -34,7 +34,23 @@ async function waitForDrainAndExit() {
         await delay(300);
     }
 
+    await waitForWorkersToFinish();
     process.exit(0);
+}
+
+async function waitForWorkersToFinish() {
+    while (true) {
+        const [queueWorker1Jobs, queueWorker2Jobs] = await Promise.all([
+            QueueWorker1.getWorkerJobs(),
+            QueueWorker2.getWorkerJobs(),
+        ]);
+
+        if (queueWorker1Jobs.length === 0 && queueWorker2Jobs.length === 0) {
+            return;
+        }
+
+        await delay(300);
+    }
 }
 
 async function startQueue() {
@@ -78,6 +94,7 @@ async function startQueue() {
     } finally {
         currentJobInfo = null;
         draining = false;
+        await waitForWorkersToFinish();
 
         const queueSize = await getJobQueueSize();
         if (stopRequested || queueSize === 0) {
