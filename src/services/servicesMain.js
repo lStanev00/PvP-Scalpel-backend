@@ -1,11 +1,14 @@
 // import { delay } from "../helpers/startBGTask.js";
+import JobQueue from "../workers/jobQueue/jobQueue.js";
 import workerPatchGuildMembersData from "../workers/PatchGuildMembersData/workerPatchGuildMembersData.js";
 import workerupdateDBAchieves from "../workers/updateDBAchievements/workerUDBA.js";
 import workerUpdateRealm from "../workers/updateRealm/workerUpdateRealm.js";
-import { fork } from "node:child_process";
+
+const jobQueue = new JobQueue();
 
 export default async function startServices() {
-    fork("src/workers/jobQueue/jobQueueOrchestrator.js");
+    // fork("src/workers/jobQueue/jobQueueOrchestrator.js");
+    await jobQueue.initialize();
     
     // let warmupFinished = false;
     // const cacheWormupTask = fork("src/workers/initialChace/workerInitialCache.js");
