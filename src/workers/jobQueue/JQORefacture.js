@@ -34,18 +34,16 @@ async function waitForDrainAndExit() {
         await delay(300);
     }
 
-    await waitForWorkersToFinish();
+    await waitForWorkersToExit();
     process.exit(0);
 }
 
-async function waitForWorkersToFinish() {
+async function waitForWorkersToExit() {
     while (true) {
-        const [queueWorker1Jobs, queueWorker2Jobs] = await Promise.all([
-            QueueWorker1.getWorkerJobs(),
-            QueueWorker2.getWorkerJobs(),
-        ]);
+        const queueWorker1Exited = QueueWorker1.processRef === undefined || QueueWorker1.processRef === null;
+        const queueWorker2Exited = QueueWorker2.processRef === undefined || QueueWorker2.processRef === null;
 
-        if (queueWorker1Jobs.length === 0 && queueWorker2Jobs.length === 0) {
+        if (queueWorker1Exited && queueWorker2Exited) {
             return;
         }
 
@@ -94,7 +92,7 @@ async function startQueue() {
     } finally {
         currentJobInfo = null;
         draining = false;
-        await waitForWorkersToFinish();
+        await waitForWorkersToExit();
 
         const queueSize = await getJobQueueSize();
         if (stopRequested || queueSize === 0) {
