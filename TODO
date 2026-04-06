@@ -1,0 +1,16 @@
+Due to platform ( the cloud where this systems run ) have ram reservation and stale 
+proccesses still consume ram, every getCharacter() and other operations with big arrays/data
+tasks has to be in a separate proccess (not worker) to be fire return and forget so it releases the ram alocation
+for the proccess.
+
+Am (the autorh) already working on a resolution in the workers service with a pub/sub patter for tasks eventualy the orchestrator
+has to be "cold started" aswell cuz still manage the job for the workers we need a higher lvl spawner in the main thread,
+it's purpose will be only to address if there's work and spawn the orchestrator, then the orchestrator will be managing the 
+data/works/jobs to keep te main thread ram reserve free. 
+
+Am already able to make the REST api aswell to use this new retrive from the worker characters pub/sub pattern so the project
+(which does not include only these service/codebase/repo) is gonna prioritize this optimisation.
+Please note the planned resolution will resolve in manny proccess spawns which is not best practice, but unfortunetlly
+for this platform i dont see any other "native" resolution, i do it that way so we stay out of outside dependancies,
+which if you are developer and read this u alredy know they are being exploited and this resolve in vonurabilities, am not
+telling this approach is better and safer but is more controlled from me, which is my safespot.
