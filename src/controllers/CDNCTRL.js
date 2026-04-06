@@ -1,18 +1,22 @@
 import { Router } from "express";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
 import { getManifest } from "../caching/CDNCache/manifestCache.js";
-import {
-    getDownloadUrl,
-    storeDownloadUrl,
-} from "../caching/CDNCache/downloadAppCache.js";
+import { getDownloadUrl, storeDownloadUrl } from "../caching/CDNCache/downloadAppCache.js";
 
 const DOWNLOAD_KEYS = ["addon", "desktop", "launcher"];
+const FRONTEND_CONTENT_FOLDER = "frontend-content";
+const PUBLIC_CDN_BASE_URL = String(
+    process.env.CDN_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "",
+)
+    .trim()
+    .replace(/\/+$/, "");
 
 const CDNCTRL = Router();
 
 CDNCTRL.get("/CDN/manifest", manifestGET);
 CDNCTRL.get("/CDN/download/refresh", downloadRefreshGET);
 CDNCTRL.get("/CDN/download/:key", downloadGET);
+CDNCTRL.get("/CDN/FEContent", FEContentGET);
 
 /**
  * @param {import("express").Request} req
@@ -77,7 +81,7 @@ async function downloadRefreshGET(req, res) {
                 ok: Boolean(data),
                 url: data?.url ?? null,
             };
-        })
+        }),
     );
 
     const failed = results.filter((result) => !result.ok);
@@ -89,6 +93,40 @@ async function downloadRefreshGET(req, res) {
     }
 
     return jsonResponse(res, 200, results);
+}
+
+/**
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ */
+async function FEContentGET(req, res) {
+    if (!PUBLIC_CDN_BASE_URL) {
+        return jsonResponse(res, 500, {
+            error: "Missing CDN_PUBLIC_BASE_URL or PUBLIC_BASE_URL",
+        });
+    }
+
+    const fileName = String(req.query?.path || "").trim();
+    if (!fileName) {
+        return jsonResponse(res, 400, { error: "Missing path query param" });
+    }
+
+    if (fileName.includes("/") || fileName.includes("\\") || fileName.includes("..")) {
+        return jsonResponse(res, 400, {
+            error: "Path must be a file name only",
+        });
+    }
+
+    const objectPath = `${FRONTEND_CONTENT_FOLDER}/${fileName}`;
+    const url = `${PUBLIC_CDN_BASE_URL}/${objectPath
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/")}`;
+
+    return jsonResponse(res, 200, {
+        path: objectPath,
+        url,
+    });
 }
 
 export default CDNCTRL;
