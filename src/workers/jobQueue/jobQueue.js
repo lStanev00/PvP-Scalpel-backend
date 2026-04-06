@@ -12,7 +12,8 @@ export default class JobQueue {
     constructor(index = 0, redisKeySpace = "__keyspace@0__:JobQueue") {
         this.name = `JobQueue${index ? " " + index : ""}`;
         this.procRef = null;
-        this.subClone = null;
+        this.subClone = redisCache.duplicate();
+        this.isSubscribed = false;
         this.redisKeySpace = redisKeySpace;
         this.onSubscribe = this.onSubscribe.bind(this);
     }
@@ -28,16 +29,14 @@ export default class JobQueue {
         if (!event.includes("push")) return;
         if (this.procRef) return;
 
-        if (this.subClone?.isOpen) {
-            this.cacheCommand.destroy();
-        }
+        if (this.subClone?.isOpen && this.isSubscribed) await this.cacheCommand.unSub()
 
         this.procRef = fork("src/workers/jobQueue/JQORefacture.js");
 
         this.procRef.on("exit", async (code, signal) => {
             console.info(`${this.name} exited with code: ${code}, signal: ${signal}`);
             this.procRef = null;
-            await this.initialize();
+            await this.cacheCommand.sub();
         });
     }
 
@@ -52,39 +51,41 @@ export default class JobQueue {
             return;
         }
 
-        if (!this.subClone?.isOpen) {
-            await this.cacheCommand.initialize();
-        }
-
-        await this.subClone.pSubscribe(this.redisKeySpace, this.onSubscribe);
+        await this.cacheCommand.sub();
     }
 
     cacheCommand = {
         /**
          * Closes and clears the duplicated Redis client.
          *
-         * @returns {void}
+         * @returns {Promise<void>}
          */
-        destroy: () => {
-            if (this.subClone?.isOpen) {
-                this.subClone.destroy();
+        unSub: async () => {
+            if (this.isSubscribed) {
+                await this.subClone.pUnsubscribe(this.redisKeySpace, this.onSubscribe);
             }
 
-            this.subClone = null;
+            this.isSubscribed = false;
         },
 
         /**
-         * Recreates and connects the duplicated Redis client used for subscriptions.
+         * Connects the duplicated Redis client and ensures the keyspace listener is subscribed.
          *
          * @returns {Promise<void>}
          */
-        initialize: async () => {
-            if (this.subClone?.isOpen) {
-                this.cacheCommand.destroy();
+        sub: async () => {
+            if (!this.subClone) {
+                this.subClone = redisCache.duplicate();
             }
 
-            this.subClone = redisCache.duplicate();
-            await this.subClone.connect();
+            if (!this.subClone.isOpen) {
+                await this.subClone.connect();
+            }
+
+            if (!this.isSubscribed) {
+                await this.subClone.pSubscribe(this.redisKeySpace, this.onSubscribe);
+                this.isSubscribed = true;
+            }
         },
     };
 }
