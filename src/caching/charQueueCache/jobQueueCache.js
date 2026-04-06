@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { removeListCache } from "../../helpers/redis/deletersRedis.js";
 import { listLengthCache, listValuesCache } from "../../helpers/redis/getterRedis.js";
 import { pushListCache } from "../../helpers/redis/setterRedis.js";
+import normalizeCharacterSearch from "../../helpers/normalizeCharacterSearch.js";
 
 const key = "JobQueue";
 const humanReadableName = "Job Queue Cache";
@@ -44,6 +45,23 @@ const humanReadableName = "Job Queue Cache";
  * @param {QueueJob} jobEntry
  * @returns {QueueJob}
  */
+
+function validateCharacterQueueJobData(jobData, jobType) {
+    if (!jobData || typeof jobData !== "object" || Array.isArray(jobData)) {
+        throw new TypeError(`${jobType} job data must be an object.`);
+    }
+
+    const normalizedSearch = normalizeCharacterSearch(jobData.search);
+    if (!normalizedSearch) {
+        throw new TypeError(`${jobType} jobs require a canonical non-empty search value.`);
+    }
+
+    return {
+        ...jobData,
+        search: normalizedSearch,
+    };
+}
+
 function validateJobQueueEntry(jobEntry) {
     if (!jobEntry || typeof jobEntry !== "object" || Array.isArray(jobEntry)) {
         throw new TypeError("Job queue entry must be an object.");
@@ -54,33 +72,26 @@ function validateJobQueueEntry(jobEntry) {
     }
 
     if (jobEntry.type === "retrieveCharacter") {
-        if (!jobEntry.data || typeof jobEntry.data !== "object" || Array.isArray(jobEntry.data)) {
-            throw new TypeError("retrieveCharacter job data must be an object.");
-        }
-
-        if (typeof jobEntry.data.search !== "string") {
-            throw new TypeError("retrieveCharacter jobs require data.search to be a string.");
-        }
-
-        return jobEntry;
+        return {
+            ...jobEntry,
+            data: validateCharacterQueueJobData(jobEntry.data, "retrieveCharacter"),
+        };
     }
 
     if (jobEntry.type === "bulkRetrieveCharacter") {
         if (!Array.isArray(jobEntry.data)) {
             throw new TypeError("bulkRetrieveCharacter job data must be an array.");
         }
-
-        for (const jobData of jobEntry.data) {
-            if (!jobData || typeof jobData !== "object" || Array.isArray(jobData)) {
-                throw new TypeError("bulkRetrieveCharacter job items must be objects.");
-            }
-
-            if (typeof jobData.search !== "string") {
-                throw new TypeError("bulkRetrieveCharacter job items require search to be a string.");
-            }
+        if (jobEntry.data.length === 0) {
+            throw new TypeError("bulkRetrieveCharacter job data cannot be empty.");
         }
 
-        return jobEntry;
+        return {
+            ...jobEntry,
+            data: jobEntry.data.map((jobData) =>
+                validateCharacterQueueJobData(jobData, "bulkRetrieveCharacter"),
+            ),
+        };
     }
 
     throw new TypeError(`Unsupported job queue entry type "${jobEntry.type}".`);

@@ -12,9 +12,13 @@ const allowedOrigins = [
     "http://tauri.localhost",
 ];
 
+export function isAllowedOrigin(origin) {
+    return !origin || allowedOrigins.includes(origin);
+}
+
 export const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (isAllowedOrigin(origin)) {
             callback(null, true);
         } else {
             callback(null, false);

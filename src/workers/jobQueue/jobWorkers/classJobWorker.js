@@ -4,6 +4,7 @@ import setCache, { addSetCache } from "../../../helpers/redis/setterRedis.js";
 import JQOLog from "../JQOLoog.js";
 import { removeSetCache } from "../../../helpers/redis/deletersRedis.js";
 import WorkerError from "../../../Models/WorkerErrors.js";
+import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.js";
 
 const queuedCharKey = "queuedCharSet";
 const queueCharacterSearch = async (search) => await addSetCache(queuedCharKey, search);
@@ -142,14 +143,23 @@ export default class QueueWorker {
      * @returns {Promise<boolean | undefined>}
      */
     async retrieveCharacter(data) {
-        const { search } = data;
+        const search = normalizeCharacterSearch(data?.search);
+        if (!search) {
+            JQOLog.warn(
+                `Skipping retrieveCharacter for ${this.name} because search is invalid: ${JSON.stringify(data?.search)}`,
+            );
+            return false;
+        }
 
         const charQueued = await hasQueuedCharacterSearch(search);
         if (charQueued) return;
 
         const queueJob = {
             type: "retrieveCharacter",
-            data: data,
+            data: {
+                ...data,
+                search,
+            },
         };
         await queueCharacterSearch(search);
         return await this.pushJob(queueJob);
