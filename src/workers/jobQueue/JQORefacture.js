@@ -20,7 +20,7 @@ let newJobRequested = false;
 JQOLog.info("BOOTED");
 
 process.on("message", (msg) => {
-    console.log("received:", msg);
+    // console.log("received:", msg);
 
     if (msg === "stop") {
         stopRequested = true;
