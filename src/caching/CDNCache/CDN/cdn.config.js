@@ -5,15 +5,16 @@ export const CDNURI = "http://" + process.env.CDN_PRIVATE_DOMAIN + ":" + process
 export const CDNAUTH = process.env.JWT_CDN_PUBLIC;
 
 export async function retriveCDNLink(keyId) {
-    const path = `${CDNURI.endsWith("/") ? "" : "/"}presign/download`
-    const response = await fetch(CDNURI + path, {
+    const response = await fetch(`${CDNURI}/presign/download`, {
+        method: "POST",
         headers: {
+            "Content-Type": "application/json",
             Authorization: `Bearer ${CDNAUTH}`,
         },
         body: JSON.stringify({
             keyId
-        })
+        }),
     });
 
-    return await response.json()
+    return await response.json();
 }
