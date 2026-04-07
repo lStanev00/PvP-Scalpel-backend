@@ -5,12 +5,6 @@ import { getDownloadUrl, storeDownloadUrl } from "../caching/CDNCache/downloadAp
 
 const DOWNLOAD_KEYS = ["addon", "desktop", "launcher"];
 const FRONTEND_CONTENT_FOLDER = "frontend-content";
-const PUBLIC_CDN_BASE_URL = String(
-    process.env.CDN_PUBLIC_BASE_URL || process.env.PUBLIC_BASE_URL || "",
-)
-    .trim()
-    .replace(/\/+$/, "");
-
 const CDNCTRL = Router();
 
 CDNCTRL.get("/CDN/manifest", manifestGET);
@@ -100,11 +94,6 @@ async function downloadRefreshGET(req, res) {
  * @param {import("express").Response} res
  */
 async function FEContentGET(req, res) {
-    if (!PUBLIC_CDN_BASE_URL) {
-        return jsonResponse(res, 500, {
-            error: "Missing CDN_PUBLIC_BASE_URL or PUBLIC_BASE_URL",
-        });
-    }
 
     const fileName = String(req.query?.path || "").trim();
     if (!fileName) {
