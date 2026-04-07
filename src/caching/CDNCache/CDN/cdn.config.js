@@ -7,7 +7,6 @@ export const CDNAUTH = process.env.JWT_CDN_PUBLIC;
 export async function retriveCDNLink(keyId) {
     const path = `${CDNURI.endsWith("/") ? "" : "/"}presign/download`
     const response = await fetch(CDNURI + path, {
-        method: "GET",
         headers: {
             Authorization: `Bearer ${CDNAUTH}`,
         },
