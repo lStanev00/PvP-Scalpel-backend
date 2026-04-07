@@ -2,9 +2,9 @@ import { Router } from "express";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
 import { getManifest } from "../caching/CDNCache/manifestCache.js";
 import { getDownloadUrl, storeDownloadUrl } from "../caching/CDNCache/downloadAppCache.js";
+import { retriveCDNLink } from "../caching/CDNCache/CDN/cdn.config.js";
 
 const DOWNLOAD_KEYS = ["addon", "desktop", "launcher"];
-const FRONTEND_CONTENT_FOLDER = "frontend-content";
 const CDNCTRL = Router();
 
 CDNCTRL.get("/CDN/manifest", manifestGET);
@@ -106,16 +106,14 @@ async function FEContentGET(req, res) {
         });
     }
 
-    const objectPath = `${FRONTEND_CONTENT_FOLDER}/${fileName}`;
-    const url = `${PUBLIC_CDN_BASE_URL}/${objectPath
-        .split("/")
-        .map((segment) => encodeURIComponent(segment))
-        .join("/")}`;
+    try {
+        const data = await retriveCDNLink("frontend-content/" +fileName);
+        if(data) return jsonResponse(res, 200, data);
+    } catch (error) {
+        return jsonResponse(res, 500);        
+    }
 
-    return jsonResponse(res, 200, {
-        path: objectPath,
-        url,
-    });
+    return jsonResponse(res, 404);
 }
 
 export default CDNCTRL;
