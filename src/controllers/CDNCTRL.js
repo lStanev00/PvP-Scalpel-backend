@@ -110,6 +110,7 @@ async function FEContentGET(req, res) {
         const data = await retriveCDNLink("frontend-content/" +fileName);
         if(data) return jsonResponse(res, 200, data);
     } catch (error) {
+        console.error(error)
         return jsonResponse(res, 500);        
     }
 
