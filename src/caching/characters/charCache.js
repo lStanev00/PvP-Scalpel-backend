@@ -22,9 +22,12 @@ import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
 import { getRegionIdsMap } from "../regions/regionCache.js";
 import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
 import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
+import { CharacterCacheTTL } from "../../helpers/redis/connectRedis.js";
 
 export const CharCacheEmitter = new EventEmitter();
-CharCacheEmitter.setMaxListeners(30);
+const CHAR_CACHE_EMMITER_MAX_LISTENERS = Number(process.env?.CHAR_CACHE_EMMITER_MAX_LISTENERS || "10");
+CharCacheEmitter.setMaxListeners(CHAR_CACHE_EMMITER_MAX_LISTENERS);
+const CHARACTER_CACHE_TTL_SECONDS = 3600;
 const hashName = "";
 const humanReadableName = "Characters Cache";
 const inFlightWorkerCharacters = new Map();
@@ -39,7 +42,7 @@ CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR
 CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
 CharCacheEmitter.on("updateRequest", async (search) => {
     try {
-        const exist = await getCache(search, hashName, 1);
+        const exist = await getCache(search, hashName, CharacterCacheTTL);
 
         if (exist === null || !exist) return;
         const char = await shipCharById(exist.id);
@@ -59,11 +62,22 @@ export async function cacheOneCharacter(charData) {
 
     if (charData && search) {
         try {
-            await setCache(search, charData.toObject(), hashName, -1, 1);
+            await setCache(
+                search,
+                charData.toObject(),
+                hashName,
+                CHARACTER_CACHE_TTL_SECONDS,
+                CharacterCacheTTL,
+            );
         } catch (error) {
-            await setCache(search, charData, hashName, -1, 1);
+            await setCache(
+                search,
+                charData,
+                hashName,
+                CHARACTER_CACHE_TTL_SECONDS,
+                CharacterCacheTTL,
+            );
         }
-        await setCache(`EXPIRE:${search}`, 0, hashName, 3600, 1);
     }
 }
 
@@ -356,8 +370,8 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                         updatedAt: Date.now(),
                     },
                     hashName,
-                    3600,
-                    1,
+                    CHARACTER_CACHE_TTL_SECONDS,
+                    CharacterCacheTTL,
                 );
                 return 404;
             }
@@ -416,7 +430,7 @@ async function getCharFromCacheBySearch(search) {
 
     search = CSParts.join(":");
 
-    const result = await getCache(search, hashName, 1);
+    const result = await getCache(search, hashName, CharacterCacheTTL);
     if (result === null || !result) return null;
     return isOlderThanHour(result) ? undefined : result;
 }
