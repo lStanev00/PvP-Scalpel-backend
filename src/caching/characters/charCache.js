@@ -24,7 +24,7 @@ import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
 import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
 
 export const CharCacheEmitter = new EventEmitter();
-CharCacheEmitter.setMaxListeners(16);
+CharCacheEmitter.setMaxListeners(30);
 const hashName = "";
 const humanReadableName = "Characters Cache";
 const inFlightWorkerCharacters = new Map();
