@@ -1,18 +1,16 @@
 import { Router } from "express";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
 import { getManifest } from "../caching/CDNCache/manifestCache.js";
-import {
-    getDownloadUrl,
-    storeDownloadUrl,
-} from "../caching/CDNCache/downloadAppCache.js";
+import { getDownloadUrl, storeDownloadUrl } from "../caching/CDNCache/downloadAppCache.js";
+import { retriveCDNLink } from "../caching/CDNCache/CDN/cdn.config.js";
 
 const DOWNLOAD_KEYS = ["addon", "desktop", "launcher"];
-
 const CDNCTRL = Router();
 
 CDNCTRL.get("/CDN/manifest", manifestGET);
 CDNCTRL.get("/CDN/download/refresh", downloadRefreshGET);
 CDNCTRL.get("/CDN/download/:key", downloadGET);
+CDNCTRL.get("/CDN/FEContent", FEContentGET);
 
 /**
  * @param {import("express").Request} req
@@ -77,7 +75,7 @@ async function downloadRefreshGET(req, res) {
                 ok: Boolean(data),
                 url: data?.url ?? null,
             };
-        })
+        }),
     );
 
     const failed = results.filter((result) => !result.ok);
@@ -89,6 +87,34 @@ async function downloadRefreshGET(req, res) {
     }
 
     return jsonResponse(res, 200, results);
+}
+
+/**
+ * @param {import("express").Request} req
+ * @param {import("express").Response} res
+ */
+async function FEContentGET(req, res) {
+
+    const fileName = String(req.query?.path || "").trim();
+    if (!fileName) {
+        return jsonResponse(res, 400, { error: "Missing path query param" });
+    }
+
+    if (fileName.includes("/") || fileName.includes("\\") || fileName.includes("..")) {
+        return jsonResponse(res, 400, {
+            error: "Path must be a file name only",
+        });
+    }
+
+    try {
+        const data = await retriveCDNLink("frontend-content/" +fileName);
+        if(data) return jsonResponse(res, 200, data);
+    } catch (error) {
+        console.error(error)
+        return jsonResponse(res, 500);        
+    }
+
+    return jsonResponse(res, 404);
 }
 
 export default CDNCTRL;

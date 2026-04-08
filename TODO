@@ -1,3 +1,5 @@
+Done
+
 Due to platform ( the cloud where this systems run ) have ram reservation and stale 
 proccesses still consume ram, every getCharacter() and other operations with big arrays/data
 tasks has to be in a separate proccess (not worker) to be fire return and forget so it releases the ram alocation

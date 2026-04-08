@@ -6,6 +6,8 @@ import { delay } from "../startBGTask.js";
 configDotenv();
 
 const IS_LOCAL = process.env.IS_LOCAL;
+export const CHARACTER_CACHE_TTL_DATABASE = 2;
+export const CharacterCacheTTL = "CharacterCacheTTL";
 const url = IS_LOCAL
     ? process.env.REDIS_URL
     : `redis://default:${process.env.REDIS_PASSWORD}@redis:${process.env.REDISPORT}`;
@@ -19,9 +21,7 @@ const socketOptions = {
 // main (DB 0) client
 export const redisCache = createClient({ url, socket: socketOptions });
 // add key notification events
-
-// secondary (DB 1) client for characters
-export const redisCacheCharacters = createClient({ url, socket: socketOptions });
+export const redisCharacterCacheTTL = createClient({ url, socket: socketOptions });
 
 export default async function connectRedis(silent = false) {
     let iter = 0;
@@ -32,20 +32,18 @@ export default async function connectRedis(silent = false) {
             // Connect both clients
             await Promise.all([
                 redisCache.connect(),
-                redisCacheCharacters.connect(),
+                redisCharacterCacheTTL.connect(),
             ]);
     
             // Select databases
             await redisCache.select(0);
-            await redisCacheCharacters.select(1);
-    
-            // Enable only expiration notifications for DB1
-            await redisCacheCharacters.configSet("notify-keyspace-events", "Ex");
+            await redisCharacterCacheTTL.select(CHARACTER_CACHE_TTL_DATABASE);
+
             // Enable messaging events
             await redisCache.configSet("notify-keyspace-events", "KEA");
 
     
-            if (!silent) console.info("Redis connected: DB0 + DB1 ready!");
+            if (!silent) console.info("Redis connected: DB0 + CharacterCacheTTL ready!");
             break;
         } catch (error) {
             console.warn("Redis failed to connect!\n    => The iter == " + iter);
@@ -59,5 +57,7 @@ export default async function connectRedis(silent = false) {
 
 // DB selector helper
 export function getRedisClient(dbIndex = 0) {
-    return dbIndex === 1 ? redisCacheCharacters : redisCache;
+    return dbIndex === CharacterCacheTTL || dbIndex === CHARACTER_CACHE_TTL_DATABASE
+        ? redisCharacterCacheTTL
+        : redisCache;
 }

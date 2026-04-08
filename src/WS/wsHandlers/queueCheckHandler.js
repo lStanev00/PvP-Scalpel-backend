@@ -1,4 +1,4 @@
-import { CharCacheEmitter } from "../../caching/characters/charCache.js";
+import { retrieveCharacterViaWorker } from "../../caching/characters/charCache.js";
 import { enqueueJobQueueEntry } from "../../caching/charQueueCache/jobQueueCache.js";
 import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
 import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
@@ -20,7 +20,7 @@ export default async function queueCheckHandler(ws, msg) {
         wsResponse(ws, "error", { at: Date.now() });
         return;
     }
-    const listenerCleanup = new Set();
+    const requestController = new AbortController();
 
     matchRegex.lastIndex = 0;
     const match = matchRegex.exec(rawData);
@@ -38,12 +38,7 @@ export default async function queueCheckHandler(ws, msg) {
     const team1 = team1String.split("|");
     const team2 = team2String.split("|");
 
-    const clearPendingListeners = () => {
-        for (const cleanup of listenerCleanup) cleanup();
-        listenerCleanup.clear();
-    };
-
-    ws.once("close", clearPendingListeners);
+    ws.once("close", () => requestController.abort());
 
     const bracketObj = await getGameBracketByID(bracketID);
     wsResponse(ws, "bracketObj", bracketObj);
@@ -119,47 +114,43 @@ export default async function queueCheckHandler(ws, msg) {
         };
     }
 
-    function registerCharacterResultListener(search, initSearch, spec) {
-        const eventName = `retrieveCharacter:${search}`;
-        const onResult = (msg) => {
-            clearTimeout(timeoutId);
-            listenerCleanup.delete(cleanup);
+    function requestCharacterResult(search, initSearch, spec) {
+        void retrieveCharacterViaWorker(
+            { search },
+            { timeoutMs: 60000, signal: requestController.signal, enqueue: false },
+        )
+            .then((msg) => {
+                if (requestController.signal.aborted) return;
 
-            const { character } = msg;
+                const { character } = msg ?? {};
 
-            if (character === 404 || character === null || character === undefined || !character?._id) {
+                if (character === 404 || character === null || character === undefined || !character?._id) {
+                    wsResponse(ws, "charData", {
+                        initSearch,
+                        data: undefined,
+                    });
+                    return;
+                }
+
+                wsResponse(ws, "charData", {
+                    initSearch,
+                    searchSpecRequested: spec ?? null,
+                    data: {
+                        ...character,
+                    },
+                });
+            })
+            .catch((error) => {
+                if (error?.name === "AbortError") return;
+
+                console.warn(error);
+                if (requestController.signal.aborted) return;
+
                 wsResponse(ws, "charData", {
                     initSearch,
                     data: undefined,
                 });
-                return;
-            }
-
-            wsResponse(ws, "charData", {
-                initSearch,
-                searchSpecRequested: spec ?? null,
-                data: {
-                    ...character,
-                },
             });
-        };
-
-        const cleanup = () => {
-            clearTimeout(timeoutId);
-            CharCacheEmitter.off(eventName, onResult);
-        };
-
-        const timeoutId = setTimeout(() => {
-            cleanup();
-            listenerCleanup.delete(cleanup);
-            wsResponse(ws, "charData", {
-                initSearch,
-                data: undefined,
-            });
-        }, 60000);
-
-        CharCacheEmitter.once(eventName, onResult);
-        listenerCleanup.add(cleanup);
     }
 
     async function processEntries(entries) {
@@ -186,7 +177,7 @@ export default async function queueCheckHandler(ws, msg) {
                 }
 
                 jobBuild.data.push(buildEntryJob(parsed.search));
-                registerCharacterResultListener(parsed.search, parsed.initSearch, parsed.spec);
+                requestCharacterResult(parsed.search, parsed.initSearch, parsed.spec);
             } catch (error) {
                 console.warn(error);
                 rejectedEntries.push(rejectEntry(String(rawEntry), "entry failed during parsing"));
