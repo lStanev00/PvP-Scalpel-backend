@@ -6,7 +6,7 @@ import { delay } from "../startBGTask.js";
 configDotenv();
 
 const IS_LOCAL = process.env.IS_LOCAL;
-export const CHARACTER_CACHE_TTL_DATABASE = 2;
+export const CHARACTER_CACHE_TTL_DATABASE = 1;
 export const CharacterCacheTTL = "CharacterCacheTTL";
 const url = IS_LOCAL
     ? process.env.REDIS_URL
