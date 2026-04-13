@@ -50,7 +50,7 @@ const helpFetch = {
         }
 
     },
-    getRating: async function(path, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
+    getRating: async function(path, currentSeasonIndex, server = undefined, realm = undefined, name = undefined, shouldRetrieve = false) {
         try {
             const bracketsCheatSheet = {
                 "SHUFFLE": `solo`,
@@ -101,6 +101,8 @@ const helpFetch = {
             const bracketFetches = brackets.map(bracket =>this.fetchBlizzard(bracket.href));
 
             const allBracketsData = await Promise.all(bracketFetches);
+
+            
 
 
             const processBrackets = allBracketsData.map(async (data, index) => {

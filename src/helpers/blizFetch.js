@@ -5,7 +5,7 @@ import dataGuard from './blizFetch-helpers/dataGuard.js';
 
 dotenv.config({ path: '../../.env' });
 
-async function fetchData(server, realm, name, checkedCount = undefined, forceUpdate = false) {
+async function fetchData(server, realm, name, checkedCount = undefined, forceUpdate = false, shouldRetrieve = false) {
     // const start = performance.now();
 
     try {
