@@ -1,27 +1,21 @@
 export default function pipeUserInput(rawData) {
-    const teamBasedMatchRegex = /(?<bracketID>\d)\[(?<team1String>.+)\](?:\[(?<team2String>.+)\])?/gm;
     if (typeof rawData !== "string") throw new TypeError("The text argument has to be a string type");
-    const result = [];
 
-    teamBasedMatchRegex.lastIndex = 0;
-    const match = teamBasedMatchRegex.exec(rawData);
+    const teamBasedMatchRegex = /^(?<bracketID>\d+)\[(?<team1String>[^\]]+)\](?:\[(?<team2String>[^\]]+)\])?$/;
+    const match = teamBasedMatchRegex.exec(rawData.trim());
 
-    const { bracketID, team1String, team2String } = match?.groups;
-
-    if (match && (!bracketID || !team1String || !team2String)) {
-
-        return ["Error", `Invalid queueCheck group payload.`];
+    if (!match?.groups) {
+        return ["Error", "Invalid queueCheck group payload."];
     }
 
-    // const team1 = team1String.split("|");
-    // const team2 = team2String.split("|");
-
+    const { bracketID, team1String, team2String = "" } = match.groups;
     const idNR = Number(bracketID);
-    result.push(idNR);
-    result.push(team1String.split("|"));
-    result.push(team1String ? team2String.split("|") : []);
 
-    return result;
+    return [
+        idNR,
+        team1String.split("|"),
+        team2String ? team2String.split("|") : [],
+    ];
 
 }
 // -> legacy
