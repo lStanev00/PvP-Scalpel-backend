@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import User from './User.js';
+import { type } from 'os';
 
 const achievementsSchema = new mongoose.Schema({
     points: { type: mongoose.Schema.Types.Mixed }, // Collected
@@ -91,6 +92,11 @@ const CharSchema = new mongoose.Schema({
         type: String,
         unique: true,
         index: true
+    },
+    legacyRetrieved : {
+        type : Boolean,
+        default: false,
+        required: false
     }
 }, { timestamps: true });
 
