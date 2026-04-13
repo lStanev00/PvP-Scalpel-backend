@@ -27,16 +27,26 @@ export default async function queueCheckHandler(ws, msg) {
             at: Date.now(),
             rawData,
         });
+        return;
     }
-    const [ bracketID, team1, team2 ] = sortedData;
+    const [bracketID, team1, team2] = sortedData;
     
     const requestController = new AbortController();
     ws.once("close", () => requestController.abort());
 
     const bracketObj = await getGameBracketByID(bracketID);
+    if (!bracketObj) {
+        wsMessage(ws, "error", "Unknown queueCheck bracket ID.", {
+            at: Date.now(),
+            bracketID,
+            rawData,
+        });
+        return;
+    }
+
     wsResponse(ws, "bracketObj", bracketObj);
     wsResponse(ws, "team1IDs", team1);
-    if (team2.length !== 0) wsResponse(ws, "team2IDs", team2)
+    if (team2.length !== 0) wsResponse(ws, "team2IDs", team2);
 
     function rejectEntry(rawEntry, reason) {
         const rejectedEntry = {
