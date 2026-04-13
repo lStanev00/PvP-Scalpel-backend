@@ -16,7 +16,8 @@ export default function pipeUserInput(rawData) {
     // const team1 = team1String.split("|");
     // const team2 = team2String.split("|");
 
-    result.push(bracketID);
+    const idNR = Number(bracketID);
+    result.push(idNR);
     result.push(team1String.split("|"));
     result.push(team1String ? team2String.split("|") : []);
 
