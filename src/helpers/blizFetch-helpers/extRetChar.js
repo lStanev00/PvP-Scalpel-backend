@@ -258,7 +258,7 @@ export async function extRetChar(pvpSummaryPath) {
         const captured = new Promise((resolve, reject) => {
             const timeout = setTimeout(
                 () => reject(new Error("ext character search timed out")),
-                60000,
+                30000,
             );
             let isCaptured = false;
 
