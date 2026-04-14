@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import { delay } from "../startBGTask";
+import { delay } from "../startBGTask.js";
 
 /**
  * @typedef {object} ExtRetCharRatings
