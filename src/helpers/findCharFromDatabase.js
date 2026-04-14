@@ -2,11 +2,14 @@ import Char from "../Models/Chars.js";
 import buildCharSearch from "./buildCharSearch.js";
 import normalizeCharacterSearch from "./normalizeCharacterSearch.js";
 
+/** @typedef {import("../caching/characters/charCache.types").CharacterRecord} CharacterRecord */
+/** @typedef {import("mongoose").HydratedDocument<CharacterRecord>} CharacterDocument */
+
 /**
  * Finds a character by an already formatted unique indexed `search` key.
  *
  * @param {string} search - Canonical `name:realm:server` search key.
- * @returns {Promise<import("mongoose").HydratedDocument<unknown> | null>} Matching character document, or `null` when not found/invalid.
+ * @returns {Promise<CharacterDocument | null>} Matching character document, or `null` when not found/invalid.
  */
 async function bySearch(search) {
     const normalizedSearch = normalizeCharacterSearch(search);
@@ -31,7 +34,7 @@ async function bySearch(search) {
  * @param {string} server - Region/server slug, for example `eu` or `us`.
  * @param {string} realm - Realm slug.
  * @param {string} name - Character name.
- * @returns {Promise<import("mongoose").HydratedDocument<unknown> | null>} Matching character document, or `null` when not found.
+ * @returns {Promise<CharacterDocument | null>} Matching character document, or `null` when not found.
  */
 async function byCredentials(server, realm, name) {
     let character = undefined;
@@ -59,7 +62,7 @@ async function byCredentials(server, realm, name) {
  * @param {string} searchOrServer - Canonical search key, or a server/region slug when `realm` and `name` are provided.
  * @param {string} [realm] - Realm slug used when building the search key from credentials.
  * @param {string} [name] - Character name used when building the search key from credentials.
- * @returns {Promise<import("mongoose").HydratedDocument<unknown> | null>} Matching character document, or `null` when not found/invalid.
+ * @returns {Promise<CharacterDocument | null>} Matching character document, or `null` when not found/invalid.
  */
 async function bySearchOrCredentials(searchOrServer, realm = undefined, name = undefined) {
     if (realm === undefined || name === undefined) return bySearch(searchOrServer);
@@ -76,7 +79,7 @@ async function bySearchOrCredentials(searchOrServer, realm = undefined, name = u
  * Extra query params, such as `locale`, are allowed.
  *
  * @param {string} pvpUrl - Blizzard character PvP summary URL.
- * @returns {Promise<import("mongoose").HydratedDocument<unknown> | null>} Matching character document, or `null` when the URL is invalid/not found.
+ * @returns {Promise<CharacterDocument | null>} Matching character document, or `null` when the URL is invalid/not found.
  */
 async function byPvPUrl(pvpUrl) {
     if (typeof pvpUrl !== "string") return null;

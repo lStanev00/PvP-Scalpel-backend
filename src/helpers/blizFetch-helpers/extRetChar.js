@@ -11,7 +11,46 @@ import puppeteer from "puppeteer";
  * @typedef {object} ExtRetCharRatings
  * @property {number | null} blitzRecord - Highest Blitz rating reported by the external character API.
  * @property {number | null} SSRecord - Highest Solo Shuffle rating reported by the external character API.
+ * @property {number | null} rbgRecord - Highest Rated Battleground rating reported by the external character API.
  */
+
+const REALM_LOWERCASE_WORDS = new Set(["of", "and", "the"]);
+
+function titleCaseRealmWord(word, index) {
+    const lowerWord = word.toLowerCase();
+    if (index !== 0 && REALM_LOWERCASE_WORDS.has(lowerWord)) return lowerWord;
+    return lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1);
+}
+
+/**
+ * Formats a realm slug/name for check-pvp URL path usage.
+ *
+ * @param {string} realm - Realm slug, display name, or encoded display name.
+ * @returns {string | undefined} Encoded display realm path segment, or `undefined` when invalid.
+ */
+export function formatExternalRealmPathSegment(realm) {
+    if (typeof realm !== "string") return undefined;
+
+    let decodedRealm;
+    try {
+        decodedRealm = decodeURIComponent(realm.trim());
+    } catch {
+        decodedRealm = realm.trim();
+    }
+
+    if (decodedRealm.length === 0) return undefined;
+
+    const realmWords = decodedRealm.includes(" ")
+        ? decodedRealm.split(/\s+/)
+        : decodedRealm.split("-");
+
+    const readableRealm = realmWords
+        .filter((word) => word.length > 0)
+        .map(titleCaseRealmWord)
+        .join(" ");
+
+    return readableRealm.length === 0 ? undefined : encodeURIComponent(readableRealm);
+}
 
 /**
  * Opens the configured external character page and captures its same-origin
@@ -22,15 +61,19 @@ import puppeteer from "puppeteer";
  * @throws {Error} When the browser cannot load the page or the character JSON is not captured before timeout.
  */
 export async function extRetChar(params) {
-    let { name, realm, server } = params;
+    let { name, realm, server } = params ?? {};
+    const EXT_DOMAIN = process.env.EXT_DOMAIN?.replace(/\/+$/, "");
+    const safeRealm = formatExternalRealmPathSegment(realm);
+    const safeName = typeof name === "string" && name.trim().length > 0
+        ? encodeURIComponent(name.trim())
+        : undefined;
+    const safeServer = typeof server === "string" && server.trim().length > 0
+        ? server.trim().toLowerCase()
+        : undefined;
 
-    // realm normalization for the url
-    while (realm.includes("-")) {
-        realm = realm.trim();
-        const indexOfSeparator = realm.indexOf("-");
-        // to uppercase the following sym b4 replacement
-        realm[indexOfSeparator + 1] = realm[indexOfSeparator + 1].toUpperCase();
-        realm.replace("-", "%20");
+    if (!EXT_DOMAIN) throw new Error("EXT_DOMAIN is required for extRetChar.");
+    if (!safeServer || !safeRealm || !safeName) {
+        throw new Error("extRetChar requires non-empty server, realm, and name params.");
     }
 
     let browser;
@@ -54,9 +97,7 @@ export async function extRetChar(params) {
                 "--no-first-run",
             ],
         });
-        // const TARGET_URL = "${EXT_DOMAIN}/eu/Chamber%20of%20Aspects/Oeixx";
-        const EXT_DOMAIN = process.env.EXT_DOMAIN;
-        const TARGET_URL = `${EXT_DOMAIN}/${server}/${realm}/${name}`;
+        const TARGET_URL = `${EXT_DOMAIN}/${safeServer}/${safeRealm}/${safeName}`;
         const TARGET_ORIGIN = new URL(TARGET_URL).origin;
         const API_URL_PART = `${TARGET_ORIGIN}/api/characters/`;
 
@@ -163,6 +204,7 @@ export async function extRetChar(params) {
                     const ratings = {
                         blitzRecord: data?.ratemaxblitz ?? null,
                         SSRecord: data?.ratemaxshuffle ?? null,
+                        rbgRecord: data?.ratemaxrbg ?? null,
                     };
                     clearTimeout(timeout);
                     resolve(ratings);

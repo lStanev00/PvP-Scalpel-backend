@@ -322,12 +322,14 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 
         if (character && (isOlderThanHour(character) || renewCache === true)) {
             // renews the cache case if it was explicity set or is older then a hour
+
             const newData = await fetchData(
                 character.server,
                 character.playerRealm.slug,
                 character.name,
                 character.checkedCount,
                 renewCache,
+                character?.legacyRetrieved ? false : {server, realm, name}
             );
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {

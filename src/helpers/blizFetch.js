@@ -56,7 +56,14 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
         ] = await Promise.all([
             helpFetch.getMedia(data, 'character_class'),
             helpFetch.getMedia(data, 'active_spec'),
-            helpFetch.getRating(data.pvp_summary.href, currentSeasonIndex),
+            helpFetch.getRating(
+                data.pvp_summary.href,
+                currentSeasonIndex,
+                undefined,
+                undefined,
+                undefined,
+                shouldRetrieve ? { server, realm, name } : false,
+            ),
             helpFetch.getAchievById(data.achievements_statistics.href, 370),
             helpFetch.getAchievById(data.achievements_statistics.href, 595),
             helpFetch.getAchievXP(data.achievements.href, result.achieves),

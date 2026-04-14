@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import BlizAPIError from "../../Models/BlizAPIErrors.js";
 import getAccessToken from "../../caching/blizTokenCache/tokenCache.js";
 import { extRetChar } from "./extRetChar.js";
+import findCharFromDatabase from "../findCharFromDatabase.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -108,9 +109,62 @@ const helpFetch = {
 
             const allBracketsData = await Promise.all(bracketFetches);
 
-            let recRetrived;
+            const resolveRetrieveParams = () => {
+                if (!shouldRetrieve) return undefined;
+                if (
+                    typeof shouldRetrieve === "object" &&
+                    typeof shouldRetrieve.server === "string" &&
+                    typeof shouldRetrieve.realm === "string" &&
+                    typeof shouldRetrieve.name === "string"
+                ) {
+                    return shouldRetrieve;
+                }
+                if (
+                    shouldRetrieve === true &&
+                    typeof server === "string" &&
+                    typeof realm === "string" &&
+                    typeof name === "string"
+                ) {
+                    return { server, realm, name };
+                }
+                return undefined;
+            };
 
-            if (shouldRetrieve) recRetrived = await extRetChar(shouldRetrieve);
+            const retrieveParams = resolveRetrieveParams();
+            let retrievedRecords; // external records retrieve
+            if (retrieveParams) {
+                try {
+                    retrievedRecords = await extRetChar(retrieveParams);
+                } catch (error) {
+                    console.warn(`[getRating] External rating record lookup failed for ${path}`);
+                    console.warn(error);
+                    retrievedRecords = undefined;
+                }
+            }
+            
+            let ratingCharRefDbase; // dbase records retrieve
+            try {
+                ratingCharRefDbase = await findCharFromDatabase.byPvPUrl(path);
+            } catch (error) {
+                console.warn(`[getRating] Database rating reference lookup failed for ${path}`);
+                console.warn(error);
+                ratingCharRefDbase = undefined;
+            } finally {
+                if (ratingCharRefDbase && ratingCharRefDbase?.rating)
+                    ratingCharRefDbase = ratingCharRefDbase.rating;
+            }
+
+            const toFiniteNumber = (value) => {
+                if (typeof value !== "number" && typeof value !== "string") return undefined;
+                if (typeof value === "string" && value.trim().length === 0) return undefined;
+                const numberValue = Number(value);
+                return Number.isFinite(numberValue) ? numberValue : undefined;
+            };
+
+            const highestRecord = (...values) => {
+                const records = values.map(toFiniteNumber).filter((value) => value !== undefined);
+                return records.length === 0 ? undefined : Math.max(...records);
+            };
 
             const processBrackets = allBracketsData.map(async (data, index) => {
                 const seasonIndex = data.season.id;
@@ -139,20 +193,31 @@ const helpFetch = {
                     console.warn(`Unknown bracket: ${currentBracket}`);
                     return;
                 }
+
+                const dbaseRatingBracket = ratingCharRefDbase instanceof Map
+                    ? ratingCharRefDbase.get(bracketName)
+                    : ratingCharRefDbase?.[bracketName];
+                const externalRecord = currentBracket === "BLITZ"
+                    ? retrievedRecords?.blitzRecord
+                    : currentBracket === "SHUFFLE"
+                        ? retrievedRecords?.SSRecord
+                        : currentBracket === "BATTLEGROUNDS"
+                            ? retrievedRecords?.rbgRecord
+                            : undefined;
+                const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
-                    let rec = undefined;
                     result[bracketName] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: undefined,
+                        record: rec,
                         _id: `${Math.random()}${bracketKey}${Math.random()}`
                     };
                 } else {
                     result[bracketKey] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: undefined,
+                        record: rec,
                         _id: `${Math.random()}${bracketKey}`
                     };
                 }
@@ -189,8 +254,14 @@ const helpFetch = {
                     record: 0
                 },
                 rbg: {
-                    rating: undefined,
+                    currentSeason : {
+                        rating: 0,
+                        title: undefined,
+                        seasonMatchStatistics: undefined,
+                        weeklyMatchStatistics: undefined
+                    },
                     lastSeasonLadder: undefined,
+                    record: 0,
                 }
             }
         }
