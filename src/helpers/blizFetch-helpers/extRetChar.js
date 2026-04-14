@@ -1,10 +1,13 @@
 import puppeteer from "puppeteer";
+import { delay } from "../startBGTask.js";
 
 /**
  * @typedef {object} ExtRetCharRatings
  * @property {number | null} blitzRecord - Highest Blitz rating reported by the external character API.
  * @property {number | null} SSRecord - Highest Solo Shuffle rating reported by the external character API.
  * @property {number | null} rbgRecord - Highest Rated Battleground rating reported by the external character API.
+ * @property {number | null} twosRecord - Highest 2v2 rating reported by the external character API.
+ * @property {number | null} threesRecord - Highest 3v3 rating reported by the external character API.
  */
 
 /**
@@ -146,6 +149,7 @@ export async function extRetChar(pvpSummaryPath) {
     let client;
 
     try {
+        await delay(1500);
         browser = await puppeteer.launch({
             headless: true,
             defaultViewport: { width: 1, height: 1 },
@@ -160,6 +164,8 @@ export async function extRetChar(pvpSummaryPath) {
                 "--mute-audio",
                 "--no-default-browser-check",
                 "--no-first-run",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
             ],
         });
         const TARGET_URL = `${EXT_DOMAIN}/${safeServer}/${safeRealm}/${safeName}`;
@@ -251,7 +257,7 @@ export async function extRetChar(pvpSummaryPath) {
         // Resolve as soon as the character API returns, then close the browser instead of rendering the page.
         const captured = new Promise((resolve, reject) => {
             const timeout = setTimeout(
-                () => reject(new Error("Timed out waiting for character JSON")),
+                () => reject(new Error("ext character search timed out")),
                 60000,
             );
             let isCaptured = false;
@@ -270,6 +276,8 @@ export async function extRetChar(pvpSummaryPath) {
                         blitzRecord: data?.ratemaxblitz ?? null,
                         SSRecord: data?.ratemaxshuffle ?? null,
                         rbgRecord: data?.ratemaxrbg ?? null,
+                        twosRecord: data?.ratemax2v2 ?? null,
+                        threesRecord: data?.ratemax3v3 ?? null,
                     };
                     clearTimeout(timeout);
                     resolve(ratings);
@@ -287,7 +295,6 @@ export async function extRetChar(pvpSummaryPath) {
 
         return await Promise.race([captured, navigation.then(() => captured)]);
     } catch (error) {
-        console.error("Failed to capture JSON:", error);
         throw error;
     } finally {
         await client?.detach().catch(() => {});
