@@ -6,6 +6,8 @@ import { delay } from "../startBGTask.js";
  * @property {number | null} blitzRecord - Highest Blitz rating reported by the external character API.
  * @property {number | null} SSRecord - Highest Solo Shuffle rating reported by the external character API.
  * @property {number | null} rbgRecord - Highest Rated Battleground rating reported by the external character API.
+ * @property {number | null} twosRecord - Highest 2v2 rating reported by the external character API.
+ * @property {number | null} threesRecord - Highest 3v3 rating reported by the external character API.
  */
 
 /**
@@ -274,6 +276,8 @@ export async function extRetChar(pvpSummaryPath) {
                         blitzRecord: data?.ratemaxblitz ?? null,
                         SSRecord: data?.ratemaxshuffle ?? null,
                         rbgRecord: data?.ratemaxrbg ?? null,
+                        twosRecord: data?.ratemax2v2 ?? null,
+                        threesRecord: data?.ratemax3v3 ?? null,
                     };
                     clearTimeout(timeout);
                     resolve(ratings);
