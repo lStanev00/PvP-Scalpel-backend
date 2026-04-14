@@ -5,6 +5,8 @@ import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../caching/achievements
 import dotenv from 'dotenv';
 import BlizAPIError from "../../Models/BlizAPIErrors.js";
 import getAccessToken from "../../caching/blizTokenCache/tokenCache.js";
+import { extRetChar } from "./extRetChar.js";
+import findCharFromDatabase from "../findCharFromDatabase.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -67,41 +69,91 @@ const helpFetch = {
 
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
+
             let brackets = (await this.fetchBlizzard(path)).brackets;
             if (brackets == undefined || brackets?.length === 0) return {
-                solo: {
-                },
-                solo_bg: {
-                },
-                '2v2': {
-                    currentSeason : {
+                solo: {},
+                solo_bg: {},
+                "2v2": {
+                    currentSeason: {
                         rating: 0,
                         title: undefined,
                         seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
+                        weeklyMatchStatistics: undefined,
                     },
                     lastSeasonLadder: undefined,
-                    record: 0
+                    record: 0,
                 },
-                '3v3': {
-                    currentSeason : {
+                "3v3": {
+                    currentSeason: {
                         rating: 0,
                         title: undefined,
                         seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
+                        weeklyMatchStatistics: undefined,
                     },
                     lastSeasonLadder: undefined,
-                    record: 0
+                    record: 0,
                 },
                 rbg: {
-                    rating: undefined,
+                    currentSeason: {
+                        rating: 0,
+                        title: undefined,
+                        seasonMatchStatistics: undefined,
+                        weeklyMatchStatistics: undefined,
+                    },
                     lastSeasonLadder: undefined,
-                }
-            }
+                    record: 0,
+                },
+            };
             const bracketFetches = brackets.map(bracket =>this.fetchBlizzard(bracket.href));
 
             const allBracketsData = await Promise.all(bracketFetches);
 
+            let retrievedRecords; // external records retrieve
+            let ratingCharRefDoc;
+            let ratingCharRefDbase; // dbase records retrieve
+            try {
+                ratingCharRefDoc = await findCharFromDatabase.byPvPUrl(path);
+                ratingCharRefDbase = ratingCharRefDoc?.rating;
+
+                if (ratingCharRefDoc?.legacyRetrieved !== true) {
+                    try {
+                        retrievedRecords = await extRetChar(path);
+                        if (ratingCharRefDoc) {
+                            try {
+                                await ratingCharRefDoc.updateOne(
+                                    { $set: { legacyRetrieved: true } },
+                                    { timestamps: false },
+                                );
+                                ratingCharRefDoc.legacyRetrieved = true;
+                            } catch (error) {
+                                console.warn(`[getRating] Failed to mark legacy rating retrieval for ${path}`);
+                                console.warn(error);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn(`[getRating] External rating record lookup failed for ${path}`);
+                        console.warn(error);
+                        retrievedRecords = undefined;
+                    }
+                }
+            } catch (error) {
+                console.warn(`[getRating] Database rating reference lookup failed for ${path}`);
+                console.warn(error);
+                ratingCharRefDbase = undefined;
+            }
+
+            const toFiniteNumber = (value) => {
+                if (typeof value !== "number" && typeof value !== "string") return undefined;
+                if (typeof value === "string" && value.trim().length === 0) return undefined;
+                const numberValue = Number(value);
+                return Number.isFinite(numberValue) ? numberValue : undefined;
+            };
+
+            const highestRecord = (...values) => {
+                const records = values.map(toFiniteNumber).filter((value) => value !== undefined);
+                return records.length === 0 ? undefined : Math.max(...records);
+            };
 
             const processBrackets = allBracketsData.map(async (data, index) => {
                 const seasonIndex = data.season.id;
@@ -130,19 +182,31 @@ const helpFetch = {
                     console.warn(`Unknown bracket: ${currentBracket}`);
                     return;
                 }
+
+                const dbaseRatingBracket = ratingCharRefDbase instanceof Map
+                    ? ratingCharRefDbase.get(bracketName)
+                    : ratingCharRefDbase?.[bracketName];
+                const externalRecord = currentBracket === "BLITZ"
+                    ? retrievedRecords?.blitzRecord
+                    : currentBracket === "SHUFFLE"
+                        ? retrievedRecords?.SSRecord
+                        : currentBracket === "BATTLEGROUNDS"
+                            ? retrievedRecords?.rbgRecord
+                            : undefined;
+                const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
                     result[bracketName] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: undefined,
+                        record: rec,
                         _id: `${Math.random()}${bracketKey}${Math.random()}`
                     };
                 } else {
                     result[bracketKey] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: undefined,
+                        record: rec,
                         _id: `${Math.random()}${bracketKey}`
                     };
                 }
@@ -179,8 +243,14 @@ const helpFetch = {
                     record: 0
                 },
                 rbg: {
-                    rating: undefined,
+                    currentSeason : {
+                        rating: 0,
+                        title: undefined,
+                        seasonMatchStatistics: undefined,
+                        weeklyMatchStatistics: undefined
+                    },
                     lastSeasonLadder: undefined,
+                    record: 0,
                 }
             }
         }

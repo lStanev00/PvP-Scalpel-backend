@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js';
 import dataGuard from './blizFetch-helpers/dataGuard.js';
+import buildCharSearch from './buildCharSearch.js';
 // import { performance } from 'perf_hooks';
 
 dotenv.config({ path: '../../.env' });
@@ -81,7 +82,7 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
 
         const talent = await helpFetch.getActiveTalentsCode(data.specializations.href);
         result.talents = talent;
-        result.search = `${name}:${realm}:${server}`
+        result.search = buildCharSearch({ server, realm, name })
         if(checkedCount){
             try {
                 const checkToNr = Number(checkedCount); 

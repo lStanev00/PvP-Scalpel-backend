@@ -1,35 +1,14 @@
-// @ts‑check
+import normalizeCharacterSearch from "./normalizeCharacterSearch.js";
+
 /**
- * Split a string of the form "Name:Realm:Server" into its pieces.
-*
-* @param   {string} search    — the raw search string
-* @returns {[string, string, string] | undefined}   — [name, realm, server] or undefined if invalid
-*/
-
-import slugify from "./slugify.js";
-
+ * Splits a character search key into canonical `[name, realm, server]` parts.
+ *
+ * @param {unknown} search - Raw `name:realm:server` search string.
+ * @returns {[string, string, string] | undefined} Canonical parts, or `undefined` if invalid.
+ */
 export default function convertSearch(search) {
-    if (typeof search !== "string") {
-        console.warn(search + "'s not a string!");
-        return undefined
-    } else if (typeof search === "string") {
+    const normalizedSearch = normalizeCharacterSearch(search);
+    if (!normalizedSearch) return undefined;
 
-        search = search.toLowerCase();
-        let [name, realm, server] = search.split(":");
-    
-        name = name.trim();
-        realm = realm.trim();
-        realm = slugify(realm);
-        server = server.trim();
-
-        if(typeof name === "string" && typeof realm === "string" && typeof server === "string") {
-
-            const result = [name, realm, server];
-            return result
-        }
-    }
-
-    return undefined
-
-    
+    return normalizedSearch.split(":");
 }
