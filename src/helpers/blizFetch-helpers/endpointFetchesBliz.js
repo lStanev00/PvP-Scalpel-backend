@@ -192,7 +192,11 @@ const helpFetch = {
                         ? retrievedRecords?.SSRecord
                         : currentBracket === "BATTLEGROUNDS"
                             ? retrievedRecords?.rbgRecord
-                            : undefined;
+                            : currentBracket === "ARENA_2v2"
+                                ? retrievedRecords?.twosRecord
+                                : currentBracket === "ARENA_3v3"
+                                    ? retrievedRecords?.threesRecord
+                                    : undefined;
                 const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
