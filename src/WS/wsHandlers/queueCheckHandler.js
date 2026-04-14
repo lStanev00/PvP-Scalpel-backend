@@ -3,9 +3,9 @@ import { enqueueJobQueueEntry } from "../../caching/charQueueCache/jobQueueCache
 import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
 import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import buildCharSearch from "../../helpers/buildCharSearch.js";
+import pipeUserInput from "../helpers/pipeUserInput.js";
 import { wsMessage, wsResponse } from "../helpers/wsResponseHelpers.js";
 // import helpFetch from "../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-const matchRegex = /(?<bracketID>\d)\[(?<team1String>.+)\]\[(?<team2String>.+)\]/gm;
 
 /**
  * Preserve the current partial queueCheck flow without inventing new behavior.
@@ -20,40 +20,33 @@ export default async function queueCheckHandler(ws, msg) {
         wsResponse(ws, "error", { at: Date.now() });
         return;
     }
-    const requestController = new AbortController();
 
-    matchRegex.lastIndex = 0;
-    const match = matchRegex.exec(rawData);
-
-    const {bracketID, team1String, team2String} = match?.groups;
-
-    if (match && (!bracketID || !team1String || !team2String)) {
-        wsMessage(ws, "error", "Invalid queueCheck group payload.", {
+    const sortedData = pipeUserInput(rawData);
+    if (sortedData[0] === "Error") {
+        wsMessage(ws, "error", sortedData[1], {
             at: Date.now(),
             rawData,
         });
         return;
     }
-
-    const team1 = team1String.split("|");
-    const team2 = team2String.split("|");
-
+    const [bracketID, team1, team2] = sortedData;
+    
+    const requestController = new AbortController();
     ws.once("close", () => requestController.abort());
 
     const bracketObj = await getGameBracketByID(bracketID);
+    if (!bracketObj) {
+        wsMessage(ws, "error", "Unknown queueCheck bracket ID.", {
+            at: Date.now(),
+            bracketID,
+            rawData,
+        });
+        return;
+    }
+
     wsResponse(ws, "bracketObj", bracketObj);
     wsResponse(ws, "team1IDs", team1);
-    wsResponse(ws, "team2IDs", team2);
-
-    // 2
-    // |Slothx:ravencrest:eu(251)
-    // |agnarkarma:archimonde:eu(270)
-    // |Drdx:stormscale:eu(64)
-    // |Sowiluj:silvermoon:eu(102)
-    // |Beowullf:spinebreaker:eu(72)
-    // |Мотумбатор:свежевательдуш:eu(267)
-    // |Lychezar:chamber-of-aspects:eu(73)
-    // |Hetma:burning-legion:eu(1468)
+    if (team2.length !== 0) wsResponse(ws, "team2IDs", team2);
 
     function rejectEntry(rawEntry, reason) {
         const rejectedEntry = {
@@ -100,9 +93,11 @@ export default async function queueCheckHandler(ws, msg) {
             spec = await getGameSpecializationByID(match[2]);
         }
 
-        const search = buildCharSearch(server, realm, name);
+        const search = buildCharSearch({ server, realm, name });
         if (!search) {
-            return { rejected: rejectEntry(trimmedEntry, "entry contains empty or invalid search parts") };
+            return {
+                rejected: rejectEntry(trimmedEntry, "entry contains empty or invalid search parts"),
+            };
         }
 
         return {
@@ -124,7 +119,12 @@ export default async function queueCheckHandler(ws, msg) {
 
                 const { character } = msg ?? {};
 
-                if (character === 404 || character === null || character === undefined || !character?._id) {
+                if (
+                    character === 404 ||
+                    character === null ||
+                    character === undefined ||
+                    !character?._id
+                ) {
                     wsResponse(ws, "charData", {
                         initSearch,
                         data: undefined,
@@ -163,8 +163,7 @@ export default async function queueCheckHandler(ws, msg) {
             return {
                 search: searchString,
                 incChecks: false,
-            }
-
+            };
         };
 
         for (const rawEntry of entries) {
@@ -207,36 +206,3 @@ export default async function queueCheckHandler(ws, msg) {
 
     // ws.close(1000, "Done");
 }
-                // to be optimized this ise demo version atm
-                // const char = await helpFetch.getCharProfile(server, realm, name);
-                // if (!char || !char?.id) {
-                //     wsResponse(ws, "charData", {
-                //         initSearch,
-                //         data: undefined,
-                //     });
-
-                //     continue;
-                // }
-
-                // const currentSeasonIndex = await helpFetch.getCurrentPvPSeasonIndex();
-
-                // const result = {
-                //     name: char.name,
-                //     server,
-                //     playerRealm: {
-                //         name: char.realm.name,
-                //         slug: char.realm.slug,
-                //     },
-                //     blizID: char.id,
-                //     level: Number(char.level),
-                //     faction: char.faction.name,
-                //     lastLogin: char.last_login_timestamp,
-                //     achieves: { points: Number(char.achievement_points) },
-                //     class: { name: char.character_class.name },
-                //     race: char.race.name,
-                //     activeSpec: { name: char.active_spec.name },
-                //     guildName: char?.guild?.name,
-                //     guildMember: char?.guild?.name == "PvP Scalpel" ? true : false,
-                // };
-
-// 2[Adventureman:argent-dawn:eu(254)|Oifik:frostmane:eu(1480)|Zamruka:ravenholdt:eu(261)|Калмычка:gordunni:eu(256)|Akemi:eredar:eu(252)|Øéyx:ravencrest:eu(1468)|Lychezar:chamber-of-aspects:eu(73)|Снюсловер:gordunni:eu(102)][Aylanur:ravencrest:eu(103)|Balúr:thrall:eu(264)|Canhalli:the-maelstrom:eu(270)|Causality:sylvanas:eu(577)|Ledva:drakthul:eu(70)|Onlylock:ragnaros:eu(267)|Tyranorde:hyjal:eu(73)|Zaijko:stormscale:eu(251)]

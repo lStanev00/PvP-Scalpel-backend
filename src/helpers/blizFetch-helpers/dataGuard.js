@@ -71,7 +71,11 @@ export default async function dataGuard(data, forceUpdate) {
     if (trigger) {
         await character.save({ timestamps: false });
 
-        const newSearch = buildCharSearch(data.server, data.playerRealm.slug, data.name);
+        const newSearch = buildCharSearch({
+            server: data.server,
+            realm: data.playerRealm.slug,
+            name: data.name,
+        });
         const oldSearch = character.search;
 
         if (newSearch !== oldSearch && newSearch !== undefined) {

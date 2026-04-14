@@ -117,7 +117,7 @@ for (const member of members) {
     const server = "eu";
     const realm = member?.character.realm?.slug;
     const name = member?.character.name;
-    let character = await findCharFromDatabase(server, realm, name);
+    let character = await findCharFromDatabase.byCredentials(server, realm, name);
     // console.info(name + " " +  character?.name);
     if (!character) character = await buildCharacter(server, realm, name, member?.rank);
     if (!character) continue;

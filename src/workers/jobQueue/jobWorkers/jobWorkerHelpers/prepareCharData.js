@@ -1,4 +1,5 @@
 import { getCharacter } from "../../../../caching/characters/charCache.js";
+import convertSearch from "../../../../helpers/convertSearch.js";
 
 export default async function prepareCharData(data) {
     const { search, incChecks, incChechks, renewCache } = data ?? {};
@@ -16,11 +17,12 @@ export default async function prepareCharData(data) {
             return result;
         }
 
-        const [name, realm, server] = search.split(":");
-        if (!name || !realm || !server) {
+        const searchParts = convertSearch(search);
+        if (!searchParts) {
             result.status = 400;
             return result;
         }
+        const [name, realm, server] = searchParts;
 
         const nextIncChecks = incChecks !== undefined ? incChecks : incChechks;
 

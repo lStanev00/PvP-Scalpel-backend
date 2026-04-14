@@ -14,5 +14,9 @@ export default function normalizeCharacterSearch(search) {
 
     if (searchParts.length !== 3) return undefined;
 
-    return buildCharSearch(searchParts[2], searchParts[1], searchParts[0]);
+    return buildCharSearch({
+        server: searchParts[2],
+        realm: searchParts[1],
+        name: searchParts[0],
+    });
 }
