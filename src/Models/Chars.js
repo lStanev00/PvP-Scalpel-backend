@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import User from './User.js';
-import { type } from 'os';
 
 const achievementsSchema = new mongoose.Schema({
     points: { type: mongoose.Schema.Types.Mixed }, // Collected
