@@ -203,14 +203,14 @@ const helpFetch = {
                     result[bracketName] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: rec,
+                        record: rec ? rec : curentBracketData?.rating,
                         _id: `${Math.random()}${bracketKey}${Math.random()}`
                     };
                 } else {
                     result[bracketKey] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: rec,
+                        record: rec ? rec : curentBracketData?.rating,
                         _id: `${Math.random()}${bracketKey}`
                     };
                 }
