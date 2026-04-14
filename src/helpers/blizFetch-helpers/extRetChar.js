@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer";
+import { delay } from "../startBGTask";
 
 /**
  * @typedef {object} ExtRetCharRatings
@@ -146,6 +147,7 @@ export async function extRetChar(pvpSummaryPath) {
     let client;
 
     try {
+        await delay(1500);
         browser = await puppeteer.launch({
             headless: true,
             defaultViewport: { width: 1, height: 1 },
@@ -160,6 +162,8 @@ export async function extRetChar(pvpSummaryPath) {
                 "--mute-audio",
                 "--no-default-browser-check",
                 "--no-first-run",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
             ],
         });
         const TARGET_URL = `${EXT_DOMAIN}/${safeServer}/${safeRealm}/${safeName}`;
