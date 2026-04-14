@@ -16,6 +16,25 @@ const mediaSchema = new mongoose.Schema({
     charImg: { type: String, default: '' }, // Collected
 }, { _id: false });
 
+const ratingTitleSchema = new mongoose.Schema({
+    name: { type: String, default: undefined },
+    media: { type: String, default: undefined },
+}, { _id: false });
+
+const ratingCurrentSeasonSchema = new mongoose.Schema({
+    rating: { type: Number, default: 0 },
+    title: { type: ratingTitleSchema, default: undefined },
+    seasonMatchStatistics: { type: mongoose.Schema.Types.Mixed, default: undefined },
+    weeklyMatchStatistics: { type: mongoose.Schema.Types.Mixed, default: undefined },
+}, { _id: false });
+
+const ratingBracketSchema = new mongoose.Schema({
+    currentSeason: { type: ratingCurrentSeasonSchema, default: () => ({}) },
+    lastSeasonLadder: { type: mongoose.Schema.Types.Mixed, default: undefined },
+    record: { type: Number, default: null },
+    _id: { type: String, required: false },
+}, { _id: false });
+
 const gearSchema = new mongoose.Schema({ // Collected
     head: mongoose.Schema.Types.Mixed,
     neck: mongoose.Schema.Types.Mixed,
@@ -58,8 +77,7 @@ const CharSchema = new mongoose.Schema({
         media: { type: String, default: '' },
         
     },
-    rating: { type: mongoose.Schema.Types.Mixed,
-         }, // Collected
+    rating: { type: Map, of: ratingBracketSchema, default: {} }, // Collected
     achieves: achievementsSchema, // Collected
     media: mediaSchema, // Collected
     checkedCount: { type: Number, default: 0 },
@@ -91,6 +109,11 @@ const CharSchema = new mongoose.Schema({
         type: String,
         unique: true,
         index: true
+    },
+    legacyRetrieved : {
+        type : Boolean,
+        default: false,
+        required: false
     }
 }, { timestamps: true });
 
@@ -107,8 +130,8 @@ CharSchema.virtual("favorite", {
 });
 
 
-CharSchema.set("toObject", {  virtuals: true  });
-CharSchema.set("toJSON", {  virtuals: true  });
+CharSchema.set("toObject", { virtuals: true, flattenMaps: true });
+CharSchema.set("toJSON", { virtuals: true, flattenMaps: true });
 
 const Char = mongoose.model(`Character`, CharSchema);
 export default Char;

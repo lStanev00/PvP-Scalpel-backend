@@ -1,5 +1,6 @@
 import Char from "../../../Models/Chars.js";
 import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
+import getRatingEntries from "../../../helpers/getRatingEntries.js";
 import { buildSnapshots, formRatings } from "./buildSnapshots.js";
 
 /**
@@ -58,7 +59,7 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             RBG: null,
         };
 
-        for (let [bracket, value] of Object.entries(rating)) {
+        for (let [bracket, value] of getRatingEntries(rating)) {
             if (bracket.startsWith("solo")) continue;
             if (bracket === "rbg") bracket = "RBG";
             let snapBracketData; // get the snapshot data

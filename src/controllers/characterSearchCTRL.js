@@ -43,7 +43,7 @@ async function checkCharacterGet(req, res) {
     
     if (req.headers?.["fe-ping"] === "front-end") {
         try {
-            const exists = await searchCharFromMap(buildCharSearch(server, realm, name));
+            const exists = await searchCharFromMap(buildCharSearch({ server, realm, name }));
             if (!exists || exists === null) {
                 response.code = 404
                 response.character = "show-generic"
@@ -110,7 +110,7 @@ async function patchPvPData(req, res) {
         
         if (char) {
             
-            const PvPData = await helpFetch.getRating(undefined, undefined, undefined, server, realm, name);
+            const PvPData = await helpFetch.getRating(undefined, undefined, server, realm, name);
             const updatedCharPvpData = await Char.findByIdAndUpdate(char._id, {
                 rating: PvPData
             },{ new: true });

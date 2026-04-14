@@ -127,8 +127,12 @@ async function wipeCharSearchEntry(search, newSearch) {
         return ;
     }
     const CSParts = convertSearch(search);
-    if(CSParts.length  === 3 && CSParts !== undefined) {
-        search = buildCharSearch(...CSParts)
+    if(CSParts !== undefined && CSParts.length  === 3) {
+        search = buildCharSearch({
+            server: CSParts[2],
+            realm: CSParts[1],
+            name: CSParts[0],
+        })
     }
     const mongoData = await CharSearchModel.find({searchResult : search})
 

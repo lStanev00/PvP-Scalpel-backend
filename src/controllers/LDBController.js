@@ -1,6 +1,7 @@
 import { Router } from "express";
 import Char from "../Models/Chars.js";
 import { jsonResponse } from "../helpers/resposeHelpers.js";
+import getRatingEntries from "../helpers/getRatingEntries.js";
 
 const LDBController = Router();
 
@@ -111,7 +112,7 @@ async function findRatingAndSort(bracket) {
                 )
                 .lean();
             const hibrdEntries = charList.filter((entry) => {
-                const ratingList = Object.entries(entry?.rating);
+                const ratingList = getRatingEntries(entry?.rating);
                 let result = [];
                 for (const format of ratingList) {
                     const [bracketName, bracketData] = format;

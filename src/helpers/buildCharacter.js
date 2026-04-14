@@ -2,6 +2,7 @@ import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.j
 import Char from "../Models/Chars.js";
 import fetchData from "./blizFetch.js";
 import buildCharSearch from "./buildCharSearch.js";
+import convertSearch from "./convertSearch.js";
 import delCache from "./redis/deletersRedis.js";
 import getCache from "./redis/getterRedis.js";
 import setCache from "./redis/setterRedis.js";
@@ -51,7 +52,7 @@ const hashName = "buildingEntries";
 // to have a duplication key sicne blizID is indexed and unique as it has to be 
 
 const returnChar = async (key, blizID = undefined) => {
-    const [name, realm, server] = key.split(":");
+    const [name, realm, server] = convertSearch(key) ?? [];
 
     try {
         let character = await Char.findOne(
@@ -73,7 +74,7 @@ const returnChar = async (key, blizID = undefined) => {
 export default async function buildCharacter(server, realm, name, memberRankNumber = undefined) {
     let character;
     // const key = `${server + realm + name}`;
-    const key = buildCharSearch(server, realm, name)
+    const key = buildCharSearch({ server, realm, name })
     const doesEntryAlreadyBuild = await getCache(key, hashName);
     if (doesEntryAlreadyBuild && doesEntryAlreadyBuild !== null) {
 
@@ -89,7 +90,7 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
 
     await setCache(key, true, hashName);
 
-    character = await fetchData(server, realm, name);
+    character = await fetchData(server, realm, name, undefined, false);
     if (character?.status === 409 && character?.data?.blizID) {
         try {
             const setter = character.data;

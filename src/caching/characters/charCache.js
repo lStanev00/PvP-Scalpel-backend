@@ -7,7 +7,6 @@
 /** @typedef {import("./charCache.types").CharacterRecord} CharacterRecord */
 import { EventEmitter, once } from "node:events";
 import setCache from "../../helpers/redis/setterRedis.js";
-import convertSearch from "../../helpers/convertSearch.js";
 import getCache from "../../helpers/redis/getterRedis.js";
 import isOlderThanHour from "../../helpers/isOlderThanHour.js";
 import Char from "../../Models/Chars.js";
@@ -34,7 +33,7 @@ const inFlightWorkerCharacters = new Map();
 
 function resolveCharacterSearch(params) {
     const { server, realm, name, search } = params ?? {};
-    return normalizeCharacterSearch(search) ?? buildCharSearch(server, realm, name);
+    return normalizeCharacterSearch(search) ?? buildCharSearch({ server, realm, name });
 }
 
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
@@ -284,7 +283,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             } else console.info(`getCharacter: ${realm} is missing.`);
         }
     }
-    const search = buildCharSearch(server, realm, name);
+    const search = buildCharSearch({ server, realm, name });
 
     try {
         // redis data logic
@@ -323,12 +322,13 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 
         if (character && (isOlderThanHour(character) || renewCache === true)) {
             // renews the cache case if it was explicity set or is older then a hour
+
             const newData = await fetchData(
                 character.server,
                 character.playerRealm.slug,
                 character.name,
                 character.checkedCount,
-                renewCache,
+                renewCache
             );
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {
@@ -417,8 +417,8 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
 }
 
 async function getCharFromCacheBySearch(search) {
-    const CSParts = convertSearch(search);
-    if (!CSParts) {
+    const normalizedSearch = normalizeCharacterSearch(search);
+    if (!normalizedSearch) {
         if (!search) {
             CharCacheEmitter.emit(
                 "error",
@@ -426,9 +426,10 @@ async function getCharFromCacheBySearch(search) {
             );
             return null;
         }
+        return null;
     }
 
-    search = CSParts.join(":");
+    search = normalizedSearch;
 
     const result = await getCache(search, hashName, CharacterCacheTTL);
     if (result === null || !result) return null;

@@ -29,6 +29,25 @@ export interface CharacterGuildInsight {
     rankNumber: number | undefined;
 }
 
+export interface CharacterRatingTitle {
+    name?: string;
+    media?: string;
+}
+
+export interface CharacterRatingCurrentSeason {
+    rating: number;
+    title?: CharacterRatingTitle;
+    seasonMatchStatistics?: unknown;
+    weeklyMatchStatistics?: unknown;
+}
+
+export interface CharacterRatingBracket {
+    currentSeason?: CharacterRatingCurrentSeason;
+    lastSeasonLadder?: unknown;
+    record?: number | null;
+    _id?: string;
+}
+
 export interface CharacterRecord {
     _id: string;
     blizID: number;
@@ -40,7 +59,7 @@ export interface CharacterRecord {
     race: string;
     class: CharacterClassInfo;
     activeSpec: CharacterActiveSpec;
-    rating: unknown;
+    rating: Record<string, CharacterRatingBracket>;
     achieves: unknown;
     media: CharacterMedia;
     checkedCount: number;

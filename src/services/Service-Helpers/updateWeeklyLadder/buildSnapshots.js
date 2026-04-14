@@ -1,6 +1,7 @@
 import { delay } from "../../../helpers/startBGTask.js";
 import Char from "../../../Models/Chars.js";
 import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
+import getRatingEntries from "../../../helpers/getRatingEntries.js";
 
 export async function buildSnapshots(charList = undefined) {
     if (!charList) charList = await Char.find({ guildMember: true }).lean();
@@ -33,7 +34,7 @@ export const formRatings = (ratings) => {
         RBG: 0,
     };
 
-    for (const [bracketName, value] of Object.entries(ratings)) {
+    for (const [bracketName, value] of getRatingEntries(ratings)) {
         const rating = value?.currentSeason?.rating ?? 0;
         if(!bracketName || !rating && rating !== 0 || rating === null || bracketName === null) debugger;
 
