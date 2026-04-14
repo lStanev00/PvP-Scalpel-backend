@@ -5,6 +5,7 @@ import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../caching/achievements
 import dotenv from 'dotenv';
 import BlizAPIError from "../../Models/BlizAPIErrors.js";
 import getAccessToken from "../../caching/blizTokenCache/tokenCache.js";
+import { extRetChar } from "./extRetChar.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -67,43 +68,49 @@ const helpFetch = {
 
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
+
             let brackets = (await this.fetchBlizzard(path)).brackets;
             if (brackets == undefined || brackets?.length === 0) return {
-                solo: {
-                },
-                solo_bg: {
-                },
-                '2v2': {
-                    currentSeason : {
+                solo: {},
+                solo_bg: {},
+                "2v2": {
+                    currentSeason: {
                         rating: 0,
                         title: undefined,
                         seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
+                        weeklyMatchStatistics: undefined,
                     },
                     lastSeasonLadder: undefined,
-                    record: 0
+                    record: 0,
                 },
-                '3v3': {
-                    currentSeason : {
+                "3v3": {
+                    currentSeason: {
                         rating: 0,
                         title: undefined,
                         seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
+                        weeklyMatchStatistics: undefined,
                     },
                     lastSeasonLadder: undefined,
-                    record: 0
+                    record: 0,
                 },
                 rbg: {
-                    rating: undefined,
+                    currentSeason: {
+                        rating: 0,
+                        title: undefined,
+                        seasonMatchStatistics: undefined,
+                        weeklyMatchStatistics: undefined,
+                    },
                     lastSeasonLadder: undefined,
-                }
-            }
+                    record: 0,
+                },
+            };
             const bracketFetches = brackets.map(bracket =>this.fetchBlizzard(bracket.href));
 
             const allBracketsData = await Promise.all(bracketFetches);
 
-            
+            let recRetrived;
 
+            if (shouldRetrieve) recRetrived = await extRetChar(shouldRetrieve);
 
             const processBrackets = allBracketsData.map(async (data, index) => {
                 const seasonIndex = data.season.id;
@@ -134,6 +141,7 @@ const helpFetch = {
                 }
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
+                    let rec = undefined;
                     result[bracketName] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,

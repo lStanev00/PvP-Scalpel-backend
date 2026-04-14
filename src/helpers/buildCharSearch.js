@@ -1,3 +1,5 @@
+import slugify from "./slugify.js";
+
 /**
  * @param {string} val
  * @returns {string | undefined}
@@ -13,15 +15,14 @@ const sanitize = (val) => {
 /**
  * Build a safe string of the form "name:realm:server".
  *
- * @param   {string} server  - Raw server name
- * @param   {string} realm   - Raw realm name
- * @param   {string} name    - Raw character name
+ * @param   {{ server: string, realm: string, name: string }} params - Raw character search parts.
  * @returns {string | undefined} Safe key (name:realm:server) or undefined if invalid
  */
-export default function buildCharSearch(server, realm, name) {
+export default function buildCharSearch(params) {
+    const { server, realm, name } = params ?? {};
     
     const safeServer = sanitize(server);
-    const safeRealm = sanitize(realm);
+    const safeRealm = slugify(realm);
     const safeName = sanitize(name);
     
     if (!safeServer || !safeRealm || !safeName) return undefined;

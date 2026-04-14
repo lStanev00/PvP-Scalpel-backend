@@ -93,7 +93,7 @@ export default async function queueCheckHandler(ws, msg) {
             spec = await getGameSpecializationByID(match[2]);
         }
 
-        const search = buildCharSearch(server, realm, name);
+        const search = buildCharSearch({ server, realm, name });
         if (!search) {
             return {
                 rejected: rejectEntry(trimmedEntry, "entry contains empty or invalid search parts"),

@@ -2,6 +2,7 @@ import { findRealmById } from "../../../../caching/realms/realmCache.js";
 import { searchRegionFromMapBySlug } from "../../../../caching/regions/regionCache.js";
 import { searchCharFromMap } from "../../../../caching/searchCache/charSearchCache.js";
 import convertSearch from "../../../../helpers/convertSearch.js";
+import buildCharSearch from "../../../../helpers/buildCharSearch.js";
 import { determinateRealmResult } from "./extractRealms.js";
 import formReadableID from "../../../../helpers/formReadableID.js";
 
@@ -133,7 +134,8 @@ export async function exactCharMatchBySearch(search) {
 
     const char = charsMatch[0];
     const [name, realm, server] = convertSearch(search);
-    if(char.search === `${name}:${realm}:${server}`)return await formEntry(charsMatch[0]);
+    const exactSearch = buildCharSearch({ server, realm, name });
+    if(char.search === exactSearch)return await formEntry(charsMatch[0]);
 
     return undefined
     

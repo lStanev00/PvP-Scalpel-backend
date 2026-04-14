@@ -1,16 +1,14 @@
+import convertSearch from "./convertSearch.js";
+
 export default function extractNameSlug(search) {
+    const searchParts = convertSearch(search);
 
-    if(typeof search !== "string") return undefined;
-
-    const wholeSearchVal = search.toLowerCase()
-    const WSV_Parts = wholeSearchVal.split(":");
-
-    if(WSV_Parts.length !== 3 ) {
+    if(!searchParts) {
         console.warn(`Bad search value: ${search}`);
         return null
     }
 
-    const key = WSV_Parts[0]; // name extraction
+    const key = searchParts[0]; // name extraction
 
     return key
 }
