@@ -257,7 +257,7 @@ export async function extRetChar(pvpSummaryPath) {
         // Resolve as soon as the character API returns, then close the browser instead of rendering the page.
         const captured = new Promise((resolve, reject) => {
             const timeout = setTimeout(
-                () => reject(new Error("Timed out waiting for character JSON")),
+                () => reject(new Error("ext character search timed out")),
                 60000,
             );
             let isCaptured = false;
@@ -295,7 +295,6 @@ export async function extRetChar(pvpSummaryPath) {
 
         return await Promise.race([captured, navigation.then(() => captured)]);
     } catch (error) {
-        console.error("Failed to capture JSON:", error);
         throw error;
     } finally {
         await client?.detach().catch(() => {});

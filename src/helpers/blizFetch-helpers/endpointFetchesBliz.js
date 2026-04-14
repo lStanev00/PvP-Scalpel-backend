@@ -7,6 +7,7 @@ import BlizAPIError from "../../Models/BlizAPIErrors.js";
 import getAccessToken from "../../caching/blizTokenCache/tokenCache.js";
 import { extRetChar } from "./extRetChar.js";
 import findCharFromDatabase from "../findCharFromDatabase.js";
+import buildCharSearch from "../buildCharSearch.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -132,8 +133,7 @@ const helpFetch = {
                             }
                         }
                     } catch (error) {
-                        console.warn(`[getRating] External rating record lookup failed for ${path}`);
-                        console.warn(error);
+                        console.warn(`[getRating] ${buildCharSearch({server, realm, name})} ext retrive failed`);
                         retrievedRecords = undefined;
                     }
                 }
