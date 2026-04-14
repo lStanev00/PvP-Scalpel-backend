@@ -1,5 +1,26 @@
 import puppeteer from "puppeteer";
 
+/**
+ * @typedef {object} ExtRetCharParams
+ * @property {string} name - Character name used in the external profile URL.
+ * @property {string} realm - Realm slug/name used in the external profile URL.
+ * @property {string} server - Region/server slug, for example `eu` or `us`.
+ */
+
+/**
+ * @typedef {object} ExtRetCharRatings
+ * @property {number | null} blitzRecord - Highest Blitz rating reported by the external character API.
+ * @property {number | null} SSRecord - Highest Solo Shuffle rating reported by the external character API.
+ */
+
+/**
+ * Opens the configured external character page and captures its same-origin
+ * character API response without loading unnecessary assets.
+ *
+ * @param {ExtRetCharParams} params - Character identity used to build the external profile URL.
+ * @returns {Promise<ExtRetCharRatings>} Captured external rating records.
+ * @throws {Error} When the browser cannot load the page or the character JSON is not captured before timeout.
+ */
 export async function extRetChar(params) {
     let { name, realm, server } = params;
 
