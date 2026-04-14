@@ -112,7 +112,7 @@ export default async function queueCheckHandler(ws, msg) {
     function requestCharacterResult(search, initSearch, spec) {
         void retrieveCharacterViaWorker(
             { search },
-            { timeoutMs: 60000, signal: requestController.signal, enqueue: false },
+            { timeoutMs: 70000, signal: requestController.signal, enqueue: false },
         )
             .then((msg) => {
                 if (requestController.signal.aborted) return;
