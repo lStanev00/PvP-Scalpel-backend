@@ -52,7 +52,7 @@ const helpFetch = {
         }
 
     },
-    getRating: async function(path, currentSeasonIndex, server = undefined, realm = undefined, name = undefined, shouldRetrieve = false) {
+    getRating: async function(path, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
         try {
             const bracketsCheatSheet = {
                 "SHUFFLE": `solo`,
@@ -109,49 +109,38 @@ const helpFetch = {
 
             const allBracketsData = await Promise.all(bracketFetches);
 
-            const resolveRetrieveParams = () => {
-                if (!shouldRetrieve) return undefined;
-                if (
-                    typeof shouldRetrieve === "object" &&
-                    typeof shouldRetrieve.server === "string" &&
-                    typeof shouldRetrieve.realm === "string" &&
-                    typeof shouldRetrieve.name === "string"
-                ) {
-                    return shouldRetrieve;
-                }
-                if (
-                    shouldRetrieve === true &&
-                    typeof server === "string" &&
-                    typeof realm === "string" &&
-                    typeof name === "string"
-                ) {
-                    return { server, realm, name };
-                }
-                return undefined;
-            };
-
-            const retrieveParams = resolveRetrieveParams();
             let retrievedRecords; // external records retrieve
-            if (retrieveParams) {
-                try {
-                    retrievedRecords = await extRetChar(retrieveParams);
-                } catch (error) {
-                    console.warn(`[getRating] External rating record lookup failed for ${path}`);
-                    console.warn(error);
-                    retrievedRecords = undefined;
-                }
-            }
-            
+            let ratingCharRefDoc;
             let ratingCharRefDbase; // dbase records retrieve
             try {
-                ratingCharRefDbase = await findCharFromDatabase.byPvPUrl(path);
+                ratingCharRefDoc = await findCharFromDatabase.byPvPUrl(path);
+                ratingCharRefDbase = ratingCharRefDoc?.rating;
+
+                if (ratingCharRefDoc?.legacyRetrieved !== true) {
+                    try {
+                        retrievedRecords = await extRetChar(path);
+                        if (ratingCharRefDoc) {
+                            try {
+                                await ratingCharRefDoc.updateOne(
+                                    { $set: { legacyRetrieved: true } },
+                                    { timestamps: false },
+                                );
+                                ratingCharRefDoc.legacyRetrieved = true;
+                            } catch (error) {
+                                console.warn(`[getRating] Failed to mark legacy rating retrieval for ${path}`);
+                                console.warn(error);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn(`[getRating] External rating record lookup failed for ${path}`);
+                        console.warn(error);
+                        retrievedRecords = undefined;
+                    }
+                }
             } catch (error) {
                 console.warn(`[getRating] Database rating reference lookup failed for ${path}`);
                 console.warn(error);
                 ratingCharRefDbase = undefined;
-            } finally {
-                if (ratingCharRefDbase && ratingCharRefDbase?.rating)
-                    ratingCharRefDbase = ratingCharRefDbase.rating;
             }
 
             const toFiniteNumber = (value) => {

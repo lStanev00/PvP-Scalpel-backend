@@ -1,20 +1,28 @@
 import puppeteer from "puppeteer";
 
 /**
- * @typedef {object} ExtRetCharParams
- * @property {string} name - Character name used in the external profile URL.
- * @property {string} realm - Realm slug/name used in the external profile URL.
- * @property {string} server - Region/server slug, for example `eu` or `us`.
- */
-
-/**
  * @typedef {object} ExtRetCharRatings
  * @property {number | null} blitzRecord - Highest Blitz rating reported by the external character API.
  * @property {number | null} SSRecord - Highest Solo Shuffle rating reported by the external character API.
  * @property {number | null} rbgRecord - Highest Rated Battleground rating reported by the external character API.
  */
 
+/**
+ * @typedef {object} PvPSummaryIdentity
+ * @property {string} server - Region/server slug, for example `eu` or `us`.
+ * @property {string} realm - Realm slug from the Blizzard PvP summary URL.
+ * @property {string} name - Character name from the Blizzard PvP summary URL.
+ */
+
 const REALM_LOWERCASE_WORDS = new Set(["of", "and", "the"]);
+
+function decodePathSegment(segment) {
+    try {
+        return decodeURIComponent(segment);
+    } catch {
+        return undefined;
+    }
+}
 
 function titleCaseRealmWord(word, index) {
     const lowerWord = word.toLowerCase();
@@ -52,21 +60,78 @@ export function formatExternalRealmPathSegment(realm) {
     return readableRealm.length === 0 ? undefined : encodeURIComponent(readableRealm);
 }
 
+function formatExternalCharacterName(name) {
+    if (typeof name !== "string") return undefined;
+
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) return undefined;
+
+    const [firstChar, ...restChars] = Array.from(trimmedName);
+    return encodeURIComponent(`${firstChar.toUpperCase()}${restChars.join("").toLowerCase()}`);
+}
+
+/**
+ * Parses a Blizzard character PvP summary URL into the identity needed by check-pvp.
+ *
+ * @param {string} pvpSummaryPath - Blizzard PvP summary URL.
+ * @returns {PvPSummaryIdentity | undefined} Parsed identity, or `undefined` when the URL is invalid.
+ */
+export function parsePvpSummaryPath(pvpSummaryPath) {
+    if (typeof pvpSummaryPath !== "string") return undefined;
+
+    let url;
+    try {
+        url = new URL(pvpSummaryPath);
+    } catch {
+        return undefined;
+    }
+
+    const hostMatch = url.hostname.match(/^(?<server>[^.]+)\.api\.blizzard\.com$/);
+    if (!hostMatch?.groups?.server) return undefined;
+
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const [profile, wow, character, realm, name, summary] = pathParts;
+    if (
+        pathParts.length !== 6 ||
+        profile !== "profile" ||
+        wow !== "wow" ||
+        character !== "character" ||
+        summary !== "pvp-summary"
+    ) {
+        return undefined;
+    }
+
+    const server = hostMatch.groups.server;
+    const namespace = url.searchParams.get("namespace");
+    if (namespace && namespace !== `profile-${server}`) return undefined;
+
+    const decodedRealm = decodePathSegment(realm);
+    const decodedName = decodePathSegment(name);
+    if (!decodedRealm || !decodedName) return undefined;
+
+    return {
+        server,
+        realm: decodedRealm,
+        name: decodedName,
+    };
+}
+
 /**
  * Opens the configured external character page and captures its same-origin
  * character API response without loading unnecessary assets.
  *
- * @param {ExtRetCharParams} params - Character identity used to build the external profile URL.
+ * @param {string} pvpSummaryPath - Blizzard PvP summary URL used to derive the external profile URL.
  * @returns {Promise<ExtRetCharRatings>} Captured external rating records.
  * @throws {Error} When the browser cannot load the page or the character JSON is not captured before timeout.
  */
-export async function extRetChar(params) {
-    let { name, realm, server } = params ?? {};
+export async function extRetChar(pvpSummaryPath) {
+    const identity = parsePvpSummaryPath(pvpSummaryPath);
+    if (!identity) throw new Error("extRetChar requires a valid Blizzard PvP summary URL.");
+
+    const { name, realm, server } = identity;
     const EXT_DOMAIN = process.env.EXT_DOMAIN?.replace(/\/+$/, "");
     const safeRealm = formatExternalRealmPathSegment(realm);
-    const safeName = typeof name === "string" && name.trim().length > 0
-        ? encodeURIComponent(name.trim())
-        : undefined;
+    const safeName = formatExternalCharacterName(name);
     const safeServer = typeof server === "string" && server.trim().length > 0
         ? server.trim().toLowerCase()
         : undefined;

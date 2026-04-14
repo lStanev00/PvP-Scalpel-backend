@@ -328,8 +328,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 character.playerRealm.slug,
                 character.name,
                 character.checkedCount,
-                renewCache,
-                character?.legacyRetrieved ? false : {server, realm, name}
+                renewCache
             );
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {

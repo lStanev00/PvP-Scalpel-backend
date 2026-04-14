@@ -90,7 +90,7 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
 
     await setCache(key, true, hashName);
 
-    character = await fetchData(server, realm, name, undefined, false, {server, realm, name});
+    character = await fetchData(server, realm, name, undefined, false);
     if (character?.status === 409 && character?.data?.blizID) {
         try {
             const setter = character.data;
