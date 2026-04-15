@@ -1,5 +1,6 @@
 import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import GameClass from "../../Models/GameClass.js";
+import blizzardPvpClassSlug from "../blizzardPvpClassSlug.js";
 import getRatingEntries from "../getRatingEntries.js";
 import slugify from "../slugify.js";
 
@@ -169,7 +170,11 @@ async function getExtDynamicRatingSuffix(retrievedRecords) {
 
         if (!activeSpec?.name || !gameClass?.name) return undefined;
 
-        return slugify(`${activeSpec.name} ${gameClass.name}`);
+        const classSlug = blizzardPvpClassSlug(gameClass.name);
+        const specSlug = slugify(activeSpec.name);
+        if (!classSlug || !specSlug) return undefined;
+
+        return `${classSlug}-${specSlug}`;
     } catch (error) {
         console.warn("[getRating] Failed to resolve ext dynamic rating key.");
         console.warn(error);
