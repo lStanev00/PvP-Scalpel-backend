@@ -1,4 +1,5 @@
 import { CharacterCacheTTL } from "../helpers/redis/connectRedis.js";
+import blizzardPvpClassSlug from "../helpers/blizzardPvpClassSlug.js";
 import delCache from "../helpers/redis/deletersRedis.js";
 import slugify from "../helpers/slugify.js";
 import Char from "../Models/Chars.js";
@@ -36,12 +37,20 @@ async function buildFaultyDynamicRatingKeyMap() {
         const className = classNameById.get(specialization.relClass);
         if (!className || !specialization.name) continue;
 
-        const correctSuffix = slugify(`${className} ${specialization.name}`);
+        const classSlug = blizzardPvpClassSlug(className);
+        const specSlug = slugify(specialization.name);
+        const correctSuffix = classSlug && specSlug ? `${classSlug}-${specSlug}` : undefined;
+        const classSpecSlugSuffix = slugify(`${className} ${specialization.name}`);
         const faultySuffix = slugify(`${specialization.name} ${className}`);
-        if (!correctSuffix || !faultySuffix || correctSuffix === faultySuffix) continue;
+        if (!correctSuffix || !faultySuffix) continue;
 
         replacements.set(`blitz-${faultySuffix}`, `blitz-${correctSuffix}`);
         replacements.set(`shuffle-${faultySuffix}`, `shuffle-${correctSuffix}`);
+
+        if (classSpecSlugSuffix && classSpecSlugSuffix !== correctSuffix) {
+            replacements.set(`blitz-${classSpecSlugSuffix}`, `blitz-${correctSuffix}`);
+            replacements.set(`shuffle-${classSpecSlugSuffix}`, `shuffle-${correctSuffix}`);
+        }
     }
 
     return replacements;
