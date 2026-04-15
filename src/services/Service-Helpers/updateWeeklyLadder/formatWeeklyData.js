@@ -3,6 +3,16 @@ import charWeeklySnapshot from "../../../Models/CharWeeklySnaphsot.js";
 import getRatingEntries from "../../../helpers/getRatingEntries.js";
 import { buildSnapshots, formRatings } from "./buildSnapshots.js";
 
+function normalizeRatingSnapshot(snapshot) {
+    return {
+        blitz: Array.isArray(snapshot?.blitz) ? snapshot.blitz : [],
+        shuffle: Array.isArray(snapshot?.shuffle) ? snapshot.shuffle : [],
+        "2v2": typeof snapshot?.["2v2"] === "number" ? snapshot["2v2"] : 0,
+        "3v3": typeof snapshot?.["3v3"] === "number" ? snapshot["3v3"] : 0,
+        RBG: typeof snapshot?.RBG === "number" ? snapshot.RBG : 0,
+    };
+}
+
 /**
  * Form the data for the weekly brackets
  * @param {Array<Object>} [guildCharList] - Optional guild character list. If not provided, it will be fetched from the database.
@@ -31,10 +41,11 @@ export default async function formatWeeklyData(guildCharList = undefined) {
 
     for (const { search, rating } of guildCharList) {
         // loop the dbase with existing live chars data since the service start as soon as the patch of the guild mems finish so is a live data
-        let snapshotEntry = weeklySnapshots.find(
+        const snapshotDoc = weeklySnapshots.find(
             (entry) => entry._id.toString() === search
-        )?.ratingSnapshot;
-        if (!snapshotEntry && typeof search === "string") {
+        );
+        let snapshotEntry = normalizeRatingSnapshot(snapshotDoc?.ratingSnapshot);
+        if (!snapshotDoc && typeof search === "string") {
             try {
                 const newSnapEntry = new charWeeklySnapshot({
                     _id: search,
@@ -42,7 +53,7 @@ export default async function formatWeeklyData(guildCharList = undefined) {
                 });
                 
                 snapshotEntry = await newSnapEntry.save();
-                snapshotEntry = newSnapEntry.toObject();
+                snapshotEntry = normalizeRatingSnapshot(newSnapEntry.toObject()?.ratingSnapshot);
                 if(!snapshotEntry) continue;
             } catch (error) {
                 console.warn(error);
@@ -65,11 +76,11 @@ export default async function formatWeeklyData(guildCharList = undefined) {
             let snapBracketData; // get the snapshot data
 
             if (bracket.startsWith("blitz")) {
-                snapBracketData = snapshotEntry["blitz"].find(
+                snapBracketData = snapshotEntry.blitz.find(
                     (entry) => entry.bracketName === bracket
                 )?.rating;
             } else if (bracket.startsWith("shuffle")) {
-                snapBracketData = snapshotEntry["shuffle"].find(
+                snapBracketData = snapshotEntry.shuffle.find(
                     (entry) => entry.bracketName === bracket
                 )?.rating;
             } else {
