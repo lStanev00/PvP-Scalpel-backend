@@ -100,6 +100,22 @@ async function BGGet(req, res) {
 export default LDBController;
 
 // Helper for the fetches and sort
+function toFiniteNumber(value) {
+    if (typeof value !== "number" && typeof value !== "string") return undefined;
+    if (typeof value === "string" && value.trim().length === 0) return undefined;
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function normalizeRatingRecordForResponse(ratingBracket) {
+    const currentRating = toFiniteNumber(ratingBracket?.currentSeason?.rating);
+    const record = toFiniteNumber(ratingBracket?.record);
+
+    if (currentRating === undefined || currentRating <= 0) return;
+    if (record !== undefined && record >= currentRating) return;
+
+    ratingBracket.record = currentRating;
+}
 
 async function findRatingAndSort(bracket) {
     if (bracket == "shuffle" || bracket == "blitz") {
@@ -129,6 +145,7 @@ async function findRatingAndSort(bracket) {
                     });
                 }
 
+                normalizeRatingRecordForResponse(result[0][1]);
                 entry.rating = [[result[0][0]], result[0][1]];
 
                 return entry;
@@ -177,6 +194,7 @@ async function findRatingAndSort(bracket) {
                 [`rating.${bracket}.record`]: -1,
             })
             .lean();
+        for (const entry of charList) normalizeRatingRecordForResponse(entry.rating?.[bracket]);
         return charList;
     } catch (error) {
         console.warn(error);
