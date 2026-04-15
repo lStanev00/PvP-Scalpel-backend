@@ -161,19 +161,20 @@ const helpFetch = {
                 const dbaseRatingBracket = getRatingBracket(ratingCharRefDbase, bracketName);
                 const externalRecord = externalRecordsByBracket[currentBracket];
                 const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
+                const record = highestRecord(rec, curentBracketData?.rating) ?? 0;
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
                     result[bracketName] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: rec ? rec : curentBracketData?.rating,
+                        record,
                         _id: `${Math.random()}${bracketKey}${Math.random()}`
                     };
                 } else {
                     result[bracketKey] = {
                         currentSeason: curentBracketData,
                         // lastSeasonLadder: lastSeasonLadder,
-                        record: rec ? rec : curentBracketData?.rating,
+                        record,
                         _id: `${Math.random()}${bracketKey}`
                     };
                 }
