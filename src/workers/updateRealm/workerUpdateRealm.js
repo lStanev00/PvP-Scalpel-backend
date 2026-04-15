@@ -9,6 +9,10 @@ export default async function workerUpdateRealm() {
         task.on("exit", () => {
             exited = true;
         });
+        task.on("error", (error) => {
+            console.warn("[workerUpdateRealm] child process error:", error);
+            exited = true;
+        });
 
         // while (exited !== true) await delay(3000);
         await delay(2147483647); // max 24.8 days

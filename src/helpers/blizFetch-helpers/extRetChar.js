@@ -8,6 +8,8 @@ import { delay } from "../startBGTask.js";
  * @property {number | null} rbgRecord - Highest Rated Battleground rating reported by the external character API.
  * @property {number | null} twosRecord - Highest 2v2 rating reported by the external character API.
  * @property {number | null} threesRecord - Highest 3v3 rating reported by the external character API.
+ * @property {number | null} activeSpecId - Active specialization id reported by the external character API.
+ * @property {number | null} classId - Character class id reported by the external character API.
  */
 
 /**
@@ -82,13 +84,21 @@ function formatExternalCharacterName(name) {
     return encodeURIComponent(`${firstChar.toUpperCase()}${restChars.join("").toLowerCase()}`);
 }
 
+function optionalFiniteNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+}
+
 function extractRatings(data) {
     return {
-        blitzRecord: data?.ratemaxblitz ?? null,
-        SSRecord: data?.ratemaxshuffle ?? null,
-        rbgRecord: data?.ratemaxrbg ?? null,
-        twosRecord: data?.ratemax2v2 ?? null,
-        threesRecord: data?.ratemax3v3 ?? null,
+        blitzRecord: optionalFiniteNumber(data?.ratemaxblitz),
+        SSRecord: optionalFiniteNumber(data?.ratemaxshuffle),
+        rbgRecord: optionalFiniteNumber(data?.ratemaxrbg),
+        twosRecord: optionalFiniteNumber(data?.ratemax2v2),
+        threesRecord: optionalFiniteNumber(data?.ratemax3v3),
+        activeSpecId: optionalFiniteNumber(data?.activeSpecId),
+        classId: optionalFiniteNumber(data?.class),
     };
 }
 
