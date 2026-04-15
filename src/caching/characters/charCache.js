@@ -409,7 +409,9 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             }
         }
         await cacheOneCharacter(character);
-        character = character.toObject();
+        try {
+            character = character.toObject();
+        } catch (error) {}
     } catch (error) {
         console.warn(error);
     }
