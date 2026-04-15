@@ -8,6 +8,12 @@ import getAccessToken from "../../caching/blizTokenCache/tokenCache.js";
 import { extRetChar } from "./extRetChar.js";
 import findCharFromDatabase from "../findCharFromDatabase.js";
 import buildCharSearch from "../buildCharSearch.js";
+import {
+    applyExternalRecordOnlyRatings,
+    createDefaultRatingResult,
+    getRatingBracket,
+    highestRecord,
+} from "./ratingHelpers.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -62,7 +68,7 @@ const helpFetch = {
                 "ARENA_3v3": "3v3",
                 "BATTLEGROUNDS": "rbg",
               }
-            let result = {};
+            let result = createDefaultRatingResult();
             if (server != undefined && realm != undefined && name != undefined) {
 
                 name = name.toLowerCase();
@@ -72,45 +78,15 @@ const helpFetch = {
             }
 
             let brackets = (await this.fetchBlizzard(path)).brackets;
-            if (brackets == undefined || brackets?.length === 0) return {
-                solo: {},
-                solo_bg: {},
-                "2v2": {
-                    currentSeason: {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined,
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0,
-                },
-                "3v3": {
-                    currentSeason: {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined,
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0,
-                },
-                rbg: {
-                    currentSeason: {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined,
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0,
-                },
-            };
-            const bracketFetches = brackets.map(bracket =>this.fetchBlizzard(bracket.href));
+            const hasBrackets = Array.isArray(brackets) && brackets.length > 0;
+            const bracketFetches = hasBrackets
+                ? brackets.map(bracket =>this.fetchBlizzard(bracket.href))
+                : [];
 
             const allBracketsData = await Promise.all(bracketFetches);
 
             let retrievedRecords; // external records retrieve
+            let externalRecordsByBracket = {};
             let ratingCharRefDoc;
             let ratingCharRefDbase; // dbase records retrieve
             try {
@@ -122,11 +98,11 @@ const helpFetch = {
                         retrievedRecords = await extRetChar(path);
                         if (ratingCharRefDoc) {
                             try {
-                                await ratingCharRefDoc.updateOne(
+                                ratingCharRefDoc = await ratingCharRefDoc.updateOne(
                                     { $set: { legacyRetrieved: true } },
-                                    { timestamps: false },
+                                    { timestamps: false, new: true },
                                 );
-                                ratingCharRefDoc.legacyRetrieved = true;
+                                // ratingCharRefDoc.legacyRetrieved = true;
                             } catch (error) {
                                 console.warn(`[getRating] Failed to mark legacy rating retrieval for ${path}`);
                                 console.warn(error);
@@ -137,25 +113,24 @@ const helpFetch = {
                         retrievedRecords = undefined;
                     }
                 }
+                externalRecordsByBracket = {
+                    BLITZ: retrievedRecords?.blitzRecord,
+                    SHUFFLE: retrievedRecords?.SSRecord,
+                    BATTLEGROUNDS: retrievedRecords?.rbgRecord,
+                    ARENA_2v2: retrievedRecords?.twosRecord,
+                    ARENA_3v3: retrievedRecords?.threesRecord,
+                };
             } catch (error) {
                 console.warn(`[getRating] Database rating reference lookup failed for ${path}`);
                 console.warn(error);
                 ratingCharRefDbase = undefined;
             }
 
-            const toFiniteNumber = (value) => {
-                if (typeof value !== "number" && typeof value !== "string") return undefined;
-                if (typeof value === "string" && value.trim().length === 0) return undefined;
-                const numberValue = Number(value);
-                return Number.isFinite(numberValue) ? numberValue : undefined;
-            };
-
-            const highestRecord = (...values) => {
-                const records = values.map(toFiniteNumber).filter((value) => value !== undefined);
-                return records.length === 0 ? undefined : Math.max(...records);
-            };
+            await applyExternalRecordOnlyRatings(result, retrievedRecords, ratingCharRefDbase);
 
             const processBrackets = allBracketsData.map(async (data, index) => {
+                if (data?.code === 404) return null; // blizzard sometimes dont sanitize data and there are fauty requests
+
                 const seasonIndex = data.season.id;
 
                 const seasonMatch = seasonIndex == currentSeasonIndex; 
@@ -183,20 +158,8 @@ const helpFetch = {
                     return;
                 }
 
-                const dbaseRatingBracket = ratingCharRefDbase instanceof Map
-                    ? ratingCharRefDbase.get(bracketName)
-                    : ratingCharRefDbase?.[bracketName];
-                const externalRecord = currentBracket === "BLITZ"
-                    ? retrievedRecords?.blitzRecord
-                    : currentBracket === "SHUFFLE"
-                        ? retrievedRecords?.SSRecord
-                        : currentBracket === "BATTLEGROUNDS"
-                            ? retrievedRecords?.rbgRecord
-                            : currentBracket === "ARENA_2v2"
-                                ? retrievedRecords?.twosRecord
-                                : currentBracket === "ARENA_3v3"
-                                    ? retrievedRecords?.threesRecord
-                                    : undefined;
+                const dbaseRatingBracket = getRatingBracket(ratingCharRefDbase, bracketName);
+                const externalRecord = externalRecordsByBracket[currentBracket];
                 const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
@@ -221,42 +184,7 @@ const helpFetch = {
             return result;
         } catch (error) {
             console.log(error)
-            return {
-                solo: {
-                },
-                solo_bg: {
-                },
-                '2v2': {
-                    currentSeason : {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0
-                },
-                '3v3': {
-                    currentSeason : {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0
-                },
-                rbg: {
-                    currentSeason : {
-                        rating: 0,
-                        title: undefined,
-                        seasonMatchStatistics: undefined,
-                        weeklyMatchStatistics: undefined
-                    },
-                    lastSeasonLadder: undefined,
-                    record: 0,
-                }
-            }
+            return createDefaultRatingResult();
         }
     },
     getPvPTitle: async function (href) {

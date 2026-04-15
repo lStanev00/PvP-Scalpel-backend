@@ -8,6 +8,8 @@ import { delay } from "../startBGTask.js";
  * @property {number | null} rbgRecord - Highest Rated Battleground rating reported by the external character API.
  * @property {number | null} twosRecord - Highest 2v2 rating reported by the external character API.
  * @property {number | null} threesRecord - Highest 3v3 rating reported by the external character API.
+ * @property {number | null} activeSpecId - Active specialization id reported by the external character API.
+ * @property {number | null} classId - Character class id reported by the external character API.
  */
 
 /**
@@ -20,6 +22,13 @@ import { delay } from "../startBGTask.js";
 const REALM_LOWERCASE_WORDS = new Set(["of", "and", "the"]);
 const EXT_FUNCTION_KEY = "95$TXEgzTX15800__=";
 const EXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
+const EXT_REQUEST_TIMEOUT_MS = getPositiveNumberEnv("EXT_REQUEST_TIMEOUT_MS", 4000);
+const EXT_REQUEST_DELAY_MS = getPositiveNumberEnv("EXT_REQUEST_DELAY_MS", 250);
+
+function getPositiveNumberEnv(name, fallback) {
+    const value = Number(process.env?.[name]);
+    return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
 
 function decodePathSegment(segment) {
     try {
@@ -75,13 +84,21 @@ function formatExternalCharacterName(name) {
     return encodeURIComponent(`${firstChar.toUpperCase()}${restChars.join("").toLowerCase()}`);
 }
 
+function optionalFiniteNumber(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+}
+
 function extractRatings(data) {
     return {
-        blitzRecord: data?.ratemaxblitz ?? null,
-        SSRecord: data?.ratemaxshuffle ?? null,
-        rbgRecord: data?.ratemaxrbg ?? null,
-        twosRecord: data?.ratemax2v2 ?? null,
-        threesRecord: data?.ratemax3v3 ?? null,
+        blitzRecord: optionalFiniteNumber(data?.ratemaxblitz),
+        SSRecord: optionalFiniteNumber(data?.ratemaxshuffle),
+        rbgRecord: optionalFiniteNumber(data?.ratemaxrbg),
+        twosRecord: optionalFiniteNumber(data?.ratemax2v2),
+        threesRecord: optionalFiniteNumber(data?.ratemax3v3),
+        activeSpecId: optionalFiniteNumber(data?.activeSpecId),
+        classId: optionalFiniteNumber(data?.class),
     };
 }
 
@@ -129,11 +146,20 @@ function buildExternalApiHeaders(apiPath, referer) {
 }
 
 async function fetchExternalCharacterApi(apiUrl, apiPath, referer) {
-    const response = await fetch(apiUrl, {
-        method: "GET",
-        headers: buildExternalApiHeaders(apiPath, referer),
-        signal: AbortSignal.timeout(30000),
-    });
+    let response;
+    try {
+        response = await fetch(apiUrl, {
+            method: "GET",
+            headers: buildExternalApiHeaders(apiPath, referer),
+            signal: AbortSignal.timeout(EXT_REQUEST_TIMEOUT_MS),
+        });
+    } catch (error) {
+        if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+            throw new Error(`ext direct character API timed out after ${EXT_REQUEST_TIMEOUT_MS}ms`);
+        }
+
+        throw new Error(`ext direct character API request failed: ${error.message}`);
+    }
 
     if (response.status !== 200) {
         throw new Error(`ext direct character API returned ${response.status}`);
@@ -213,7 +239,7 @@ export async function extRetChar(pvpSummaryPath) {
         throw new Error("extRetChar requires non-empty server, realm, and name params.");
     }
 
-    await delay(1500);
+    if (EXT_REQUEST_DELAY_MS > 0) await delay(EXT_REQUEST_DELAY_MS);
     const targetUrl = `${EXT_DOMAIN}/${safeServer}/${safeRealm}/${safeName}`;
     const apiPath = `characters/${safeServer}/${safeRealm}/${safeName}`;
     const apiUrl = `${EXT_DOMAIN}/api/${apiPath}`;
