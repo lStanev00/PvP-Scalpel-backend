@@ -13,6 +13,10 @@ export default async function workerupdateDBAchieves() {
         task.on("exit", () => {
             exited = true;
         });
+        task.on("error", (error) => {
+            console.warn("[workerupdateDBAchieves] child process error:", error);
+            exited = true;
+        });
 
         while (exited !== true) await delay(2000);
     }

@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import helpFetch from './blizFetch-helpers/endpointFetchesBliz.js';
 import dataGuard from './blizFetch-helpers/dataGuard.js';
 import buildCharSearch from './buildCharSearch.js';
+import { setHighestRatingRecord } from './blizFetch-helpers/ratingHelpers.js';
 // import { performance } from 'perf_hooks';
 
 dotenv.config({ path: '../../.env' });
@@ -68,12 +69,8 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
         result.class.media = classMedia;
         result.activeSpec.media = activeSpecMedia;
         result.rating = rating;
-        if (!result.rating["3v3"]) result.rating["3v3"] = {record: null}
-        if (!result.rating["3v3"].record) result.rating["3v3"].record = null;
-        if (!result.rating["2v2"]) result.rating["2v2"] = {record: null}
-        if (!result.rating["2v2"].record) result.rating["2v2"].record = null;
-        result.rating["2v2"].record = rating2v2Record;
-        result.rating["3v3"].record = rating3v3Record;
+        setHighestRatingRecord(result.rating, "2v2", rating2v2Record);
+        setHighestRatingRecord(result.rating, "3v3", rating3v3Record);
         result.achieves = achievements[0];
         result.listAchievements = achievements[1];
         result.media = media;
