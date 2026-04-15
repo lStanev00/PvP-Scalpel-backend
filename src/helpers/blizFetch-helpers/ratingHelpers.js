@@ -169,7 +169,7 @@ async function getExtDynamicRatingSuffix(retrievedRecords) {
 
         if (!activeSpec?.name || !gameClass?.name) return undefined;
 
-        return slugify(`${activeSpec.name} ${gameClass.name}`);
+        return slugify(`${gameClass.name} ${activeSpec.name}`);
     } catch (error) {
         console.warn("[getRating] Failed to resolve ext dynamic rating key.");
         console.warn(error);
