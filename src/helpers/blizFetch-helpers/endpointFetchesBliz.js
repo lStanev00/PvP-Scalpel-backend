@@ -156,6 +156,8 @@ const helpFetch = {
             };
 
             const processBrackets = allBracketsData.map(async (data, index) => {
+                if (data?.code === 404) return null; // blizzard sometimes dont sanitize data and there are fauty requests
+
                 const seasonIndex = data.season.id;
 
                 const seasonMatch = seasonIndex == currentSeasonIndex; 
