@@ -9,6 +9,10 @@ export default async function workerPatchGuildMembersData() {
         task.on("exit", () => {
             exited = true;
         });
+        task.on("error", (error) => {
+            console.warn("[workerPatchGuildMembersData] child process error:", error);
+            exited = true;
+        });
 
         while (exited !== true) await delay(3000);
         await delay(3600000); // 1 hr
