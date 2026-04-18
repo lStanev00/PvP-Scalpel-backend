@@ -14,6 +14,8 @@ import {
     getRatingBracket,
     highestRecord,
 } from "./ratingHelpers.js";
+import getCache from "../redis/getterRedis.js";
+import setCache from "../redis/setterRedis.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -380,16 +382,87 @@ const helpFetch = {
     },
     getCurrentPvPSeasonIndex: async function () {
         const url = "https://eu.api.blizzard.com/data/wow/pvp-season/index?namespace=dynamic-eu&locale=en_GB";
+        const pvpSeasonIndexRedisKey = "pvp-season-index";
+        const sixHoursMs = 6 * 60 * 60 * 1000;
 
-        
-        try {
+        const parseCachedSeason = (cached) => {
+            if (!cached) return null;
+
+            if (typeof cached === "object") {
+                const currentSeasonId = Number(cached.currentSeasonId);
+                const cachedAtMs = new Date(cached.cachedAt).getTime();
+
+                if (!Number.isFinite(currentSeasonId) || !Number.isFinite(cachedAtMs)) return null;
+
+                return {
+                    currentSeasonId,
+                    cachedAtMs
+                };
+            }
+
+            if (typeof cached === "string") {
+                const [currentSeasonIdValue, cachedAt] = cached.split("|");
+                const currentSeasonId = Number(currentSeasonIdValue);
+                const cachedAtMs = new Date(cachedAt).getTime();
+
+                if (!Number.isFinite(currentSeasonId) || !Number.isFinite(cachedAtMs)) return null;
+
+                return {
+                    currentSeasonId,
+                    cachedAtMs
+                };
+            }
+
+            return null;
+        };
+
+        const isFreshCache = (cachedSeason) => {
+            if (!cachedSeason) return false;
+
+            const ageMs = Date.now() - cachedSeason.cachedAtMs;
+            return ageMs >= 0 && ageMs < sixHoursMs;
+        };
+
+        const cacheIt = async (currentSeasonId) => {
+            await setCache(pvpSeasonIndexRedisKey, {
+                currentSeasonId,
+                cachedAt: new Date().toISOString()
+            });
+        };
+
+        const retriveNew = async () => {
             const data = await this.fetchBlizzard(url);
-            const currentSeasonId = data?.current_season?.id;
+            const currentSeasonId = Number(data?.current_season?.id);
+
+            if (!Number.isFinite(currentSeasonId)) {
+                throw new Error("Blizzard PvP season index response did not include a valid current season id.");
+            }
+
+            await cacheIt(currentSeasonId);
 
             return currentSeasonId;
-            
+        };
+
+        let cachedSeason = null;
+        
+        try {
+            const cached = await getCache(pvpSeasonIndexRedisKey);
+            cachedSeason = parseCachedSeason(cached);
+
+            if (isFreshCache(cachedSeason)) {
+                return cachedSeason.currentSeasonId;
+            }
         } catch (error) {
-            return null
+            console.warn("[PvP Season Cache] Failed to read cached season index.");
+            console.warn(error);
+        }
+
+        try {
+            return await retriveNew();
+        } catch (error) {
+            console.warn("[PvP Season Cache] Failed to refresh current PvP season index.");
+            console.warn(error);
+            return cachedSeason?.currentSeasonId ?? null;
         }
         
     },

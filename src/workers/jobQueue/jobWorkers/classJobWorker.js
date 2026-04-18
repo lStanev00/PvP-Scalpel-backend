@@ -1,14 +1,15 @@
 import { fork } from "node:child_process";
 import getCache from "../../../helpers/redis/getterRedis.js";
-import setCache, { addSetCache } from "../../../helpers/redis/setterRedis.js";
+import setCache, { setCacheIfAbsent } from "../../../helpers/redis/setterRedis.js";
 import JQOLog from "../JQOLoog.js";
-import { removeSetCache } from "../../../helpers/redis/deletersRedis.js";
+import delCache from "../../../helpers/redis/deletersRedis.js";
 import WorkerError from "../../../Models/WorkerErrors.js";
 import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.js";
+import { QueueClaimTTL } from "../../../helpers/redis/connectRedis.js";
 
-const queuedCharKey = "queuedCharSet";
-const queueCharacterSearch = async (search) => await addSetCache(queuedCharKey, search);
-const dequeueCharacterSearch = async (search) => await removeSetCache(queuedCharKey, search);
+const queueClaimKey = (search) => `queuedChar:${search}`;
+const queueCharacterSearch = async (search) => await setCacheIfAbsent(queueClaimKey(search), true, 30, QueueClaimTTL);
+const dequeueCharacterSearch = async (search) => await delCache(queueClaimKey(search), "", QueueClaimTTL);
 
 /**
  * Payload for the `retrieveCharacter` job handled by `jobWorker.js`.

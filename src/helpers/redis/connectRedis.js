@@ -7,7 +7,9 @@ configDotenv();
 
 const IS_LOCAL = process.env.IS_LOCAL;
 export const CHARACTER_CACHE_TTL_DATABASE = 1;
+export const QUEUE_CLAIM_TTL_DATABASE = 2;
 export const CharacterCacheTTL = "CharacterCacheTTL";
+export const QueueClaimTTL = "QueueClaimTTL";
 const url = IS_LOCAL
     ? process.env.REDIS_URL
     : `redis://default:${process.env.REDIS_PASSWORD}@redis:${process.env.REDISPORT}`;
@@ -22,6 +24,7 @@ const socketOptions = {
 export const redisCache = createClient({ url, socket: socketOptions });
 // add key notification events
 export const redisCharacterCacheTTL = createClient({ url, socket: socketOptions });
+export const redisQueueClaimTTL = createClient({ url, socket: socketOptions });
 
 export default async function connectRedis(silent = false) {
     let iter = 0;
@@ -29,21 +32,23 @@ export default async function connectRedis(silent = false) {
     while (true) {
         if (iter > 0) await delay(5000);
         try {
-            // Connect both clients
+            // Connect clients
             await Promise.all([
                 redisCache.connect(),
                 redisCharacterCacheTTL.connect(),
+                redisQueueClaimTTL.connect(),
             ]);
     
             // Select databases
             await redisCache.select(0);
             await redisCharacterCacheTTL.select(CHARACTER_CACHE_TTL_DATABASE);
+            await redisQueueClaimTTL.select(QUEUE_CLAIM_TTL_DATABASE);
 
             // Enable messaging events
             await redisCache.configSet("notify-keyspace-events", "KEA");
 
     
-            if (!silent) console.info("Redis connected: DB0 + CharacterCacheTTL ready!");
+            if (!silent) console.info("Redis connected: DB0 + CharacterCacheTTL + QueueClaimTTL ready!");
             break;
         } catch (error) {
             console.warn("Redis failed to connect!\n    => The iter == " + iter);
@@ -57,7 +62,13 @@ export default async function connectRedis(silent = false) {
 
 // DB selector helper
 export function getRedisClient(dbIndex = 0) {
-    return dbIndex === CharacterCacheTTL || dbIndex === CHARACTER_CACHE_TTL_DATABASE
-        ? redisCharacterCacheTTL
-        : redisCache;
+    if (dbIndex === CharacterCacheTTL || dbIndex === CHARACTER_CACHE_TTL_DATABASE) {
+        return redisCharacterCacheTTL;
+    }
+
+    if (dbIndex === QueueClaimTTL || dbIndex === QUEUE_CLAIM_TTL_DATABASE) {
+        return redisQueueClaimTTL;
+    }
+
+    return redisCache;
 }

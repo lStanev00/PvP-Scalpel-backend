@@ -110,6 +110,36 @@ export default async function setCache(key, value, hash = "", ttl = -1, clientIn
 }
 
 /**
+ * Set one direct Redis key only when it does not already exist.
+ *
+ * @param {string} key
+ * @param {any} value
+ * @param {number} ttl TTL in seconds.
+ * @param {number|string} [clientIndex=0]
+ * @returns {Promise<1|0|null>} 1 when created, 0 when already present, null on failure.
+ */
+export async function setCacheIfAbsent(key, value, ttl, clientIndex = 0) {
+    if (typeof ttl !== "number") throw new TypeError("The ttl must be a number!");
+    if (ttl < 1) throw new RangeError("TTL must be positive!");
+    if (value === undefined) throw new TypeError("Invalid value: undefined");
+
+    const client = getRedisClient(clientIndex);
+
+    try {
+        key = checkKey(key);
+        if (typeof key !== "string") throw new TypeError("The key must be a string!");
+
+        const serializedValue = JSON.stringify(value);
+        const success = await client.set(key, serializedValue, { EX: ttl, NX: true });
+
+        return success === "OK" ? 1 : 0;
+    } catch (error) {
+        console.error(`[Redis Error] Failed to set key "${key}" if absent ->`, error);
+        return null;
+    }
+}
+
+/**
  * Add one or many lowercase string values to a Redis set key.
  *
  * @param {string} key
