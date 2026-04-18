@@ -1,7 +1,9 @@
+import { fork } from "node:child_process";
 import JobQueue from "../workers/jobQueue/jobQueue.js";
 import workerPatchGuildMembersData from "../workers/PatchGuildMembersData/workerPatchGuildMembersData.js";
 import workerupdateDBAchieves from "../workers/updateDBAchievements/workerUDBA.js";
 import workerUpdateRealm from "../workers/updateRealm/workerUpdateRealm.js";
+import { delay } from "../helpers/startBGTask.js";
 
 const jobQueue = new JobQueue();
 
