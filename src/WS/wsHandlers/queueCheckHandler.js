@@ -77,21 +77,18 @@ export default async function queueCheckHandler(ws, msg) {
         let server = serverOrSoloSegment;
         let spec = null;
 
-        if (bracketObj.isSolo) {
-            const match = serverOrSoloSegment.match(/^([a-z-]+)\((\d+)\)$/i);
+        // if (bracketObj.isSolo) {
+        const match = serverOrSoloSegment.match(/^([a-z-]+)\((\d+)\)$/i);
 
-            if (!match) {
-                return {
-                    rejected: rejectEntry(
-                        trimmedEntry,
-                        "solo entry must use server(specId) format",
-                    ),
-                };
-            }
-
-            server = match[1];
-            spec = await getGameSpecializationByID(match[2]);
+        if (!match) {
+            return {
+                rejected: rejectEntry(trimmedEntry, "solo entry must use server(specId) format"),
+            };
         }
+
+        server = match[1];
+        spec = await getGameSpecializationByID(match[2]);
+        // }
 
         const search = buildCharSearch({ server, realm, name });
         if (!search) {
