@@ -8,7 +8,7 @@ import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.
 import { QueueClaimTTL } from "../../../helpers/redis/connectRedis.js";
 
 const queueClaimKey = (search) => `queuedChar:${search}`;
-const queueCharacterSearch = async (search) => await setCacheIfAbsent(queueClaimKey(search), true, 30, QueueClaimTTL);
+const queueCharacterSearch = async (search) => await setCacheIfAbsent(queueClaimKey(search), true, 15, QueueClaimTTL);
 const dequeueCharacterSearch = async (search) => await delCache(queueClaimKey(search), "", QueueClaimTTL);
 
 /**
