@@ -2,39 +2,47 @@
 
 // This is a discord bot
 // the name of the file is the name of the bot
-// this file is used as index.js alike 
+// this file is used as index.js alike
 
 import "dotenv/config";
-import { Client, GatewayIntentBits } from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import { configDotenv } from "dotenv";
+import botRouter from "./src/botRouter.js";
 import "./src/botCommands.js";
+import messageRouter from "./src/messageRouter.js";
 
-configDotenv({path: "src/bot/bot.env"})
+configDotenv({ path: "src/bot/bot.env" });
+
+const messageCommandsEnabled = process.env.DISCORD_MESSAGE_COMMANDS === "true";
 
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds
-    ]
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.DirectMessages,
+        ...(messageCommandsEnabled
+            ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+            : []),
+    ],
+    partials: [Partials.Channel],
 });
 
-client.once("clientReady", () => {
+client.once(Events.ClientReady, () => {
     console.log(`Zugee online as ${client.user.tag}`);
+    console.log(
+        `DM message commands enabled. Guild message commands: ${messageCommandsEnabled ? "enabled" : "disabled"}.`,
+    );
 });
 
-client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isChatInputCommand()) {
-        return;
-    }
+client.on(Events.InteractionCreate, botRouter);
 
-    if (interaction.commandName === "ping") {
-        await interaction.reply("Pong. Zugee is online.");
-        return;
-    }
-
-    if (interaction.commandName === "info") {
-        await interaction.reply("Zugee is the PvP Scalpel Discord bot.");
-        return;
-    }
+client.on(Events.MessageCreate, async (message) => {
+    await messageRouter(message, { messageCommandsEnabled });
 });
+
+if (!messageCommandsEnabled) {
+    console.info(
+        "Guild message commands disabled. DM the bot with !search-dump, or set DISCORD_MESSAGE_COMMANDS=true and enable Message Content Intent for guild message commands.",
+    );
+}
 
 await client.login(process.env.DISCORD_TOKEN);
