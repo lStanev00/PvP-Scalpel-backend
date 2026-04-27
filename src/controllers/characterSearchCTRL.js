@@ -8,25 +8,32 @@ import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter
 import { getCharacterViaWorker } from "../caching/characters/charCache.js";
 import { searchCharFromMap } from "../caching/searchCache/charSearchCache.js";
 import buildCharSearch from "../helpers/buildCharSearch.js";
+import getCache from "../helpers/redis/getterRedis.js";
+import setCache from "../helpers/redis/setterRedis.js";
 
 export const characterSearchCTRL = Router();
 
-characterSearchCTRL.get("/searchCharacter", searchCharacterGET)
+characterSearchCTRL.get("/searchCharacter", searchCharacterGET);
 characterSearchCTRL.get(`/checkCharacter/:server/:realm/:name`, checkCharacterGet);
+characterSearchCTRL.get(`/checkCharacter/getLatest25`, getLatest25);
 characterSearchCTRL.patch(`/patchCharacter/:server/:realm/:name`, updateCharacterPatch);
 characterSearchCTRL.patch(`/patchPvPData/:server/:realm/:name`, patchPvPData);
 
 async function searchCharacterGET(req, res) {
     const search = req?.query?.search;
-    if(!search) jsonMessage(res, 400, `Input of type: ${typeof search}'s not a valied search param. Search you provided is ${search}`);
+    if (!search)
+        jsonMessage(
+            res,
+            400,
+            `Input of type: ${typeof search}'s not a valied search param. Search you provided is ${search}`,
+        );
     try {
         const searchData = await queryCharacterBySearch(search);
-        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.set('Surrogate-Control', 'no-store');
+        res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.set("Pragma", "no-cache");
+        res.set("Expires", "0");
+        res.set("Surrogate-Control", "no-store");
         return jsonResponse(res, 200, searchData);
-        
     } catch (error) {
         console.warn(error);
         return jsonResponse(res, 500);
@@ -36,33 +43,31 @@ async function searchCharacterGET(req, res) {
 //
 async function checkCharacterGet(req, res) {
     const { server, realm, name } = req.params;
-    const response= {
+    const response = {
         code: 0,
         character: null,
-    }
-    
+    };
+
     if (req.headers?.["fe-ping"] === "front-end") {
         try {
             const exists = await searchCharFromMap(buildCharSearch({ server, realm, name }));
             if (!exists || exists === null) {
-                response.code = 404
-                response.character = "show-generic"
+                response.code = 404;
+                response.character = "show-generic";
                 return jsonResponse(res, response.code, response.character);
             }
         } catch (error) {
             response.code = 500;
             return jsonResponse(res, response.code, response.character);
-        } 
+        }
     }
 
     try {
         const character = await getCharacterViaWorker(server, realm, name);
 
-
-        if (character === 404) response.code = 404
-            else if (character) response.code = 200
-            else if (!character || character === null) response.code = 404;
-
+        if (character === 404) response.code = 404;
+        else if (character) response.code = 200;
+        else if (!character || character === null) response.code = 404;
 
         response.character = character;
     } catch (error) {
@@ -70,7 +75,7 @@ async function checkCharacterGet(req, res) {
         console.error(error);
         response.code = 500;
     }
-    
+
     return jsonResponse(res, response.code, response.character);
 }
 //
@@ -83,51 +88,71 @@ async function updateCharacterPatch(req, res) {
         if (character) {
             return jsonResponse(res, 200, character);
         } else if (character === 404) {
-            return  jsonResponse(res, 404, "Character with this Credentials was not found.")
+            return jsonResponse(res, 404, "Character with this Credentials was not found.");
         } else {
             console.warn(character);
         }
     } catch (error) {
         res.status(500).json({
-            messege: "The server encountered an unexpected condition that prevented it from fulfilling the request."
-        })
+            messege:
+                "The server encountered an unexpected condition that prevented it from fulfilling the request.",
+        });
         console.warn(error);
     } finally {
     }
-
 }
 
 async function patchPvPData(req, res) {
     const { server, realm, name } = req.params;
-    
+
     try {
         const char = await Char.findOne({
-            name: new RegExp(`^${name}$`, 'i'),
-            "playerRealm.slug" : realm,
-            server: server
-        })
+            name: new RegExp(`^${name}$`, "i"),
+            "playerRealm.slug": realm,
+            server: server,
+        });
 
-        
         if (char) {
-            
             const PvPData = await helpFetch.getRating(undefined, undefined, server, realm, name);
-            const updatedCharPvpData = await Char.findByIdAndUpdate(char._id, {
-                rating: PvPData
-            },{ new: true });
+            const updatedCharPvpData = await Char.findByIdAndUpdate(
+                char._id,
+                {
+                    rating: PvPData,
+                },
+                { new: true },
+            );
 
             const safeDataToShip = updatedCharPvpData.toObject();
-            
+
             return jsonResponse(res, 200, safeDataToShip);
-
         } else {
-
             const newChar = await getCharacterViaWorker(server, realm, name);
 
-            return jsonResponse(res, 201, newChar)
-
+            return jsonResponse(res, 201, newChar);
         }
     } catch (error) {
-        console.warn(error)
-        return jsonMessage(res, 500, "Internal server ERROR")
+        console.warn(error);
+        return jsonMessage(res, 500, "Internal server ERROR");
+    }
+}
+
+async function getLatest25(_, res) {
+    const redisKey = "chars:latest25";
+    try {
+        const cached = await getCache(redisKey);
+        if (cached) return jsonResponse(res, 200, cached);
+
+        const newCharList = await Char.find({guildMember: false})
+            .select("name realm.name server updatedAt")
+            .sort({ updatedAt: -1 })
+            .limit(25)
+            .lean();
+
+        jsonResponse(res, 200, newCharList);
+
+        return void await setCache(redisKey, newCharList, "", 600);
+    } catch (error) {
+        console.warn(error);
+        return void jsonResponse(res, 500);
     }
 }
