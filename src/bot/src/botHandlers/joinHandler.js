@@ -5,7 +5,7 @@ import {
     MessageFlags,
 } from "discord.js";
 
-const characters = [];
+const characters = []; // todo here see redis cache options and helers get the latest 25 characters retrived from cacehc the are cached and return em name-realm-server
 
 export async function joinAutocompleteHandler(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
@@ -21,7 +21,7 @@ export async function joinAutocompleteHandler(interaction) {
     await interaction.respond(filtered);
 }
 
-export async function joinButtonHandler(interaction) {
+export async function joinButtonHandler(interaction) { // todo we need a option where the user can select alts alt mean other characters he want to get in the guild 
     if (interaction.customId.startsWith("join_confirm:")) {
         const character = interaction.customId.slice("join_confirm:".length);
 
@@ -63,6 +63,8 @@ export default async function joinHandler(interaction) {
             .setLabel("Cancel")
             .setStyle(ButtonStyle.Secondary),
     );
+
+    //todo tell the user to go search a THE MAIN character at pvpscalpel.com and come back with a link 
 
     await interaction.reply({
         content: [
