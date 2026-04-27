@@ -143,7 +143,7 @@ async function getLatest25(_, res) {
         if (cached) return jsonResponse(res, 200, cached);
 
         const newCharList = await Char.find({guildMember: false})
-            .select("name realm.name server updatedAt")
+            .select("name playerRealm.name server updatedAt")
             .sort({ updatedAt: -1 })
             .limit(25)
             .lean();
