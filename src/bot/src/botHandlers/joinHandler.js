@@ -1,29 +1,51 @@
-import {
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    MessageFlags,
-} from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
+import { RESTFetch } from "../../../helpers/RESTFetch.js";
 
-const characters = []; // todo here see redis cache options and helers get the latest 25 characters retrived from cacehc the are cached and return em name-realm-server
+const baseFEUrl = "https://www.pvpscalpel.com";
+
+const charRetrive = async (searchString) => {
+    const [name, realmSlug, server] = searchString.split(":");
+    const RESTUrlBuild = new URL()
+    const res = await RESTFetch(`/checkCharacter/${server}/${realmSlug}}/${name}`);
+    if (res.status === 200) return `/check/${server}/${realmSlug}/${name}`;
+}
 
 export async function joinAutocompleteHandler(interaction) {
     const focused = interaction.options.getFocused().toLowerCase();
-    const filtered = characters
-        .filter((character) => {
-            return (
-                character.name.toLowerCase().includes(focused) ||
-                character.value.toLowerCase().includes(focused)
-            );
-        })
-        .slice(0, 25);
+    const res = await RESTFetch("/checkCharacter/getLatest25");
 
-    await interaction.respond(filtered);
+    if (res.status !== 200 || !Array.isArray(res.data)) {
+        await interaction.respond([]);
+        return true;
+    }
+
+    const choices = [];
+
+    for (const { _id, name, playerRealm, server } of res.data) {
+        const label = [name, playerRealm?.name, server].filter(Boolean).join(" - ");
+        const value = [name, playerRealm?.slug || playerRealm?.name, server].filter(Boolean).join(":");
+
+        if (!focused || label.toLowerCase().includes(focused)) {
+            choices.push({
+                name: label.slice(0, 100),
+                value: value.slice(0, 100),
+            });
+        }
+
+        if (choices.length === 25) break;
+    }
+
+    await interaction.respond(choices);
+    return true;
 }
 
-export async function joinButtonHandler(interaction) { // todo we need a option where the user can select alts alt mean other characters he want to get in the guild 
+export async function joinButtonHandler(interaction) {
     if (interaction.customId.startsWith("join_confirm:")) {
-        const character = interaction.customId.slice("join_confirm:".length);
+        const charactersMeta = interaction.customId.slice("join_confirm:".length);
+        const charList = charactersMeta.split("|");
+        const main = charList.shift();
+
+        const content = ["## Aplied", `main: [${}]`];
 
         await interaction.update({
             content: [
@@ -36,9 +58,9 @@ export async function joinButtonHandler(interaction) { // todo we need a option 
         });
 
         return true;
-    }
+    } else if(interaction.customId.startsWith("join_confirm:")) {
 
-    if (interaction.customId === "join_cancel") {
+    } else if (interaction.customId === "join_cancel") {
         await interaction.update({
             content: ["## Cancelled", "State updated: `cancelled`"].join("\n"),
             components: [],
@@ -51,7 +73,7 @@ export async function joinButtonHandler(interaction) { // todo we need a option 
 }
 
 export default async function joinHandler(interaction) {
-    const character = interaction.options.getString("character", true);
+    const characters = interaction.options.getString("character", true);
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -59,19 +81,21 @@ export default async function joinHandler(interaction) {
             .setLabel("Confirm Join")
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
+            .setCustomId("join_add_alt")
+            .setLabel("Add alt")
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
             .setCustomId("join_cancel")
             .setLabel("Cancel")
             .setStyle(ButtonStyle.Secondary),
     );
-
-    //todo tell the user to go search a THE MAIN character at pvpscalpel.com and come back with a link 
 
     await interaction.reply({
         content: [
             "## PvP Scalpel Join",
             `Selected character: \`${character}\``,
             "",
-            "Confirm if this is the correct character.",
+            "Confirm if this is the correct character or add more alts to join with.",
         ].join("\n"),
         components: [row],
         flags: MessageFlags.Ephemeral,
