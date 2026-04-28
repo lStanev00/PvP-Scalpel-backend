@@ -15,6 +15,7 @@ import setCache from "../../../helpers/redis/setterRedis.js";
 import getCache from "../../../helpers/redis/getterRedis.js";
 import delCache from "../../../helpers/redis/deletersRedis.js";
 import { extRetChar } from "../../../helpers/blizFetch-helpers/extRetChar.js";
+import slugify from "../../../helpers/slugify.js";
 
 const baseFEUrl = "https://www.pvpscalpel.com";
 const joinDraftTTLSeconds = 30 * 60;
@@ -43,6 +44,7 @@ async function createJoinDraft(mainCharacterString) {
     const draft = {
         id: key,
         characters: [mainCharacterString],
+        description: "",
         createdAt: Date.now(),
     };
 
@@ -62,7 +64,7 @@ function slugifyRealm(realm) {
 }
 
 function getBestTwinkRating(twink) {
-    return Math.max(
+    const oldBest = Math.max(
         Number(twink?.rateatm2v2 || 0),
         Number(twink?.rateatm3v3 || 0),
         Number(twink?.rateatmrbg || 0),
@@ -78,8 +80,25 @@ function getBestTwinkRating(twink) {
         Number(twink?.hfrbg || 0),
         0,
     );
-}
 
+    const rating = twink?.rating;
+
+    if (!rating) return oldBest;
+
+    const entries = rating instanceof Map ? Array.from(rating.entries()) : Object.entries(rating);
+
+    let newBest = 0;
+
+    for (const [, bracketData] of entries) {
+        const currentRating = Number(bracketData?.currentSeason?.rating || 0);
+
+        if (currentRating > newBest) {
+            newBest = currentRating;
+        }
+    }
+
+    return Math.max(oldBest, newBest);
+}
 function normalizeTwinkString(twink) {
     return [twink?.name, slugifyRealm(twink?.realm), String(twink?.region || "eu").toLowerCase()]
         .filter(Boolean)
@@ -87,7 +106,11 @@ function normalizeTwinkString(twink) {
 }
 
 function makeTwinkLabel(twink) {
-    return [twink?.name, twink?.realm, String(twink?.region || "eu").toUpperCase()]
+    return [
+        twink?.name,
+        twink?.playerRealm?.name || twink?.realmName || twink?.realm,
+        String(twink?.server || twink?.region || "eu").toUpperCase(),
+    ]
         .filter(Boolean)
         .join(" - ");
 }
@@ -95,8 +118,12 @@ function makeTwinkLabel(twink) {
 function makeTwinkDescription(twink) {
     const rating = getBestTwinkRating(twink);
 
+    const className = twink?.class?.name || twink?.class;
+    const specName = twink?.activeSpec?.name || twink?.spec;
+
     return [
         twink?.level ? `Level ${twink.level}` : null,
+        [specName, className].filter(Boolean).join(" ") || null,
         rating > 0 ? `Best ${rating}` : "No visible rating",
     ]
         .filter(Boolean)
@@ -104,30 +131,57 @@ function makeTwinkDescription(twink) {
         .slice(0, 100);
 }
 
-function buildTwinkOptions(twinks, draft) {
+async function buildTwinkOptions(twinks, draft) {
     const existing = new Set(draft.characters || []);
     const seen = new Set();
     const options = [];
-    // console.info(twinks)
-    twinks = twinks.filter((entry) => entry?.level > 85)
 
-    for (const twink of twinks || []) {
-        const value = normalizeTwinkString(twink);
+    const filteredTwinks = (twinks || []).filter((entry) => {
+        return Number(entry?.level || 0) >= 80;
+    });
+
+    for (const twink of filteredTwinks) {
+        const name = twink?.name;
+        const realm =
+            twink?.playerRealm?.slug ||
+            twink?.playerRealm?.name ||
+            twink?.realmSlug ||
+            twink?.realm;
+
+        const server = String(twink?.server || twink?.region || "eu").toLowerCase();
+
+        const realmSlug = slugifyRealm(realm);
+
+        if (!name || !realmSlug || !server) {
+            continue;
+        }
+
+        const searchString = `${name}:${realmSlug}:${server}`;
+        const entry = await charRetrieve(searchString);
+        if (entry.data?.level < 89) continue;
+
+        if (entry.status !== 200 || !entry.data) {
+            continue;
+        }
+
+        const value = normalizeCharacterString(entry.data);
 
         if (!value) continue;
         if (existing.has(value)) continue;
         if (seen.has(value)) continue;
 
         seen.add(value);
-        const entry = await charRetrieve([twink?.name, twink?.realm.toLowerCase().replaceAll(" ", "-"), twink?.region])
+
         options.push({
-            label: makeTwinkLabel(twink).slice(0, 100),
+            label: makeCharacterLabel(entry.data).slice(0, 100),
             value: value.slice(0, 100),
-            description: makeTwinkDescription(twink),
+            description: makeTwinkDescription(entry.data),
             default: false,
         });
 
-        if (options.length === maxTwinkCheckboxes) break;
+        if (options.length === maxTwinkCheckboxes) {
+            break;
+        }
     }
 
     return options;
@@ -233,6 +287,35 @@ async function charRetrieve(searchString) {
     };
 }
 
+function buildDescriptionModal(draftId, draft = {}) {
+    const modal = new ModalBuilder()
+        .setCustomId(`join_description_modal:${draftId}`)
+        .setTitle("Tell us about yourself");
+
+    const input = new TextInputBuilder()
+        .setCustomId("description")
+        .setLabel("Short introduction")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder(
+            "This message will start with: Hello, I am @your-name. Write the rest here...",
+        )
+        .setRequired(true)
+        .setMinLength(5)
+        .setMaxLength(900);
+
+    const existingDescription = normalizeDescription(draft.description);
+
+    if (existingDescription.length >= 5) {
+        input.setValue(existingDescription);
+    }
+
+    const row = new ActionRowBuilder().addComponents(input);
+
+    modal.addComponents(row);
+
+    return modal;
+}
+
 function buildJoinButtons(draftId, options = {}) {
     const components = [
         new ButtonBuilder()
@@ -251,6 +334,11 @@ function buildJoinButtons(draftId, options = {}) {
     }
 
     components.push(
+        new ButtonBuilder()
+            .setCustomId(`join_description:${draftId}`)
+            .setLabel(options.hasDescription ? "Edit description" : "Add description")
+            .setStyle(ButtonStyle.Secondary),
+
         new ButtonBuilder()
             .setCustomId(`join_add_alt:${draftId}`)
             .setLabel("Add alt/s")
@@ -328,20 +416,24 @@ async function buildJoinPreviewContent(draft) {
     }
 
     if (hasPendingTwinks(draft)) {
-        content.push("");
         content.push(
             `Detected ${draft.pendingTwinks.length} possible alt/s. Use \`Pick detected alts\` to select them.`,
         );
     }
 
-    content.push("");
+    if (draft.description) {
+        content.push("### Description");
+        content.push(draft.description);
+        content.push("")
+    }
+
     content.push("Confirm if this is the correct character or add more alts to join with.");
 
     return content.join("\n");
 }
 
 async function buildAppliedContent(draft) {
-    const content = ["## Applied", ""];
+    const content = [`## Character${draft.characters.length > 1 ? "s" : ""}:`, ""];
 
     const characters = [];
 
@@ -368,8 +460,9 @@ async function buildAppliedContent(draft) {
     }
 
     content.push("");
-    content.push("State updated: `sent for review`");
-
+    content.push(
+        "Your application has been submitted for review. A PvP Scalpel team member will contact you soon by DM. \n ### Stay sharp and pump smart. ⚔️",
+    );
     return content.join("\n");
 }
 
@@ -404,6 +497,23 @@ export async function joinAutocompleteHandler(interaction) {
     return true;
 }
 
+function normalizeDescription(input) {
+    return String(input || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 900);
+}
+
+function buildApplicantDescription(draft, user) {
+    const customDescription = normalizeDescription(draft?.description);
+
+    if (!customDescription) {
+        return `Hi, I am <@${user.id}>.`;
+    }
+
+    return `Hi, I am <@${user.id}>. ${customDescription}`;
+}
+
 export async function joinButtonHandler(interaction) {
     if (interaction.customId.startsWith("join_confirm:")) {
         await interaction.deferUpdate();
@@ -422,13 +532,48 @@ export async function joinButtonHandler(interaction) {
             return true;
         }
 
-        const content = await buildAppliedContent(draft);
+        const appliedContent = await buildAppliedContent(draft);
+
+        const publicContent = [
+            "## New guild Join Request",
+            "",
+            buildApplicantDescription(draft, interaction.user),
+            appliedContent,
+        ].join("\n");
+
+        if (!interaction.channel) {
+            await interaction.editReply({
+                content: [
+                    "## Cannot post application",
+                    "",
+                    "This interaction has no valid Discord channel.",
+                ].join("\n"),
+                components: [],
+            });
+
+            return true;
+        }
+
+        const message = await interaction.channel.send({
+            content: publicContent,
+            allowedMentions: {
+                parse: [],
+            },
+        });
+
+        if (message?.suppressEmbeds) {
+            await message.suppressEmbeds(true).catch(() => {});
+        }
 
         await delCache(draftId, redisHashKey);
 
-        await interaction.editReply({
-            content,
-            components: [],
+        await interaction.deleteReply().catch(async () => {
+            await interaction.editReply({
+                content: ["## Application sent", "", "The public join request was posted."].join(
+                    "\n",
+                ),
+                components: [],
+            });
         });
 
         return true;
@@ -463,6 +608,25 @@ export async function joinButtonHandler(interaction) {
         }
 
         await interaction.showModal(buildTwinkCheckboxModal(draft));
+        return true;
+    }
+
+    if (interaction.customId.startsWith("join_description:")) {
+        const draftId = interaction.customId.slice("join_description:".length);
+        const draft = await getCache(draftId, redisHashKey);
+
+        if (!draft) {
+            await interaction.reply({
+                content: ["## Join draft expired", "", "Please start the join flow again."].join(
+                    "\n",
+                ),
+                flags: MessageFlags.Ephemeral,
+            });
+
+            return true;
+        }
+
+        await interaction.showModal(buildDescriptionModal(draftId, draft));
         return true;
     }
 
@@ -506,6 +670,58 @@ export async function joinButtonHandler(interaction) {
 }
 
 export async function joinModalHandler(interaction) {
+    if (interaction.customId.startsWith("join_description_modal:")) {
+        const draftId = interaction.customId.slice("join_description_modal:".length);
+        const draft = await getCache(draftId, redisHashKey);
+
+        if (!draft) {
+            await interaction.reply({
+                content: ["## Join draft expired", "", "Please start the join flow again."].join(
+                    "\n",
+                ),
+                flags: MessageFlags.Ephemeral,
+            });
+
+            return true;
+        }
+
+        const description = interaction.fields.getTextInputValue("description");
+
+        draft.description = normalizeDescription(description);
+
+        await interaction.deferReply({
+            flags: MessageFlags.Ephemeral,
+        });
+
+        await interaction.editReply({
+            content: [
+                "## Preparing your join request...",
+                "",
+                "Please wait while Zugee scans your character and checks possible alts. ⚔️",
+            ].join("\n"),
+        });
+
+        const mainCharacter = await charRetrieve(draft.characters[0]);
+
+        if (mainCharacter.status === 200 && mainCharacter.data) {
+            await populateDetectedTwinksFromCharacter(draft, mainCharacter.data);
+        }
+
+        await saveJoinDraft(draft);
+
+        await editReplyNoEmbeds(interaction, {
+            content: await buildJoinPreviewContent(draft),
+            components: [
+                buildJoinButtons(draftId, {
+                    hasPendingTwinks: hasPendingTwinks(draft),
+                    hasDescription: Boolean(draft.description),
+                }),
+            ],
+        });
+
+        return true;
+    }
+
     if (interaction.customId.startsWith("join_twinks_modal:")) {
         await interaction.deferUpdate();
 
@@ -515,20 +731,16 @@ export async function joinModalHandler(interaction) {
 
         if (!draft) {
             await interaction.editReply({
-                content: [
-                    "## Join draft expired",
-                    "",
-                    "Please start the join flow again.",
-                ].join("\n"),
+                content: ["## Join draft expired", "", "Please start the join flow again."].join(
+                    "\n",
+                ),
                 components: [],
             });
 
             return true;
         }
 
-        const allowedTwinks = new Set(
-            (draft.pendingTwinks || []).map((twink) => twink.value)
-        );
+        const allowedTwinks = new Set((draft.pendingTwinks || []).map((twink) => twink.value));
 
         for (const charString of selectedTwinks) {
             if (!allowedTwinks.has(charString)) continue;
@@ -549,6 +761,7 @@ export async function joinModalHandler(interaction) {
             components: [
                 buildJoinButtons(draftId, {
                     hasPendingTwinks: hasPendingTwinks(draft),
+                    hasDescription: Boolean(draft.description),
                 }),
             ],
         });
@@ -568,11 +781,7 @@ export async function joinModalHandler(interaction) {
 
     if (!draft) {
         await interaction.editReply({
-            content: [
-                "## Join draft expired",
-                "",
-                "Please start the join flow again.",
-            ].join("\n"),
+            content: ["## Join draft expired", "", "Please start the join flow again."].join("\n"),
             components: [],
         });
 
@@ -593,6 +802,7 @@ export async function joinModalHandler(interaction) {
             components: [
                 buildJoinButtons(draftId, {
                     hasPendingTwinks: hasPendingTwinks(draft),
+                    hasDescription: Boolean(draft.description),
                 }),
             ],
         });
@@ -620,7 +830,7 @@ export async function joinModalHandler(interaction) {
         console.warn("[Zugee] failed to retrieve detected alts", error);
     }
 
-    const twinkOptions = buildTwinkOptions(rerolls, draft);
+    const twinkOptions = await buildTwinkOptions(rerolls, draft);
 
     mergePendingTwinks(draft, twinkOptions);
 
@@ -631,6 +841,7 @@ export async function joinModalHandler(interaction) {
         components: [
             buildJoinButtons(draftId, {
                 hasPendingTwinks: hasPendingTwinks(draft),
+                hasDescription: Boolean(draft.description),
             }),
         ],
     });
@@ -652,7 +863,7 @@ async function populateDetectedTwinksFromCharacter(draft, characterData) {
         console.warn("[Zugee] failed to retrieve detected alts", error);
     }
 
-    const twinkOptions = buildTwinkOptions(rerolls, draft);
+    const twinkOptions = await buildTwinkOptions(rerolls, draft);
 
     mergePendingTwinks(draft, twinkOptions);
 
@@ -660,15 +871,26 @@ async function populateDetectedTwinksFromCharacter(draft, characterData) {
 }
 
 export default async function joinHandler(interaction) {
-    await interaction.deferReply({
-        flags: MessageFlags.Ephemeral,
-    });
+    const allowedChannels = ["1430568757637677175", "1498225618095964230"];
+
+    if (!allowedChannels.includes(interaction.channelId)) {
+        await interaction.reply({
+            content: [
+                "## Wrong channel",
+                "",
+                `Please use this command in <#${allowedChannels[0]}>.`,
+            ].join("\n"),
+            flags: MessageFlags.Ephemeral,
+        });
+
+        return true;
+    }
 
     const input = interaction.options.getString("character", true);
     const character = await charRetrieve(input);
 
     if (character.status !== 200 || !character.data) {
-        await interaction.editReply({
+        await interaction.reply({
             content: [
                 "## Character not found",
                 "",
@@ -676,6 +898,7 @@ export default async function joinHandler(interaction) {
                 "",
                 "Use a PvP Scalpel URL or autocomplete character value.",
             ].join("\n"),
+            flags: MessageFlags.Ephemeral,
         });
 
         return true;
@@ -684,27 +907,17 @@ export default async function joinHandler(interaction) {
     const charString = normalizeCharacterString(character.data);
     const draftId = await createJoinDraft(charString);
 
-    let draft = {
+    const draft = {
         id: draftId,
         characters: [charString],
+        description: "",
         createdAt: Date.now(),
         pendingTwinks: [],
     };
 
-    draft = await populateDetectedTwinksFromCharacter(draft, character.data);
-
     await saveJoinDraft(draft);
 
-    const content = await buildJoinPreviewContent(draft);
-
-    await editReplyNoEmbeds(interaction, {
-        content,
-        components: [
-            buildJoinButtons(draftId, {
-                hasPendingTwinks: hasPendingTwinks(draft),
-            }),
-        ],
-    });
+    await interaction.showModal(buildDescriptionModal(draftId, draft));
 
     return true;
 }
