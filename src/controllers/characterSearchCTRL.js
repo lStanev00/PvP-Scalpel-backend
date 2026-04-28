@@ -8,8 +8,8 @@ import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter
 import { getCharacterViaWorker } from "../caching/characters/charCache.js";
 import { searchCharFromMap } from "../caching/searchCache/charSearchCache.js";
 import buildCharSearch from "../helpers/buildCharSearch.js";
-import getCache from "../helpers/redis/getterRedis.js";
-import setCache from "../helpers/redis/setterRedis.js";
+// import getCache from "../helpers/redis/getterRedis.js";
+// import setCache from "../helpers/redis/setterRedis.js";
 
 export const characterSearchCTRL = Router();
 
@@ -139,18 +139,18 @@ async function patchPvPData(req, res) {
 async function getLatest25(_, res) {
     const redisKey = "chars:latest25";
     try {
-        const cached = await getCache(redisKey);
-        if (cached) return jsonResponse(res, 200, cached);
+        // const cached = await getCache(redisKey);
+        // if (cached) return jsonResponse(res, 200, cached);
 
         const newCharList = await Char.find({guildMember: false})
-            .select("name realm.name server updatedAt")
+            .select("_id name playerRealm server updatedAt")
             .sort({ updatedAt: -1 })
             .limit(25)
             .lean();
 
-        jsonResponse(res, 200, newCharList);
+        return jsonResponse(res, 200, newCharList);
 
-        return void await setCache(redisKey, newCharList, "", 600);
+        // return void await setCache(redisKey, newCharList, "", -1);
     } catch (error) {
         console.warn(error);
         return void jsonResponse(res, 500);

@@ -17,11 +17,13 @@ import { delay } from "../startBGTask.js";
  * @property {string} server - Region/server slug, for example `eu` or `us`.
  * @property {string} realm - Realm slug from the Blizzard PvP summary URL.
  * @property {string} name - Character name from the Blizzard PvP summary URL.
+ * @property {object} twinks - Character's twinks/alts entries.
  */
 
 const REALM_LOWERCASE_WORDS = new Set(["of", "and", "the"]);
 const EXT_FUNCTION_KEY = "95$TXEgzTX15800__=";
-const EXT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
+const EXT_USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
 const EXT_REQUEST_TIMEOUT_MS = getPositiveNumberEnv("EXT_REQUEST_TIMEOUT_MS", 4000);
 const EXT_REQUEST_DELAY_MS = getPositiveNumberEnv("EXT_REQUEST_DELAY_MS", 250);
 
@@ -99,6 +101,7 @@ function extractRatings(data) {
         threesRecord: optionalFiniteNumber(data?.ratemax3v3),
         activeSpecId: optionalFiniteNumber(data?.activeSpecId),
         classId: optionalFiniteNumber(data?.class),
+        twinks: data?.rerolls
     };
 }
 
@@ -166,6 +169,7 @@ async function fetchExternalCharacterApi(apiUrl, apiPath, referer) {
     }
 
     return extractRatings(await response.json());
+    // return await response.json();
 }
 
 /**
@@ -175,7 +179,16 @@ async function fetchExternalCharacterApi(apiUrl, apiPath, referer) {
  * @returns {PvPSummaryIdentity | undefined} Parsed identity, or `undefined` when the URL is invalid.
  */
 export function parsePvpSummaryPath(pvpSummaryPath) {
-    if (typeof pvpSummaryPath !== "string") return undefined;
+    if (typeof pvpSummaryPath !== "string") {
+        let { name, realm, server } = pvpSummaryPath;
+        if (!name || !realm || !server) return null;
+        realm = realm.replaceAll("-", "%20")
+        return {
+            server,
+            realm,
+            name,
+        };
+    }
 
     let url;
     try {
@@ -230,9 +243,10 @@ export async function extRetChar(pvpSummaryPath) {
     const EXT_DOMAIN = process.env.EXT_DOMAIN?.replace(/\/+$/, "");
     const safeRealm = formatExternalRealmPathSegment(realm);
     const safeName = formatExternalCharacterName(name);
-    const safeServer = typeof server === "string" && server.trim().length > 0
-        ? server.trim().toLowerCase()
-        : undefined;
+    const safeServer =
+        typeof server === "string" && server.trim().length > 0
+            ? server.trim().toLowerCase()
+            : undefined;
 
     if (!EXT_DOMAIN) throw new Error("EXT_DOMAIN is required for extRetChar.");
     if (!safeServer || !safeRealm || !safeName) {
@@ -246,3 +260,8 @@ export async function extRetChar(pvpSummaryPath) {
 
     return fetchExternalCharacterApi(apiUrl, apiPath, targetUrl);
 }
+
+// const data = await extRetChar({name: "Lychezar", realm: "chamber-of-aspects", server: "eu"});
+
+// console.info(data);
+// debugger

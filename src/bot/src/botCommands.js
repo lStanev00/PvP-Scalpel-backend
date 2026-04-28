@@ -6,40 +6,12 @@ configDotenv({ path: "src/bot/bot.env" });
 
 const commandBuilders = [
     new SlashCommandBuilder()
-        .setName("ping")
-        .setDescription("Check if Zugee is online."),
-
-    new SlashCommandBuilder()
-        .setName("info")
-        .setDescription("Show PvP Scalpel bot information."),
-
-    new SlashCommandBuilder()
-        .setName("search-dump")
-        .setDescription("Dump normalized character search API data.")
-        .addStringOption((option) =>
-            option
-                .setName("search")
-                .setDescription("Character search, e.g. lychezar-chamber-eu")
-                .setRequired(true),
-        ),
-
-    new SlashCommandBuilder()
-        .setName("search-char")
-        .setDescription("Search for a character")
-        .addStringOption((option) =>
-            option
-                .setName("search")
-                .setDescription('Character search separated by "-", e.g. name-realm-server')
-                .setRequired(true),
-        ),
-
-    new SlashCommandBuilder()
         .setName("join")
-        .setDescription("Join PvP Scalpel with a character")
+        .setDescription("Join PvP Scalpel. Zugee will walk you throw an aplication.")
         .addStringOption((option) =>
             option
                 .setName("character")
-                .setDescription("Start typing your character")
+                .setDescription("Try finding your character or search it at pvpscalpel.com and paste the link there.")
                 .setRequired(true)
                 .setAutocomplete(true),
         ),

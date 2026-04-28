@@ -1,4 +1,4 @@
-// version: 0.0.0
+// version: 1.0.0
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -10,8 +10,11 @@ import { configDotenv } from "dotenv";
 import botRouter from "./src/botRouter.js";
 import "./src/botCommands.js";
 import messageRouter from "./src/messageRouter.js";
+import threadBoot from "../helpers/threadBoot.js";
 
 configDotenv({ path: "src/bot/bot.env" });
+
+await threadBoot();
 
 const messageCommandsEnabled = process.env.DISCORD_MESSAGE_COMMANDS === "true";
 
