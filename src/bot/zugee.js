@@ -1,4 +1,4 @@
-// version: 1.0.1
+// version: 1.1.0
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -21,6 +21,7 @@ const messageCommandsEnabled = process.env.DISCORD_MESSAGE_COMMANDS === "true";
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.DirectMessages,
         ...(messageCommandsEnabled
             ? [GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
@@ -32,7 +33,7 @@ const client = new Client({
 client.once(Events.ClientReady, () => {
     console.log(`Zugee online as ${client.user.tag}`);
     console.log(
-        `DM message commands enabled. Guild message commands: ${messageCommandsEnabled ? "enabled" : "disabled"}.`,
+        `DM AI chat enabled for team roles. Guild message commands: ${messageCommandsEnabled ? "enabled" : "disabled"}.`,
     );
 });
 
@@ -44,7 +45,7 @@ client.on(Events.MessageCreate, async (message) => {
 
 if (!messageCommandsEnabled) {
     console.info(
-        "Guild message commands disabled. DM the bot with !search-dump, or set DISCORD_MESSAGE_COMMANDS=true and enable Message Content Intent for guild message commands.",
+        "Guild message commands disabled. Team members can DM Zugee for AI chat.",
     );
 }
 
