@@ -70,7 +70,7 @@ export default async function messageRouter(message, { messageCommandsEnabled = 
         if (message.author.bot) return;
         if (message.guildId && !messageCommandsEnabled) return;
 
-        const content = message.content.trim();
+        const content = message.content?.trim() ?? "";
         if (!content) return;
 
         if (!message.guildId) {
