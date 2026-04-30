@@ -56,9 +56,9 @@ async function userHasTeamRole(message) {
     return member.roles.cache.some((role) => TEAM_ROLE_IDS.has(role.id));
 }
 
-async function replyWithChunks(message, firstReply, content) {
+async function sendWithChunks(message, firstMessage, content) {
     const chunks = splitDiscordMessage(content);
-    await firstReply.edit(chunks[0]);
+    await firstMessage.edit(chunks[0]);
 
     for (const chunk of chunks.slice(1)) {
         await message.channel.send(chunk);
@@ -75,22 +75,22 @@ export default async function messageRouter(message, { messageCommandsEnabled = 
 
         if (!message.guildId) {
             if (isSearchDumpCommand(content)) {
-                await message.reply(SEARCH_DUMP_DISABLED_MESSAGE);
+                await message.channel.send(SEARCH_DUMP_DISABLED_MESSAGE);
                 return;
             }
 
             if (!(await userHasTeamRole(message))) {
-                await message.reply(UNAUTHORIZED_MESSAGE);
+                await message.channel.send(UNAUTHORIZED_MESSAGE);
                 return;
             }
 
-            const thinkingReply = await message.reply(THINKING_MESSAGE);
+            const thinkingMessage = await message.channel.send(THINKING_MESSAGE);
             try {
                 const aiResponse = await promptAiGateway(content, message.author.id);
-                await replyWithChunks(message, thinkingReply, aiResponse);
+                await sendWithChunks(message, thinkingMessage, aiResponse);
             } catch (error) {
                 console.error("[Zugee] AI gateway DM failed", error);
-                await thinkingReply.edit(AI_ERROR_MESSAGE);
+                await thinkingMessage.edit(AI_ERROR_MESSAGE);
             }
 
             return;
@@ -102,7 +102,11 @@ export default async function messageRouter(message, { messageCommandsEnabled = 
         console.error("[Zugee] message command failed", error);
 
         try {
-            await message.reply(AI_ERROR_MESSAGE);
+            if (message.guildId) {
+                await message.reply(AI_ERROR_MESSAGE);
+            } else {
+                await message.channel.send(AI_ERROR_MESSAGE);
+            }
         } catch (replyError) {
             console.error("[Zugee] failed to send error reply", replyError);
         }
