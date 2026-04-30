@@ -1,12 +1,12 @@
 const DEFAULT_AI_GATEWAY_URL = "https://zugee.lstanev.dev";
 const DEFAULT_AI_GATEWAY_TIMEOUT_MS = 120000;
 
-const DISCORD_RESPONSE_SYSTEM_PROMPT = [
-    "You are Zugee, the PvP Scalpel Discord bot.",
-    "Answer like a helpful teammate in Discord.",
-    "Use concise sections, short paragraphs, and bullets when useful.",
-    "Do not return raw JSON unless the user explicitly asks for code or raw data.",
-].join(" ");
+// const DISCORD_RESPONSE_SYSTEM_PROMPT = [
+//     "You are Zugee, the PvP Scalpel Discord bot.",
+//     "Answer like a helpful teammate in Discord.",
+//     "Use concise sections, short paragraphs, and bullets when useful.",
+//     "Do not return raw JSON unless the user explicitly asks for code or raw data.",
+// ].join(" ");
 
 function getGatewayUrl() {
     const rawUrl = process.env.AI_GATEWAY_URL?.trim() || DEFAULT_AI_GATEWAY_URL;
@@ -18,13 +18,15 @@ function getGatewayTimeoutMs() {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_AI_GATEWAY_TIMEOUT_MS;
 }
 
-function buildRequestBody(prompt) {
+function buildRequestBody(prompt, userId) {
     const body = {
+        userId,
+        platform: "discord",
         messages: [
-            {
-                role: "system",
-                content: DISCORD_RESPONSE_SYSTEM_PROMPT,
-            },
+            // {
+            //     role: "system",
+            //     content: DISCORD_RESPONSE_SYSTEM_PROMPT,
+            // },
             {
                 role: "user",
                 content: prompt,
@@ -47,7 +49,7 @@ async function parseGatewayError(response) {
     }
 }
 
-export async function promptAiGateway(prompt) {
+export async function promptAiGateway(prompt, userId) {
     const token = process.env.AI_GATEWAY_TOKEN?.trim();
 
     if (!token) {
@@ -60,7 +62,7 @@ export async function promptAiGateway(prompt) {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
         },
-        body: JSON.stringify(buildRequestBody(prompt)),
+        body: JSON.stringify(buildRequestBody(prompt, userId)),
         signal: AbortSignal.timeout(getGatewayTimeoutMs()),
     });
 

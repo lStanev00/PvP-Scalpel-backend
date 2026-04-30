@@ -86,7 +86,7 @@ export default async function messageRouter(message, { messageCommandsEnabled = 
 
             const thinkingReply = await message.reply(THINKING_MESSAGE);
             try {
-                const aiResponse = await promptAiGateway(content);
+                const aiResponse = await promptAiGateway(content, message.author.id);
                 await replyWithChunks(message, thinkingReply, aiResponse);
             } catch (error) {
                 console.error("[Zugee] AI gateway DM failed", error);
