@@ -799,6 +799,7 @@ async function formatGearData(apiResponse) {
             if (item.spells) {
                 gear[slot].spells = item.spells
             }
+            if (item?.bonus_list) gear[slot].bonusList = item.bonus_list;
         } catch (error) {
             console.warn(error)
         }
