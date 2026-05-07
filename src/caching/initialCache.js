@@ -6,10 +6,12 @@ import { initialSetRegionIdsMap } from "./regions/regionCache.js";
 import { initialRealmSearchMap } from "./searchCache/realmSearchCach.js";
 import updateDBAchieves from "../services/updateAchieves.js";
 import updateGameClassAndSpecs from "../services/updateGameClassAndSpecs.js";
+import ItemBonus from "../Models/ItemBonus/ItemBonus.js";
 
 export default async function initialCache() {
 
     try {
+        await ItemBonus.seedFromJson();
         await updateGameClassAndSpecs();
         await updateDBAchieves(); 
         await initialSetRegionIdsMap()

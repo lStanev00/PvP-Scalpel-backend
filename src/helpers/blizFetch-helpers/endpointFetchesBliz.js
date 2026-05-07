@@ -16,6 +16,7 @@ import {
 } from "./ratingHelpers.js";
 import getCache from "../redis/getterRedis.js";
 import setCache from "../redis/setterRedis.js";
+import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -799,7 +800,15 @@ async function formatGearData(apiResponse) {
             if (item.spells) {
                 gear[slot].spells = item.spells
             }
-            if (item?.bonus_list) gear[slot].bonusList = item.bonus_list;
+            if (item?.bonus_list) {
+                gear[slot].bonusList = item.bonus_list;
+                const pvpBonus = await ItemBonus.resolvePvpIlvlFromBonusList(item.bonus_list);
+                if(pvpBonus.pvpIlvl && typeof pvpBonus.pvpIlvl === "number"){
+                    gear[slot].pvpIlvl = pvpBonus.pvpIlvl;
+                } else {
+                    gear[slot].pvpIlvl = gear[slot].level
+                }
+            } 
         } catch (error) {
             console.warn(error)
         }
