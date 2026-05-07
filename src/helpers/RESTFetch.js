@@ -42,9 +42,11 @@ export async function RESTFetch(endpoint, options = {}) {
         },
     };
 
+    
     try {
+        const url = new URL(normalizeEndpoint(endpoint), resolveRESTBaseURL());
         const response = await fetch(
-            resolveRESTBaseURL() + normalizeEndpoint(endpoint),
+            url.toString(),
             finalOptions,
         );
 

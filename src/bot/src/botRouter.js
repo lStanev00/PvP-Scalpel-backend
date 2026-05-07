@@ -3,6 +3,7 @@ import infoHandler from "./botHandlers/infoHandler.js";
 import joinHandler, {
     joinAutocompleteHandler,
     joinButtonHandler,
+    joinModalHandler,
 } from "./botHandlers/joinHandler.js";
 import pingHandler from "./botHandlers/pingHandler.js";
 import searchHandler from "./botHandlers/searchHandler.js";
@@ -40,6 +41,12 @@ export default async function botRouter(interaction) {
             const handled = await joinButtonHandler(interaction);
             if (!handled) await unknownHandler(interaction);
             return;
+        }
+
+        if (interaction.isModalSubmit()) {
+            const handled = await joinModalHandler(interaction);
+
+            if (handled) return;
         }
 
         if (!interaction.isChatInputCommand()) return;
