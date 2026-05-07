@@ -9,6 +9,7 @@ const allowedOrigins = [
     productionUrl,
     publicTestUrl,
     "http://localhost:5173",
+    "http://localhost:1420",
     "http://tauri.localhost",
 ];
 

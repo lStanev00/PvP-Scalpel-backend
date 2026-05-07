@@ -6,7 +6,6 @@ import buildCharSearch from "../../helpers/buildCharSearch.js";
 import pipeUserInput from "../helpers/pipeUserInput.js";
 import { wsMessage, wsResponse } from "../helpers/wsResponseHelpers.js";
 // import helpFetch from "../../helpers/blizFetch-helpers/endpointFetchesBliz.js";
-
 /**
  * Preserve the current partial queueCheck flow without inventing new behavior.
  *
@@ -29,7 +28,10 @@ export default async function queueCheckHandler(ws, msg) {
         });
         return;
     }
-    const [bracketID, team1, team2] = sortedData;
+    const [bracketID, rawTeam1 = [], rawTeam2 = []] = sortedData;
+    const team1 = Array.isArray(rawTeam1) ? rawTeam1 : [];
+    const team2 = Array.isArray(rawTeam2) ? rawTeam2 : [];
+    const entries = team2.length === 0 ? team1 : [...team1, ...team2];
     
     const requestController = new AbortController();
     ws.once("close", () => requestController.abort());
@@ -77,21 +79,18 @@ export default async function queueCheckHandler(ws, msg) {
         let server = serverOrSoloSegment;
         let spec = null;
 
-        if (bracketObj.isSolo) {
-            const match = serverOrSoloSegment.match(/^([a-z-]+)\((\d+)\)$/i);
+        // if (bracketObj.isSolo) {
+        const match = serverOrSoloSegment.match(/^([a-z-]+)\((\d+)\)$/i);
 
-            if (!match) {
-                return {
-                    rejected: rejectEntry(
-                        trimmedEntry,
-                        "solo entry must use server(specId) format",
-                    ),
-                };
-            }
-
-            server = match[1];
-            spec = await getGameSpecializationByID(match[2]);
+        if (!match) {
+            return {
+                rejected: rejectEntry(trimmedEntry, "solo entry must use server(specId) format"),
+            };
         }
+
+        server = match[1];
+        spec = await getGameSpecializationByID(match[2]);
+        // }
 
         const search = buildCharSearch({ server, realm, name });
         if (!search) {
@@ -202,7 +201,7 @@ export default async function queueCheckHandler(ws, msg) {
         await enqueueJobQueueEntry(jobBuild);
     }
 
-    await processEntries([...team1, ...team2]);
+    await processEntries(entries);
 
     // ws.close(1000, "Done");
 }

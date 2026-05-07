@@ -1,7 +1,7 @@
 export default function pipeUserInput(rawData) {
     if (typeof rawData !== "string") throw new TypeError("The text argument has to be a string type");
 
-    const teamBasedMatchRegex = /^(?<bracketID>\d+)\[(?<team1String>[^\]]+)\](?:\[(?<team2String>[^\]]+)\])?$/;
+    const teamBasedMatchRegex = /^(?<bracketID>\d+)\[(?<team1String>[^\]]+)\](?:\[(?<team2String>[^\]]*)\])?$/;
     const match = teamBasedMatchRegex.exec(rawData.trim());
 
     if (!match?.groups) {
