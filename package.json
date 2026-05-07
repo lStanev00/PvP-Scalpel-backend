@@ -1,6 +1,6 @@
 {
   "name": "pvp-scalpel-backend",
-  "version": "1.6.3",
+  "version": "1.6.8",
   "description": "This API controls the database and sends requested data to the front-end.",
   "main": "boot.js",
   "type": "module",
@@ -10,6 +10,7 @@
     "startREST": "node --trace-deprecation ./src/REST.js",
     "startWorker": "node --trace-deprecation ./src/workers/servicesWorker.js",
     "startWS": "node --trace-deprecation ./src/WS.js",
+    "startZugee": "node --trace-deprecation ./src/bot/zugee.js",
     "devWS": "node --watch ./src/WS.js",
     "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js"
   },
@@ -53,10 +54,11 @@
   },
   "homepage": "https://github.com/lStanev00/PvP-Scalpel-backend#readme",
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "compression": "^1.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "discord.js": "^14.26.3",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
