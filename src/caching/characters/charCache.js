@@ -306,6 +306,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             }
             //check if the new data is not served
             for (const [slot, value] of Object.entries(character.gear)) {
+                if(slot == "tabard" || slot == "shirt") continue;
                 if(!value.pvpILvl) {
                     renewCache = true;
                     character = undefined;
