@@ -1,6 +1,6 @@
 {
   "name": "pvp-scalpel-backend",
-  "version": "1.6.7",
+  "version": "1.7.1",
   "description": "This API controls the database and sends requested data to the front-end.",
   "main": "boot.js",
   "type": "module",
@@ -12,7 +12,13 @@
     "startWS": "node --trace-deprecation ./src/WS.js",
     "startZugee": "node --trace-deprecation ./src/bot/zugee.js",
     "devWS": "node --watch ./src/WS.js",
-    "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js"
+    "logWeekly": "node ./src/services/Service-Helpers/updateWeeklyLadder/logWeeklyData.js",
+    "bump_package": "node ./tools/bump_package.js",
+    "bump_ws": "node ./tools/bump_ws.js",
+    "bump_workers": "node ./tools/bump_workers.js",
+    "bump_zugee": "node ./tools/bump_zugee.js",
+    "bump_rest": "node ./tools/bump_rest.js",
+    "bump_all": "node ./tools/bump_all.js"
   },
   "repository": {
     "type": "git",
