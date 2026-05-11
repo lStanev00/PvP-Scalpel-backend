@@ -45,7 +45,7 @@ const __dirname = path.dirname(__filename);
  */
 
 /**
- * Summary returned after seeding `item_bonuses`.
+ * Summary returned after seeding `gameItemBonuses`.
  *
  * @typedef {object} ItemBonusSeedResult
  * @property {number} matched Existing MongoDB documents matched by `db2Id`.
@@ -277,7 +277,7 @@ ItemBonusSchema.statics.resolvePvpIlvlFromBonusList = async function resolvePvpI
 };
 
 const ItemBonus = /** @type {ItemBonusModel} */ (
-    model("ItemBonus", ItemBonusSchema, "item_bonuses")
+    model("ItemBonus", ItemBonusSchema, "gameItemBonuses")
 );
 
 export default ItemBonus;
