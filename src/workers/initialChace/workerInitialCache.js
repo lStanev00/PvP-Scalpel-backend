@@ -26,7 +26,7 @@ if(brackets.length !== 0) {
         console.info(`Setting slug: ${slug}, for bracket: ${name}`);
         await bracket.set({
             slug : slug
-        })
+        }).save()
     }
 }
 
