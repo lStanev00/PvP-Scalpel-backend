@@ -284,7 +284,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
         }
     }
     const search = buildCharSearch({ server, realm, name });
-
+    
     try {
         // redis data logic
         if (renewCache === false) character = await getCharFromCacheBySearch(search);
@@ -304,7 +304,16 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 character.checkedCount = character.checkedCount + 1;
                 cacheOneCharacter(character);
             }
-            return character;
+            //check if the new data is not served
+            for (const [slot, value] of Object.entries(character.gear)) {
+                if(slot == "tabard" || slot == "shirt") continue;
+                if(!value.pvpILvl) {
+                    renewCache = true;
+                    character = undefined;
+                    break;
+                }
+            }
+            if(!renewCache) return character;
         } else {
             character = undefined;
         }

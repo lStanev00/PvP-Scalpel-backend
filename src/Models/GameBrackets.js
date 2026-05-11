@@ -10,6 +10,10 @@ const GameBracketsSchema = new Schema(
             type: String,
             required: true,
         },
+        slug: {
+            type: String,
+            required: false
+        },
         isRated: {
             type: Boolean,
             required: true,
