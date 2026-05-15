@@ -822,6 +822,15 @@ export async function joinModalHandler(interaction) {
         await interaction.deferUpdate();
 
         const draftId = interaction.customId.slice("join_twinks_modal:".length);
+        await interaction.editReply({
+            content: [
+                "## Updating your join request...",
+                "",
+                "Please wait while Zugee applies your selected alts.",
+            ].join("\n"),
+            components: [],
+        });
+
         const selectedTwinks = getCheckboxGroupValues(interaction, twinkCheckboxCustomId);
         const draft = await getCache(draftId, redisHashKey);
 
