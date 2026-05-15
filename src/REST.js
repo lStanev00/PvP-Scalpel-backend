@@ -1,4 +1,4 @@
-// version: 0.0.2
+// version: 0.0.3
 import express from "express";
 import dotenv from 'dotenv'; dotenv.config({ path: '../.env' });
 import router from "./router.js";
