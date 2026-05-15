@@ -77,14 +77,6 @@ const CharSchema = new mongoose.Schema({
         type: Number,
         ref: "GameSpecialization"
     },
-    classID: {
-        type: Number,
-        ref: "GameClass"
-    },
-    activeSpecID: {
-        type: Number,
-        ref: "GameSpecialization"
-    },
     rating: { type: Map, of: ratingBracketSchema, default: {} }, // Collected
     achieves: achievementsSchema, // Collected
     media: mediaSchema, // Collected
@@ -153,7 +145,6 @@ CharSchema.pre(/^find/, function(next) {
         },
     ])
     if (this.classID) {
-        //todo delete the specs arr here
     }
     next();
 });
