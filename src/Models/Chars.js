@@ -69,20 +69,13 @@ const CharSchema = new mongoose.Schema({
     level: { type: Number, default: 1 }, // Collected
     faction: { type: String, default: '' }, // Collected
     race: { type: String, default: '' }, // Collected
-    // class: { // Collected
-    //     name: { type: String, required: true },
-    //     media: { type: String, default: '' }
-    // },
-    // activeSpec: { // Collected
-    //     name: { type: String, default: '' },
-    //     media: { type: String, default: '' },
-        
-    // },
     class: { // Collected
-        type: mongoose.Schema.Types.Mixed
+        type: Number,
+        ref: "GameClass"
     },
     activeSpec: { // Collected
-        type: mongoose.Schema.Types.Mixed
+        type: Number,
+        ref: "GameSpecialization"
     },
     classID: {
         type: Number,
@@ -151,11 +144,11 @@ CharSchema.set("toJSON", { virtuals: true, flattenMaps: true });
 CharSchema.pre(/^find/, function(next) {
     this.populate([
         {
-            path: "classID",
+            path: "class",
             select : "_id name media"
         },
         {
-            path: "activeSpecID",
+            path: "activeSpec",
             select : "_id name media role"
         },
     ])
