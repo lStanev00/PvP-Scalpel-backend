@@ -1,9 +1,10 @@
-// version: 1.8.10
+// version: 1.8.11
 import { redisCharacterCacheTTL } from "../helpers/redis/connectRedis.js";
 import threadBoot from "../helpers/threadBoot.js";
 import startServices from "../services/servicesMain.js";
 
 await threadBoot();
+await dropCachedCharactersForWorkerStartup();
 await startServices();
 
 async function dropCachedCharactersForWorkerStartup() {
@@ -16,4 +17,3 @@ async function dropCachedCharactersForWorkerStartup() {
     }
 }
 
-await dropCachedCharactersForWorkerStartup();
