@@ -63,7 +63,7 @@ const returnChar = async (key, blizID = undefined) => {
                       server: server,
                   }
                 : { blizID: blizID },
-        );
+        ).setOptions({ skipCharacterPopulate: true });
         return character;
     } catch (error) {
         console.warn(error);
@@ -94,7 +94,7 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
     if (character?.status === 409 && character?.data?.blizID) {
         try {
             const setter = character.data;
-            const exist = await Char.findOne({ blizID: setter.blizID });
+            const exist = await Char.findOne({ blizID: setter.blizID }).setOptions({ skipCharacterPopulate: true });
             for (const [key, value] of Object.entries(setter)) exist[key] = value;
 
             exist.save();
