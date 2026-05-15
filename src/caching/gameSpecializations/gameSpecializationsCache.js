@@ -134,6 +134,33 @@ export async function getGameSpecializationByID(id) {
 }
 
 /**
+ * Read one specialization from the cached list by name.
+ *
+ * @param {string} name
+ * @returns {Promise<GameSpecializationDoc|null>}
+ */
+export async function getGameSpecializationByName(name) {
+    if (typeof name !== "string") return null;
+
+    const normalizedName = name.trim().toLowerCase();
+    if (normalizedName === "") return null;
+
+    try {
+        /** @type {GameSpecializationDoc[]} */
+        const gameSpecializations = await getGameSpecializations();
+
+        for (const entry of gameSpecializations) {
+            if (entry.name.toLowerCase() === normalizedName) return entry;
+        }
+
+        return null;
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
+
+/**
  * Refresh the Redis list key from MongoDB and return the fresh ordered list.
  *
  * @returns {Promise<GameSpecializationDoc[]>}

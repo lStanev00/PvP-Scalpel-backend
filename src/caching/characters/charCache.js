@@ -14,7 +14,6 @@ import buildCharSearch from "../../helpers/buildCharSearch.js";
 import normalizeCharacterSearch from "../../helpers/normalizeCharacterSearch.js";
 import buildCharacter from "../../helpers/buildCharacter.js";
 import fetchData from "../../helpers/blizFetch.js";
-import queryCharacterByCredentials from "./utils/queryCharByCredentials.js";
 import shipCharById from "./utils/shipCharById.js";
 import { findRealmById } from "../realms/realmCache.js";
 import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
@@ -22,6 +21,7 @@ import { getRegionIdsMap } from "../regions/regionCache.js";
 import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
 import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
 import { CharacterCacheTTL } from "../../helpers/redis/connectRedis.js";
+import findCharFromDatabase from "../../helpers/findCharFromDatabase.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const CHAR_CACHE_EMMITER_MAX_LISTENERS = Number(process.env?.CHAR_CACHE_EMMITER_MAX_LISTENERS || "10");
@@ -326,7 +326,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
     //                                    V
 
     try {
-        character = await queryCharacterByCredentials(server, realm, name);
+        character = await findCharFromDatabase.byCredentials(server, realm, name);
         // if (!character) await Char.findOne({ search: search }); // >? not in variable
 
         if (character && (isOlderThanHour(character) || renewCache === true)) {
