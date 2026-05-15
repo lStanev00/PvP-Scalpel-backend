@@ -671,15 +671,18 @@ export async function joinButtonHandler(interaction) {
 
 export async function joinModalHandler(interaction) {
     if (interaction.customId.startsWith("join_description_modal:")) {
+        await interaction.deferReply({
+            flags: MessageFlags.Ephemeral,
+        });
+
         const draftId = interaction.customId.slice("join_description_modal:".length);
         const draft = await getCache(draftId, redisHashKey);
 
         if (!draft) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: ["## Join draft expired", "", "Please start the join flow again."].join(
                     "\n",
                 ),
-                flags: MessageFlags.Ephemeral,
             });
 
             return true;
@@ -688,10 +691,6 @@ export async function joinModalHandler(interaction) {
         const description = interaction.fields.getTextInputValue("description");
 
         draft.description = normalizeDescription(description);
-
-        await interaction.deferReply({
-            flags: MessageFlags.Ephemeral,
-        });
 
         await interaction.editReply({
             content: [
