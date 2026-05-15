@@ -3,6 +3,11 @@ import GameClass from "../Models/GameClass.js";
 import GameSpecialization from "../Models/GameSpecialization.js";
 import getRemoteSpecs from "./Service-Helpers/updateGameClassAndSpecs/getRemoteSpecs.js";
 
+/**
+ * Fetches playable classes and specializations from Blizzard and stores any missing entries.
+ *
+ * @returns {Promise<void|undefined>} Resolves when the update completes, or `undefined` when required remote data is invalid.
+ */
 export default async function updateGameClassAndSpecs() {
     try {
         const remoteClassList = await helpFetch.fetchBlizzard(

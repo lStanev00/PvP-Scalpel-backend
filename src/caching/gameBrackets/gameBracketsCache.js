@@ -13,6 +13,7 @@ const numericIdPattern = /^\d+$/;
  * @typedef {object} GameBracketDoc
  * @property {number} _id
  * @property {string} name
+ * @property {string} slug
  * @property {boolean} isRated
  * @property {boolean} isSolo
  */

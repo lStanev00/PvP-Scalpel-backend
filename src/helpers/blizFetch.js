@@ -29,9 +29,11 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             faction: data.faction.name,
             lastLogin: data.last_login_timestamp,
             achieves: { points: Number(data.achievement_points) },
-            class: { name: data.character_class.name },
+            // class: { name: data.character_class.name },
+            class: data.character_class.name.id,
             race: data.race.name,
-            activeSpec: { name: data.active_spec.name },
+            // activeSpec: { name: data.active_spec.name },
+            activeSpec: data.active_spec.name,
             guildName : data?.guild?.name,
             guildMember: data?.guild?.name == "PvP Scalpel" ? true : false,
         };
@@ -45,8 +47,8 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
 
         // Fetch dependent data in parallel
         const [
-            classMedia,
-            activeSpecMedia,
+            // classMedia,
+            // activeSpecMedia,
             rating,
             rating2v2Record,
             rating3v3Record,
@@ -55,8 +57,8 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             gear,
             equipmentStats
         ] = await Promise.all([
-            helpFetch.getMedia(data, 'character_class'),
-            helpFetch.getMedia(data, 'active_spec'),
+            // helpFetch.getMedia(data, 'character_class'),
+            // helpFetch.getMedia(data, 'active_spec'),
             helpFetch.getRating(data.pvp_summary.href, currentSeasonIndex),
             helpFetch.getAchievById(data.achievements_statistics.href, 370),
             helpFetch.getAchievById(data.achievements_statistics.href, 595),
@@ -65,9 +67,10 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             helpFetch.getCharGear(data.equipment.href),
             helpFetch.getStats(data.statistics.href)
         ]);
+
         // Assign fetched values to result
-        result.class.media = classMedia;
-        result.activeSpec.media = activeSpecMedia;
+        // result.class.media = classMedia;
+        // result.activeSpec.media = activeSpecMedia;
         result.rating = rating;
         setHighestRatingRecord(result.rating, "2v2", rating2v2Record);
         setHighestRatingRecord(result.rating, "3v3", rating3v3Record);
