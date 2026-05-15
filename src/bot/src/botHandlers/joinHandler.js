@@ -316,6 +316,44 @@ function buildDescriptionModal(draftId, draft = {}) {
     return modal;
 }
 
+function buildInitialJoinModal(characterInput) {
+    const modal = new ModalBuilder()
+        .setCustomId("join_start_modal")
+        .setTitle("Join PvP Scalpel");
+
+    const character = new TextInputBuilder()
+        .setCustomId("character")
+        .setLabel("Character")
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder("PvP Scalpel URL or name:realm:region")
+        .setRequired(true)
+        .setMaxLength(100);
+
+    const normalizedInput = String(characterInput || "").trim().slice(0, 100);
+
+    if (normalizedInput) {
+        character.setValue(normalizedInput);
+    }
+
+    const description = new TextInputBuilder()
+        .setCustomId("description")
+        .setLabel("Short introduction")
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder(
+            "This message will start with: Hello, I am @your-name. Write the rest here...",
+        )
+        .setRequired(true)
+        .setMinLength(5)
+        .setMaxLength(900);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(character),
+        new ActionRowBuilder().addComponents(description),
+    );
+
+    return modal;
+}
+
 function buildJoinButtons(draftId, options = {}) {
     const components = [
         new ButtonBuilder()
@@ -670,6 +708,65 @@ export async function joinButtonHandler(interaction) {
 }
 
 export async function joinModalHandler(interaction) {
+    if (interaction.customId === "join_start_modal") {
+        await interaction.deferReply({
+            flags: MessageFlags.Ephemeral,
+        });
+
+        const input = interaction.fields.getTextInputValue("character").trim();
+        const description = interaction.fields.getTextInputValue("description");
+
+        await interaction.editReply({
+            content: [
+                "## Preparing your join request...",
+                "",
+                "Please wait while Zugee scans your character and checks possible alts. вљ”пёЏ",
+            ].join("\n"),
+        });
+
+        const character = await charRetrieve(input);
+
+        if (character.status !== 200 || !character.data) {
+            await interaction.editReply({
+                content: [
+                    "## Character not found",
+                    "",
+                    `Input: \`${input}\``,
+                    "",
+                    "Use a PvP Scalpel URL or autocomplete character value.",
+                ].join("\n"),
+            });
+
+            return true;
+        }
+
+        const charString = normalizeCharacterString(character.data);
+        const draftId = await createJoinDraft(charString);
+
+        const draft = {
+            id: draftId,
+            characters: [charString],
+            description: normalizeDescription(description),
+            createdAt: Date.now(),
+            pendingTwinks: [],
+        };
+
+        await populateDetectedTwinksFromCharacter(draft, character.data);
+        await saveJoinDraft(draft);
+
+        await editReplyNoEmbeds(interaction, {
+            content: await buildJoinPreviewContent(draft),
+            components: [
+                buildJoinButtons(draftId, {
+                    hasPendingTwinks: hasPendingTwinks(draft),
+                    hasDescription: Boolean(draft.description),
+                }),
+            ],
+        });
+
+        return true;
+    }
+
     if (interaction.customId.startsWith("join_description_modal:")) {
         await interaction.deferReply({
             flags: MessageFlags.Ephemeral,
@@ -886,37 +983,7 @@ export default async function joinHandler(interaction) {
     }
 
     const input = interaction.options.getString("character", true);
-    const character = await charRetrieve(input);
-
-    if (character.status !== 200 || !character.data) {
-        await interaction.reply({
-            content: [
-                "## Character not found",
-                "",
-                `Input: \`${input}\``,
-                "",
-                "Use a PvP Scalpel URL or autocomplete character value.",
-            ].join("\n"),
-            flags: MessageFlags.Ephemeral,
-        });
-
-        return true;
-    }
-
-    const charString = normalizeCharacterString(character.data);
-    const draftId = await createJoinDraft(charString);
-
-    const draft = {
-        id: draftId,
-        characters: [charString],
-        description: "",
-        createdAt: Date.now(),
-        pendingTwinks: [],
-    };
-
-    await saveJoinDraft(draft);
-
-    await interaction.showModal(buildDescriptionModal(draftId, draft));
+    await interaction.showModal(buildInitialJoinModal(input));
 
     return true;
 }
