@@ -1,6 +1,6 @@
 {
   "name": "pvp-scalpel-backend",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "This API controls the database and sends requested data to the front-end.",
   "main": "boot.js",
   "type": "module",
@@ -18,7 +18,8 @@
     "bump_workers": "node ./tools/bump_workers.js",
     "bump_zugee": "node ./tools/bump_zugee.js",
     "bump_rest": "node ./tools/bump_rest.js",
-    "bump_all": "node ./tools/bump_all.js"
+    "bump_all": "node ./tools/bump_all.js",
+    "migrate:characterRefs": "node ./tools/migrate_character_refs.js"
   },
   "repository": {
     "type": "git",

@@ -30,10 +30,10 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             lastLogin: data.last_login_timestamp,
             achieves: { points: Number(data.achievement_points) },
             // class: { name: data.character_class.name },
-            class: data.character_class.name.id,
+            class: data.character_class.id,
             race: data.race.name,
             // activeSpec: { name: data.active_spec.name },
-            activeSpec: data.active_spec.name,
+            activeSpec: data.active_spec.id,
             guildName : data?.guild?.name,
             guildMember: data?.guild?.name == "PvP Scalpel" ? true : false,
         };
