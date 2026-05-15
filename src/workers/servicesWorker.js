@@ -1,4 +1,4 @@
-// version: 1.8.8
+// version: 1.8.9
 import threadBoot from "../helpers/threadBoot.js";
 import startServices from "../services/servicesMain.js";
 

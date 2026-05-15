@@ -38,13 +38,10 @@ async function bySearch(search) {
  */
 async function byCredentials(server, realm, name) {
     let character = undefined;
+    const search = [name, realm, server].join(":").toLowerCase();
 
     try {
-        character = await Char.findOne({
-            name: name,
-            "playerRealm.slug": realm,
-            server: server,
-        });
+        character = await Char.findOne({search});
         if (character) return character;
     } catch (error) {
         console.warn(error);
