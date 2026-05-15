@@ -720,7 +720,7 @@ export async function joinModalHandler(interaction) {
             content: [
                 "## Preparing your join request...",
                 "",
-                "Please wait while Zugee scans your character and checks possible alts. вљ”пёЏ",
+                "Please wait while Zugee scans your character and checks possible alts.",
             ].join("\n"),
         });
 
@@ -793,7 +793,7 @@ export async function joinModalHandler(interaction) {
             content: [
                 "## Preparing your join request...",
                 "",
-                "Please wait while Zugee scans your character and checks possible alts. ⚔️",
+                "Please wait while Zugee scans your character and checks possible alts.",
             ].join("\n"),
         });
 
