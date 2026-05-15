@@ -305,14 +305,19 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 cacheOneCharacter(character);
             }
             //check if the new data is not served
-            for (const [slot, value] of Object.entries(character.gear)) {
-                if(slot == "tabard" || slot == "shirt") continue;
-                if(!value.pvpILvl) {
-                    renewCache = true;
-                    character = undefined;
-                    break;
-                }
+            const exist = character?.gear?.head?.pvpIlvl;
+            if(!exist) {
+                renewCache = true;
+                character = undefined;
             }
+            // for (const [slot, value] of Object.entries(character.gear)) {
+            //     if(slot == "tabard" || slot == "shirt") continue;
+            //     if(!value.pvpILvl) {
+            //         renewCache = true;
+            //         character = undefined;
+            //         break;
+            //     }
+            // }
             if(!renewCache) return character;
         } else {
             character = undefined;
