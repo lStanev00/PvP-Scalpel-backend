@@ -41,8 +41,16 @@ async function byCredentials(server, realm, name) {
     const search = [name, realm, server].join(":").toLowerCase();
 
     try {
-        character = await Char.findOne({search});
+        character = await Char.findOne({ search });
         if (character) return character;
+
+        const hasCyrillic = /[\u0400-\u04FF]/.test(search);
+        const fallbackLocales = hasCyrillic ? ["ru", "bg"] : ["en"];
+
+        for (const locale of fallbackLocales) {
+            character = await Char.findOne({ search }).collation({ locale, strength: 2 });
+            if (character) return character;
+        }
     } catch (error) {
         console.warn(error);
     }

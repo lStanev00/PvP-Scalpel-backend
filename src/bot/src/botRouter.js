@@ -9,22 +9,44 @@ import pingHandler from "./botHandlers/pingHandler.js";
 import searchHandler from "./botHandlers/searchHandler.js";
 import unknownHandler from "./botHandlers/unknownHandler.js";
 
+function isUnknownInteractionError(error) {
+    return error?.code === 10062 || error?.rawError?.code === 10062;
+}
+
+async function sendInteractionErrorResponse(interaction, response) {
+    try {
+        if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(response);
+            return;
+        }
+
+        await interaction.reply(response);
+    } catch (replyError) {
+        if (isUnknownInteractionError(replyError)) {
+            console.warn("[Zugee] interaction expired before an error response could be sent.");
+            return;
+        }
+
+        console.error("[Zugee] failed to send interaction error response", replyError);
+    }
+}
+
 async function handleInteractionError(interaction, error) {
-    console.error("[Zugee] interaction failed", error);
+    if (isUnknownInteractionError(error)) {
+        console.warn("[Zugee] interaction expired before it could be acknowledged.");
+        return;
+    }
 
     if (!interaction.isRepliable()) return;
+
+    console.error("[Zugee] interaction failed", error);
 
     const response = {
         content: "Interaction failed. Check bot logs.",
         flags: MessageFlags.Ephemeral,
     };
 
-    if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(response);
-        return;
-    }
-
-    await interaction.reply(response);
+    await sendInteractionErrorResponse(interaction, response);
 }
 
 export default async function botRouter(interaction) {
@@ -50,6 +72,14 @@ export default async function botRouter(interaction) {
         }
 
         if (!interaction.isChatInputCommand()) return;
+
+        if (!interaction.guildId) {
+            await interaction.reply({
+                content: "Zugee slash commands are server-only. Send me a normal DM for AI chat.",
+                flags: MessageFlags.Ephemeral,
+            });
+            return;
+        }
 
         switch (interaction.commandName) {
             case "ping":
