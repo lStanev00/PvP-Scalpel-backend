@@ -11,7 +11,7 @@ import {
     TextInputStyle,
 } from "discord.js";
 import { RESTFetch } from "../../../helpers/RESTFetch.js";
-import setCache from "../../../helpers/redis/setterRedis.js";
+import setCache, { setCacheIfAbsent } from "../../../helpers/redis/setterRedis.js";
 import getCache from "../../../helpers/redis/getterRedis.js";
 import delCache from "../../../helpers/redis/deletersRedis.js";
 import { extRetChar } from "../../../helpers/blizFetch-helpers/extRetChar.js";
@@ -36,6 +36,34 @@ async function editReplyNoEmbeds(interaction, payload) {
     }
 
     return message;
+}
+
+function isUnknownMessageError(error) {
+    return error?.code === 10008 || error?.rawError?.code === 10008;
+}
+
+async function safeEditReply(interaction, payload) {
+    try {
+        await interaction.editReply(payload);
+        return true;
+    } catch (error) {
+        if (isUnknownMessageError(error)) {
+            console.warn("[Zugee] original join reply no longer exists.");
+            return false;
+        }
+
+        throw error;
+    }
+}
+
+async function deleteReplyIfPresent(interaction) {
+    try {
+        await interaction.deleteReply();
+    } catch (error) {
+        if (isUnknownMessageError(error)) return;
+
+        console.warn("[Zugee] failed to delete join confirmation reply", error);
+    }
 }
 
 async function createJoinDraft(mainCharacterString) {
@@ -570,6 +598,31 @@ export async function joinButtonHandler(interaction) {
             return true;
         }
 
+        const claimKey = `zugee:join:confirm:${draftId}`;
+        const claimCreated = await setCacheIfAbsent(claimKey, true, 60);
+
+        if (claimCreated !== 1) {
+            await safeEditReply(interaction, {
+                content: [
+                    "## Application already submitting...",
+                    "",
+                    "Please wait while Zugee posts your join request.",
+                ].join("\n"),
+                components: [],
+            });
+
+            return true;
+        }
+
+        await safeEditReply(interaction, {
+            content: [
+                "## Submitting application...",
+                "",
+                "Please wait while Zugee posts your join request.",
+            ].join("\n"),
+            components: [],
+        });
+
         const appliedContent = await buildAppliedContent(draft);
 
         const publicContent = [
@@ -605,14 +658,7 @@ export async function joinButtonHandler(interaction) {
 
         await delCache(draftId, redisHashKey);
 
-        await interaction.deleteReply().catch(async () => {
-            await interaction.editReply({
-                content: ["## Application sent", "", "The public join request was posted."].join(
-                    "\n",
-                ),
-                components: [],
-            });
-        });
+        await deleteReplyIfPresent(interaction);
 
         return true;
     }
