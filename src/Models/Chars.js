@@ -35,6 +35,7 @@ const ratingBracketSchema = new mongoose.Schema({
     _id: { type: String, required: false },
 }, { _id: false });
 
+// GearSchema __v: 0 - introduce pvpIlvl
 const gearSchema = new mongoose.Schema({ // Collected
     head: mongoose.Schema.Types.Mixed,
     neck: mongoose.Schema.Types.Mixed,
@@ -68,14 +69,28 @@ const CharSchema = new mongoose.Schema({
     level: { type: Number, default: 1 }, // Collected
     faction: { type: String, default: '' }, // Collected
     race: { type: String, default: '' }, // Collected
+    // class: { // Collected
+    //     name: { type: String, required: true },
+    //     media: { type: String, default: '' }
+    // },
+    // activeSpec: { // Collected
+    //     name: { type: String, default: '' },
+    //     media: { type: String, default: '' },
+        
+    // },
     class: { // Collected
-        name: { type: String, required: true },
-        media: { type: String, default: '' }
+        type: mongoose.Schema.Types.Mixed
     },
     activeSpec: { // Collected
-        name: { type: String, default: '' },
-        media: { type: String, default: '' },
-        
+        type: mongoose.Schema.Types.Mixed
+    },
+    classID: {
+        type: Number,
+        ref: "GameClass"
+    },
+    activeSpecID: {
+        type: Number,
+        ref: "GameSpecialization"
     },
     rating: { type: Map, of: ratingBracketSchema, default: {} }, // Collected
     achieves: achievementsSchema, // Collected
@@ -132,6 +147,23 @@ CharSchema.virtual("favorite", {
 
 CharSchema.set("toObject", { virtuals: true, flattenMaps: true });
 CharSchema.set("toJSON", { virtuals: true, flattenMaps: true });
+
+CharSchema.pre(/^find/, function(next) {
+    this.populate([
+        {
+            path: "classID",
+            select : "_id name media"
+        },
+        {
+            path: "activeSpecID",
+            select : "_id name media role"
+        },
+    ])
+    if (this.classID) {
+        //todo delete the specs arr here
+    }
+    next();
+});
 
 const Char = mongoose.model(`Character`, CharSchema);
 export default Char;
