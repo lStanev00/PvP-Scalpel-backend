@@ -1,4 +1,4 @@
-// version: 0.0.4
+// version: 0.0.5
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
@@ -15,6 +15,7 @@ import { getGameSpecializationByID } from "./caching/gameSpecializations/gameSpe
 import GameSpecialization from "./Models/GameSpecialization.js";
 import GameClass from "./Models/GameClass.js";
 import findCharFromDatabase from "./helpers/findCharFromDatabase.js";
+import { getCharacter } from "./caching/characters/charCache.js";
 
 const app = express();
 const port = process.env.PORT || 8080;

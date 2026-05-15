@@ -88,7 +88,7 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
         return await returnChar(key);
     }
 
-    await setCache(key, true, hashName);
+    await setCache(key, true, hashName, 60);
 
     character = await fetchData(server, realm, name, undefined, false);
     if (character?.status === 409 && character?.data?.blizID) {
