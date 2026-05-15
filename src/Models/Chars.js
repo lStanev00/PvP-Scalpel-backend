@@ -134,6 +134,8 @@ CharSchema.set("toObject", { virtuals: true, flattenMaps: true });
 CharSchema.set("toJSON", { virtuals: true, flattenMaps: true });
 
 CharSchema.pre(/^find/, function(next) {
+    if (this.getOptions().skipCharacterPopulate) return next();
+
     this.populate([
         {
             path: "class",
