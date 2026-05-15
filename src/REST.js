@@ -1,4 +1,4 @@
-// version: 0.0.5
+// version: 0.0.6
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
@@ -10,12 +10,6 @@ import sanitizer from "./middlewares/sanitizer.js";
 import compression from "compression";
 import { delay } from "./helpers/startBGTask.js";
 import threadBoot from "./helpers/threadBoot.js";
-import Char from "./Models/Chars.js";
-import { getGameSpecializationByID } from "./caching/gameSpecializations/gameSpecializationsCache.js";
-import GameSpecialization from "./Models/GameSpecialization.js";
-import GameClass from "./Models/GameClass.js";
-import findCharFromDatabase from "./helpers/findCharFromDatabase.js";
-import { getCharacter } from "./caching/characters/charCache.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
