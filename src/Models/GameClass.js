@@ -25,10 +25,10 @@ GameClassModel.virtual("specs", {
     justOne: false,
 });
 
-GameClassModel.pre(/^find/, function (next) {
-    this.populate("specs");
-    next();
-});
+// GameClassModel.pre(/^find/, function (next) {
+//     this.populate("specs");
+//     next();
+// });
 
 GameClassModel.set("toObject", { virtuals: true });
 GameClassModel.set("toJSON", { virtuals: true });
