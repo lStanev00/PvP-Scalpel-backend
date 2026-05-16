@@ -71,7 +71,7 @@ export default async function updateGameClassAndSpecs() {
             }
         }
 
-        // attempt to spec update
+        // Add any remote specs that are missing locally.
         for (const [id, { key, name }] of remoteSpecMap) {
             const remoteSpec = await helpFetch.fetchBlizzard(key.href).catch(() => undefined);
             if (!remoteSpec) {
