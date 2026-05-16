@@ -1,3 +1,4 @@
+import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
 import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import GameClass from "../../Models/GameClass.js";
 import blizzardPvpClassSlug from "../blizzardPvpClassSlug.js";
@@ -165,7 +166,9 @@ async function getExtDynamicRatingSuffix(retrievedRecords) {
     try {
         const [activeSpec, gameClass] = await Promise.all([
             getGameSpecializationByID(activeSpecId),
-            GameClass.findById(classId).select("name").lean(),
+            // GameClass.findById(classId).select("name").lean(),
+            getGameClass({id: classId}),
+
         ]);
 
         if (!activeSpec?.name || !gameClass?.name) return undefined;

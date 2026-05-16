@@ -17,7 +17,7 @@ export default async function updateGameClassAndSpecs() {
             console.warn("Problem at remote calss list fetch");
             return;
         }
-        const knownClasses = await GameClass.find().lean();
+        const knownClasses = await GameClass.find().populate("specs").lean();
         const updatedClasses = [];
 
         for (const remoteClassEntry of remoteClassList?.classes ?? []) {

@@ -18,7 +18,7 @@ function setTenDayCache(res) {
 
 async function getGameClasses(_, res) {
     try {
-        const data = await GameClass.find().lean();
+        const data = await GameClass.find().populate("specs").lean();
         setTenDayCache(res);
         return jsonResponse(res, 200, data);
     } catch (error) {
