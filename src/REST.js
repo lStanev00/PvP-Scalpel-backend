@@ -1,4 +1,4 @@
-// version: 0.0.6
+// version: 0.0.7
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
