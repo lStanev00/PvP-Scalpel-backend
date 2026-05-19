@@ -1,10 +1,12 @@
 import { model, Schema } from "mongoose";
 import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
+import formatBracketTops from "./formatBracketTops.js";
 
 const listEntrySchema = new Schema(
     {
         search: String,
         rating: Number,
+        rank: Number,
     },
     { id: false, versionKey: false, timestamps: false },
 );
@@ -33,25 +35,7 @@ const BracketTopsSchema = new Schema(
     { id: false },
 );
 
-BracketTopsSchema.statics.formatQueueEntry = async function formatQueueEntry(blizResponse) {
-    const season = blizResponse.season.id || null;
-    let BracketTopsId;
-    if (!blizResponse.name.includes("blitz") || !blizResponse.name.includes("shuffle")) {
-        // 2v2, 3v3, rbg
-        const gameBracket = await getGameBracketByID(blizResponse.bracket.id);
-        if (!gameBracket) {
-            console.warn(
-                [
-                    `Game Bracket not found at BracketTopsSchema.statics.formatQueueEntry // mem dump ...`,
-                    `season: ${JSON.stringify(season, null, 4)}`,
-                    `gameBracket: ${JSON.stringify(gameBracket, null, 4)}`,
-                ].join("\n"),
-            );
-        }
-
-        BracketTopsId = gameBracket.slug + ":" + season;
-    }
-};
+BracketTopsSchema.statics.formatBracketTops = formatBracketTops;
 
 const GameBrackets = model("BracketTops", BracketTopsSchema);
 export default GameBrackets;
