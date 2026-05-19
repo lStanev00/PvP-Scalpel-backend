@@ -1,6 +1,14 @@
 import { model, Schema } from "mongoose";
-import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
 import formatBracketTops from "./formatBracketTops.js";
+
+/**
+ * @typedef {import("./BracketTops.types").BracketTopCharacter} BracketTopCharacter
+ * @typedef {import("./BracketTops.types").BracketTopsAttrs} BracketTopsAttrs
+ * @typedef {import("./BracketTops.types").BlizzardBracketTopResponse} BlizzardBracketTopResponse
+ * @typedef {import("./BracketTops.types").FormatBracketTopsStatic} FormatBracketTopsStatic
+ * @typedef {import("./BracketTops.types").BracketTopsDocument} BracketTopsDocument
+ * @typedef {import("./BracketTops.types").BracketTopsModel} BracketTopsModel
+ */
 
 const listEntrySchema = new Schema(
     {
@@ -8,7 +16,7 @@ const listEntrySchema = new Schema(
         rating: Number,
         rank: Number,
     },
-    { id: false, versionKey: false, timestamps: false },
+    { _id: false, versionKey: false, timestamps: false },
 );
 
 const BracketTopsSchema = new Schema(
@@ -20,14 +28,22 @@ const BracketTopsSchema = new Schema(
         region: {
             type: Number,
             ref: "Region",
+            required: true,
         },
         season: {
             type: Number,
             required: true,
         },
+        class: {
+            type: Number,
+            ref: "GameClass",
+        },
+        specialization: {
+            type: Number,
+            ref: "GameSpecialization",
+        },
         bracket: {
             type: Number,
-            ref: "GameBrackets",
             required: true,
         },
         characters: [listEntrySchema],
@@ -35,7 +51,15 @@ const BracketTopsSchema = new Schema(
     { id: false },
 );
 
+BracketTopsSchema.virtual("bracketDoc", {
+    ref: "GameBrackets",
+    localField: "bracket",
+    foreignField: "blizID",
+    justOne: true,
+});
+
 BracketTopsSchema.statics.formatBracketTops = formatBracketTops;
 
-const GameBrackets = model("BracketTops", BracketTopsSchema);
-export default GameBrackets;
+/** @type {BracketTopsModel} */
+const BracketTops = /** @type {BracketTopsModel} */ (model("BracketTops", BracketTopsSchema));
+export default BracketTops;
