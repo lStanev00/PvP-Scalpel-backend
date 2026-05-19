@@ -30,3 +30,7 @@ app.use("/", sanitizer);
 app.use(`/`, router);
 
 app.listen(port, console.info(`REST's running at http://localhost:${port} or ${productionUrl}`));
+
+// import { getCharacter } from "./caching/characters/charCache.js";
+// const char = await getCharacter("eu", "chamber-of-aspects", "Lychezar", false, true);
+// console.info(char);
