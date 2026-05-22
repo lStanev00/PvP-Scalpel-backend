@@ -37,7 +37,12 @@ pipeline {
                         // "production":        [service: "api",    image: "pvp-s-api",    context: "./api"],
                         // "production-worker": [service: "worker", image: "pvp-s-worker", context: "./worker"],
                         // "production-ws":     [service: "ws",     image: "pvp-s-ws",     context: "./ws"],
-                        "zugee-production": [service: "zugee", image: "pvp-s-zugee", dockerfile: "./Dockerfile/zugee.Dockerfile", context: "."],
+                        "zugee-production": [
+                            "service": "zugee",
+                            "image": "pvp-s-zugee",
+                            "dockerfile": "./Dockerfile/zugee.Dockerfile",
+                            "context": ".",
+                        ],
                     ]
 
                     // Jenkins may expose the branch as production, origin/production,
@@ -47,7 +52,7 @@ pipeline {
                         .replaceFirst(/^refs\/remotes\/origin\//, "")
                         .replaceFirst(/^refs\/heads\//, "")
                         .replaceFirst(/^origin\//, "")
-                    def config = servicesByBranch[branchName]
+                    def config = servicesByBranch.get(branchName)
 
                     // Non-production and unmapped branches should still complete without deploying.
                     if (config == null) {
@@ -57,12 +62,16 @@ pipeline {
 
                     // Environment variables are used by later declarative stages.
                     env.SHOULD_DEPLOY = "true"
-                    env.SERVICE_NAME = config.service
-                    env.IMAGE_NAME = config.image
-                    env.DOCKERFILE_PATH = config.dockerfile
-                    env.BUILD_CONTEXT = config.context
+                    env.SERVICE_NAME = config["service"]
+                    env.IMAGE_NAME = config["image"]
+                    env.DOCKERFILE_PATH = config["dockerfile"]
+                    env.BUILD_CONTEXT = config["context"]
 
-                    echo "Resolved service '${env.SERVICE_NAME}' from branch '${branchName}' using Dockerfile '${env.DOCKERFILE_PATH}'."
+                    if (!env.SERVICE_NAME || !env.IMAGE_NAME || !env.DOCKERFILE_PATH || !env.BUILD_CONTEXT) {
+                        error "Incomplete service config for branch '${branchName}': ${config}"
+                    }
+
+                    echo "Resolved branch '${branchName}' -> service='${env.SERVICE_NAME}', image='${env.IMAGE_NAME}', dockerfile='${env.DOCKERFILE_PATH}', context='${env.BUILD_CONTEXT}'."
                 }
             }
         }
