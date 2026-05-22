@@ -22,6 +22,8 @@ import { getOneAchFromAchCache } from "../achievements/achievesEmt.js";
 import { enqueueJobQueueEntry } from "../charQueueCache/jobQueueCache.js";
 import { CharacterCacheTTL } from "../../helpers/redis/connectRedis.js";
 import findCharFromDatabase from "../../helpers/findCharFromDatabase.js";
+import { getGameClass } from "../gameClasses/gameClassesCache.js";
+import { getGameSpecializationByID } from "../gameSpecializations/gameSpecializationsCache.js";
 
 export const CharCacheEmitter = new EventEmitter();
 const CHAR_CACHE_EMMITER_MAX_LISTENERS = Number(process.env?.CHAR_CACHE_EMMITER_MAX_LISTENERS || "10");
@@ -34,6 +36,68 @@ const inFlightWorkerCharacters = new Map();
 function resolveCharacterSearch(params) {
     const { server, realm, name, search } = params ?? {};
     return normalizeCharacterSearch(search) ?? buildCharSearch({ server, realm, name });
+}
+
+function isNumericRef(value) {
+    return Number.isInteger(value) || (typeof value === "string" && /^\d+$/.test(value.trim()));
+}
+
+function selectGameClassFields(gameClass) {
+    if (!gameClass) return null;
+
+    return {
+        _id: gameClass._id,
+        name: gameClass.name,
+        media: gameClass.media,
+    };
+}
+
+function selectGameSpecializationFields(activeSpec) {
+    if (!activeSpec) return null;
+
+    return {
+        _id: activeSpec._id,
+        name: activeSpec.name,
+        media: activeSpec.media,
+        role: activeSpec.role,
+    };
+}
+
+async function populateCharacterGameRefs(character) {
+    if (!character || character === 404 || typeof character !== "object") return character;
+
+    if (typeof character.populate === "function") {
+        await character.populate([
+            {
+                path: "class",
+                select: "_id name media",
+            },
+            {
+                path: "activeSpec",
+                select: "_id name media role",
+            },
+        ]);
+
+        return character;
+    }
+
+    const classId = isNumericRef(character.class) ? Number(character.class) : undefined;
+    const activeSpecId = isNumericRef(character.activeSpec) ? Number(character.activeSpec) : undefined;
+
+    if (classId === undefined && activeSpecId === undefined) return character;
+
+    const [gameClass, activeSpec] = await Promise.all([
+        classId !== undefined ? getGameClass({ id: classId }).catch(() => null) : null,
+        activeSpecId !== undefined ? getGameSpecializationByID(activeSpecId).catch(() => null) : null,
+    ]);
+
+    const populatedClass = selectGameClassFields(gameClass);
+    if (populatedClass) character.class = populatedClass;
+
+    const populatedActiveSpec = selectGameSpecializationFields(activeSpec);
+    if (populatedActiveSpec) character.activeSpec = populatedActiveSpec;
+
+    return character;
 }
 
 CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
@@ -318,7 +382,11 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             //         break;
             //     }
             // }
-            if(!renewCache) return character;
+            if (!renewCache) {
+                character = await populateCharacterGameRefs(character);
+                await cacheOneCharacter(character);
+                return character;
+            }
         } else {
             character = undefined;
         }
@@ -422,6 +490,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                 else console.info("The entry had no name aswell");
             }
         }
+        await populateCharacterGameRefs(character);
         await cacheOneCharacter(character);
         try {
             character = character.toObject();

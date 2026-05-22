@@ -37,24 +37,35 @@ async function bySearch(search) {
  * @returns {Promise<CharacterDocument | null>} Matching character document, or `null` when not found.
  */
 async function byCredentials(server, realm, name) {
-    let character = undefined;
-    const search = [name, realm, server].join(":").toLowerCase();
+    // let character = undefined;
+    // const search = [name, realm, server].join(":").toLowerCase();
+
+    // try {
+    //     character = await Char.findOne({ search });
+    //     if (character) return character;
+
+    //     const hasCyrillic = /[\u0400-\u04FF]/.test(search);
+    //     const fallbackLocales = hasCyrillic ? ["ru", "bg"] : ["en"];
+
+    //     for (const locale of fallbackLocales) {
+    //         character = await Char.findOne({ search }).collation({ locale, strength: 2 });
+    //         if (character) return character;
+    //     }
+    // } catch (error) {
+    //     console.warn(error);
+    // }
+    // return null;
 
     try {
-        character = await Char.findOne({ search });
-        if (character) return character;
-
-        const hasCyrillic = /[\u0400-\u04FF]/.test(search);
-        const fallbackLocales = hasCyrillic ? ["ru", "bg"] : ["en"];
-
-        for (const locale of fallbackLocales) {
-            character = await Char.findOne({ search }).collation({ locale, strength: 2 });
-            if (character) return character;
-        }
+        const character = await Char.findOne({
+            name: new RegExp(`^${name}$`, "i"),
+            "playerRealm.slug": realm,
+            server: server,
+        }).lean();
+        return character;
     } catch (error) {
-        console.warn(error);
+        return null;
     }
-    return null;
 }
 
 /**
