@@ -12,6 +12,7 @@ const numericIdPattern = /^\d+$/;
  *
  * @typedef {object} GameBracketDoc
  * @property {number} _id
+ * @property {number} [blizID]
  * @property {string} name
  * @property {string} slug
  * @property {boolean} isRated
@@ -29,6 +30,7 @@ function isValidGameBracket(entry) {
     return (
         isPlainObject(entry) &&
         Number.isFinite(Number(entry._id)) &&
+        (entry.blizID === undefined || Number.isFinite(Number(entry.blizID))) &&
         typeof entry.name === "string" &&
         typeof entry.isRated === "boolean" &&
         typeof entry.isSolo === "boolean"
@@ -127,6 +129,40 @@ export async function getGameBracketByID(id) {
 
         for (const entry of gameBrackets) {
             if (entry._id === normalizedId) return entry;
+        }
+
+        const refreshedGameBrackets = await storeGameBrackets();
+        for (const entry of refreshedGameBrackets) {
+            if (entry._id === normalizedId) return entry;
+        }
+
+        return null;
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
+
+/**
+ * Read one bracket from the cached list by Blizzard bracket ID.
+ *
+ * @param {number|string} id
+ * @returns {Promise<GameBracketDoc|null>}
+ */
+export async function getGameBracketByBlizID(id) {
+    const normalizedId = normalizeGameBracketId(id);
+
+    try {
+        /** @type {GameBracketDoc[]} */
+        const gameBrackets = await getGameBrackets();
+
+        for (const entry of gameBrackets) {
+            if (Number(entry.blizID) === normalizedId) return entry;
+        }
+
+        const refreshedGameBrackets = await storeGameBrackets();
+        for (const entry of refreshedGameBrackets) {
+            if (Number(entry.blizID) === normalizedId) return entry;
         }
 
         return null;

@@ -2,6 +2,7 @@ import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 import GameClass from "../../Models/GameClass.js";
 import updateGameClassAndSpecs from "../../services/updateGameClassAndSpecs.js";
+import blizzardPvpClassSlug from "../../helpers/blizzardPvpClassSlug.js";
 
 const hashKey = "game:classes:list";
 const ttlSeconds = 3600;
@@ -68,6 +69,25 @@ function findClassById(entries, id) {
     return entries.find((entry) => Number(entry._id) === numericId);
 }
 
+function normalizeLookupName(name) {
+    if (typeof name !== "string") return undefined;
+    return name.trim().toLowerCase().replaceAll(" ", "");
+}
+
+function findClassByName(entries, name) {
+    const trimmedName = name.trim();
+    const normalizedSlug = trimmedName.toLowerCase();
+    const normalizedName = normalizeLookupName(trimmedName);
+
+    let exist = entries.find((entry) => entry.name === trimmedName);
+    if (exist) return exist;
+
+    exist = entries.find((entry) => blizzardPvpClassSlug(entry.name) === normalizedSlug);
+    if (exist) return exist;
+
+    return entries.find((entry) => normalizeLookupName(entry.name) === normalizedName);
+}
+
 /**
  * Read one game class by name, refreshing local and remote data on cache miss.
  *
@@ -78,12 +98,12 @@ async function getByName(name) {
     let cachedHash = await getCachedClasses();
     if (cachedHash.length === 0) cachedHash = await CacheGameClasses();
 
-    let exist = cachedHash.find((entry) => entry.name === name);
+    let exist = findClassByName(cachedHash, name);
     if (exist) return exist;
 
     await updateGameClassAndSpecs();
     cachedHash = await CacheGameClasses();
-    exist = cachedHash.find((entry) => entry.name === name);
+    exist = findClassByName(cachedHash, name);
 
     if (exist) return exist;
     return null;
@@ -103,7 +123,9 @@ export async function getGameClass(params) {
 
     try {
         const {name} = params;
-        const id = normalizeGameClassId(params.id) || undefined;
+        const id = params.id !== undefined && params.id !== null
+            ? normalizeGameClassId(params.id)
+            : undefined;
         if (id !== undefined && id !== null) {
             // check if cached
             let exist = await getById(id);

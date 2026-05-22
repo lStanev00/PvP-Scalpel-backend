@@ -63,6 +63,11 @@ function normalizeGameSpecializationId(id) {
     throw new TypeError("id has to be an integer number or numeric string");
 }
 
+function normalizeLookupName(name) {
+    if (typeof name !== "string") return undefined;
+    return name.trim().toLowerCase().replaceAll(" ", "");
+}
+
 /**
  * Read the specialization list from MongoDB, keep ascending `_id` order, and drop malformed rows.
  *
@@ -151,6 +156,11 @@ export async function getGameSpecializationByName(name) {
 
         for (const entry of gameSpecializations) {
             if (entry.name.toLowerCase() === normalizedName) return entry;
+        }
+
+        const normalizedLookupName = normalizeLookupName(name);
+        for (const entry of gameSpecializations) {
+            if (normalizeLookupName(entry.name) === normalizedLookupName) return entry;
         }
 
         return null;
