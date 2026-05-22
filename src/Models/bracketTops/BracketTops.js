@@ -1,12 +1,22 @@
 import { model, Schema } from "mongoose";
-import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
+import formatBracketTops from "./formatBracketTops.js";
+
+/**
+ * @typedef {import("./BracketTops.types").BracketTopCharacter} BracketTopCharacter
+ * @typedef {import("./BracketTops.types").BracketTopsAttrs} BracketTopsAttrs
+ * @typedef {import("./BracketTops.types").BlizzardBracketTopResponse} BlizzardBracketTopResponse
+ * @typedef {import("./BracketTops.types").FormatBracketTopsStatic} FormatBracketTopsStatic
+ * @typedef {import("./BracketTops.types").BracketTopsDocument} BracketTopsDocument
+ * @typedef {import("./BracketTops.types").BracketTopsModel} BracketTopsModel
+ */
 
 const listEntrySchema = new Schema(
     {
         search: String,
         rating: Number,
+        rank: Number,
     },
-    { id: false, versionKey: false, timestamps: false },
+    { _id: false, versionKey: false, timestamps: false },
 );
 
 const BracketTopsSchema = new Schema(
@@ -18,14 +28,22 @@ const BracketTopsSchema = new Schema(
         region: {
             type: Number,
             ref: "Region",
+            required: true,
         },
         season: {
             type: Number,
             required: true,
         },
+        class: {
+            type: Number,
+            ref: "GameClass",
+        },
+        specialization: {
+            type: Number,
+            ref: "GameSpecialization",
+        },
         bracket: {
             type: Number,
-            ref: "GameBrackets",
             required: true,
         },
         characters: [listEntrySchema],
@@ -33,25 +51,15 @@ const BracketTopsSchema = new Schema(
     { id: false },
 );
 
-BracketTopsSchema.statics.formatQueueEntry = async function formatQueueEntry(blizResponse) {
-    const season = blizResponse.season.id || null;
-    let BracketTopsId;
-    if (!blizResponse.name.includes("blitz") || !blizResponse.name.includes("shuffle")) {
-        // 2v2, 3v3, rbg
-        const gameBracket = await getGameBracketByID(blizResponse.bracket.id);
-        if (!gameBracket) {
-            console.warn(
-                [
-                    `Game Bracket not found at BracketTopsSchema.statics.formatQueueEntry // mem dump ...`,
-                    `season: ${JSON.stringify(season, null, 4)}`,
-                    `gameBracket: ${JSON.stringify(gameBracket, null, 4)}`,
-                ].join("\n"),
-            );
-        }
+BracketTopsSchema.virtual("bracketDoc", {
+    ref: "GameBrackets",
+    localField: "bracket",
+    foreignField: "blizID",
+    justOne: true,
+});
 
-        BracketTopsId = gameBracket.slug + ":" + season;
-    }
-};
+BracketTopsSchema.statics.formatBracketTops = formatBracketTops;
 
-const GameBrackets = model("BracketTops", BracketTopsSchema);
-export default GameBrackets;
+/** @type {BracketTopsModel} */
+const BracketTops = /** @type {BracketTopsModel} */ (model("BracketTops", BracketTopsSchema));
+export default BracketTops;
