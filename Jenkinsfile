@@ -60,16 +60,21 @@ pipeline {
                         return
                     }
 
-                    // Environment variables are used by later declarative stages.
-                    env.SHOULD_DEPLOY = "true"
-                    env.SERVICE_NAME = config["service"]
-                    env.IMAGE_NAME = config["image"]
-                    env.DOCKERFILE_PATH = config["dockerfile"]
-                    env.BUILD_CONTEXT = config["context"]
+                    def serviceName = config["service"]?.toString()
+                    def imageName = config["image"]?.toString()
+                    def dockerfilePath = config["dockerfile"]?.toString()
+                    def buildContext = config["context"]?.toString()
 
-                    if (!env.SERVICE_NAME || !env.IMAGE_NAME || !env.DOCKERFILE_PATH || !env.BUILD_CONTEXT) {
+                    if (!serviceName || !imageName || !dockerfilePath || !buildContext) {
                         error "Incomplete service config for branch '${branchName}': ${config}"
                     }
+
+                    // Environment variables are used by later declarative stages.
+                    env.SHOULD_DEPLOY = "true"
+                    env.SERVICE_NAME = serviceName
+                    env.IMAGE_NAME = imageName
+                    env.DOCKERFILE_PATH = dockerfilePath
+                    env.BUILD_CONTEXT = buildContext
 
                     echo "Resolved branch '${branchName}' -> service='${env.SERVICE_NAME}', image='${env.IMAGE_NAME}', dockerfile='${env.DOCKERFILE_PATH}', context='${env.BUILD_CONTEXT}'."
                 }
