@@ -1,4 +1,5 @@
 // This will be a sub schema for ../Chars.js
+// this file is not finishied and not imported anywhere
 
 import { Schema } from "mongoose";
 

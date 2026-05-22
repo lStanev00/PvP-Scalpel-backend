@@ -146,8 +146,6 @@ CharSchema.pre(/^find/, function(next) {
             select : "_id name media role"
         },
     ])
-    if (this.classID) {
-    }
     next();
 });
 
