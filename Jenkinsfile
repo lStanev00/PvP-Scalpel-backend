@@ -68,8 +68,8 @@ pipeline {
                     cd ${COMPOSE_DIR}
                     # Redis is shared by the app services. Start it if missing, but do not recreate it on each deploy.
                     docker compose up -d --no-recreate redis
-                    # Recreate only the selected service so other production services keep running.
-                    docker compose up -d --force-recreate ${env.ZUGEE_SERVICE_NAME}
+                    # Recreate only the selected service. --no-deps prevents Redis from being recreated as a dependency.
+                    docker compose up -d --no-deps --force-recreate ${env.ZUGEE_SERVICE_NAME}
                 """
             }
         }
