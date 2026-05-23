@@ -64,9 +64,32 @@ services:
                 condition: service_healthy
         networks:
             - pvp_scalpel_net
+
+    websocket:
+        image: pvp-s-websocket:latest
+        container_name: pvp-s-websocket
+        restart: unless-stopped
+        env_file:
+            - ./env/redis.env
+            - ./env/mongo.env
+            - ./env/JWT.env
+            - ./env/endpoints.env
+            - ./env/websocket.env
+        environment:
+            WSPORT: "4001"
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            pvp_scalpel_net:
+                aliases:
+                    - websocket
+        ports:
+            - "127.0.0.1:4001:4001"
+        
     # api:
     #     build:
-    #         context: ./api
+        #         context: ./api
     #         dockerfile: Dockerfile
     #     container_name: pvp-scalpel-api
     #     restart: unless-stopped
