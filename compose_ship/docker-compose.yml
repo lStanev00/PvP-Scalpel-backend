@@ -91,6 +91,8 @@ services:
         image: redis/redisinsight:latest
         container_name: pvp-s-redisinsight
         restart: unless-stopped
+        env_file:
+            - ./env/redis.env
         environment:
             RI_APP_PORT: "4050"
         depends_on:
