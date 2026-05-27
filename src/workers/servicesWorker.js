@@ -1,4 +1,4 @@
-// version: 1.8.18
+// version: 1.8.19
 import { rm, writeFile } from "node:fs/promises";
 import { redisCharacterCacheTTL } from "../helpers/redis/connectRedis.js";
 import threadBoot from "../helpers/threadBoot.js";
