@@ -86,6 +86,24 @@ services:
                     - websocket
         ports:
             - "127.0.0.1:4001:4001"
+
+    redisinsight:
+        image: redis/redisinsight:latest
+        container_name: pvp-s-redisinsight
+        restart: unless-stopped
+        env_file:
+            - ./env/redis.env
+        environment:
+            RI_APP_PORT: "4050"
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            - pvp_scalpel_net
+        ports:
+            - "127.0.0.1:4050:4050"
+        volumes:
+            - pvp_s_redisinsight:/data
         
     # api:
     #     build:
@@ -143,6 +161,7 @@ volumes:
             type: none
             o: bind
             device: /home/lych/production-apps/pvp-scalpel/volume/redis
+    pvp_s_redisinsight:
 networks:
     pvp_scalpel_net:
         name: pvp_scalpel_net
