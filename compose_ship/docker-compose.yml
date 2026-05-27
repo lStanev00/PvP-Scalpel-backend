@@ -1,0 +1,168 @@
+services:
+    redis:
+        image: redis:7-alpine
+        container_name: pvp-s-redis
+        user: "999:999"
+        restart: unless-stopped
+        env_file:
+            - ./env/redis.env
+        command:
+            - sh
+            - -c
+            - exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+        volumes:
+            - pvp_s_redis:/data
+        networks:
+            pvp_scalpel_net:
+                aliases:
+                    - redis
+        healthcheck:
+            test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping | grep PONG"]
+            interval: 10s
+            timeout: 3s
+            retries: 5
+
+    frontend:
+        image: pvp-s-frontend:latest
+        container_name: pvp-s-frontend
+        restart: unless-stopped
+        env_file:
+            - ./env/frontend.env
+        networks:
+            - pvp_scalpel_net
+        ports: 
+            - "127.0.0.1:4000:4000"
+
+    workers:
+        image: pvp-s-workers:latest
+        container_name: pvp-s-workers
+        restart: unless-stopped
+        env_file:
+            - ./env/redis.env
+            - ./env/mongo.env
+            - ./env/JWT.env
+            - ./env/endpoints.env
+            - ./env/workers.env
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            - pvp_scalpel_net
+
+    zugee:
+        image: pvp-s-zugee:latest
+        container_name: pvp-s-zugee
+        restart: unless-stopped
+        env_file:
+            - ./env/redis.env
+            - ./env/mongo.env
+            - ./env/JWT.env
+            - ./env/endpoints.env
+            - ./env/zugee.env
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            - pvp_scalpel_net
+
+    websocket:
+        image: pvp-s-websocket:latest
+        container_name: pvp-s-websocket
+        restart: unless-stopped
+        env_file:
+            - ./env/redis.env
+            - ./env/mongo.env
+            - ./env/JWT.env
+            - ./env/endpoints.env
+            - ./env/websocket.env
+        environment:
+            WSPORT: "4001"
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            pvp_scalpel_net:
+                aliases:
+                    - websocket
+        ports:
+            - "127.0.0.1:4001:4001"
+
+    redisinsight:
+        image: redis/redisinsight:latest
+        container_name: pvp-s-redisinsight
+        restart: unless-stopped
+        env_file:
+            - ./env/redis.env
+        environment:
+            RI_APP_PORT: "4050"
+        depends_on:
+            redis:
+                condition: service_healthy
+        networks:
+            - pvp_scalpel_net
+        ports:
+            - "127.0.0.1:4050:4050"
+        volumes:
+            - pvp_s_redisinsight:/data
+        
+    # api:
+    #     build:
+        #         context: ./api
+    #         dockerfile: Dockerfile
+    #     container_name: pvp-scalpel-api
+    #     restart: unless-stopped
+    #     env_file:
+    #         - ./env/redis.env
+    #         - ./env/api.env
+    #     depends_on:
+    #         redis:
+    #             condition: service_healthy
+    #     ports:
+    #         - "3000:3000"
+    #     networks:
+    #         - pvp-scalpel-net
+
+    # websocket:
+    #     build:
+    #         context: ./websocket
+    #         dockerfile: Dockerfile
+    #     container_name: pvp-scalpel-websocket
+    #     restart: unless-stopped
+    #     env_file:
+    #         - ./env/redis.env
+    #         - ./env/websocket.env
+    #     depends_on:
+    #         redis:
+    #             condition: service_healthy
+    #     ports:
+    #         - "3001:3001"
+    #     networks:
+    #         - pvp-scalpel-net
+
+    # worker:
+        # build:
+        #     context: ./worker
+        #     dockerfile: Dockerfile
+        # container_name: pvp-scalpel-worker
+        # restart: unless-stopped
+        # env_file:
+        #     - ./env/redis.env
+        #     - ./env/worker.env
+        # depends_on:
+        #     redis:
+        #         condition: service_healthy
+        # networks:
+        #     - pvp-scalpel-net
+
+volumes:
+    pvp_s_redis:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: /home/lych/production-apps/pvp-scalpel/volume/redis
+    pvp_s_redisinsight:
+networks:
+    pvp_scalpel_net:
+        name: pvp_scalpel_net
+        driver: bridge
