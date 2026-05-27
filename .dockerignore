@@ -16,6 +16,7 @@ temp
 
 .env
 .env.*
+env
 src/bot/bot.env
 
 README_ASSETS
