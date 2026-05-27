@@ -144,19 +144,8 @@ pipeline {
                     cd "$COMPOSE_DIR"
                     # Redis is shared by the app services. Start it if missing, but do not recreate it on each deploy.
                     docker compose up -d --no-recreate redis
-                    # WebSocket needs the shared workers to be ready before it starts accepting traffic.
+                    # WebSocket needs the shared workers to be running before it starts accepting traffic.
                     docker compose up -d --no-recreate workers
-                    timeout_seconds=900
-                    elapsed_seconds=0
-                    until [ "$(docker inspect -f '{{.State.Health.Status}}' pvp-s-workers 2>/dev/null || true)" = "healthy" ]; do
-                        if [ "$elapsed_seconds" -ge "$timeout_seconds" ]; then
-                            echo "Timed out waiting for pvp-s-workers to become healthy."
-                            docker compose ps workers
-                            exit 1
-                        fi
-                        sleep 5
-                        elapsed_seconds=$((elapsed_seconds + 5))
-                    done
                     # Recreate only the selected service. --no-deps prevents dependency services from being recreated.
                     docker compose up -d --no-deps --force-recreate "$WEBSOCKET_SERVICE_NAME"
                 '''
@@ -180,21 +169,10 @@ pipeline {
             steps {
                 sh '''
                     cd "$COMPOSE_DIR"
-                    # REST depends on Redis, workers readiness, and the S3 gateway being started.
+                    # REST depends on Redis, workers, and the S3 gateway being started.
                     docker compose up -d --no-recreate redis
                     docker compose up -d --no-recreate workers
                     docker compose up -d --no-recreate s3-golang
-                    timeout_seconds=900
-                    elapsed_seconds=0
-                    until [ "$(docker inspect -f '{{.State.Health.Status}}' pvp-s-workers 2>/dev/null || true)" = "healthy" ]; do
-                        if [ "$elapsed_seconds" -ge "$timeout_seconds" ]; then
-                            echo "Timed out waiting for pvp-s-workers to become healthy."
-                            docker compose ps workers
-                            exit 1
-                        fi
-                        sleep 5
-                        elapsed_seconds=$((elapsed_seconds + 5))
-                    done
                     # Recreate only the selected service. --no-deps prevents dependency services from being recreated.
                     docker compose up -d --no-deps --force-recreate "$REST_SERVICE_NAME"
                 '''
