@@ -80,7 +80,10 @@ const helpFetch = {
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
 
-            let brackets = (await this.fetchBlizzard(path)).brackets;
+            let brackets = (await this.fetchBlizzard(path)).brackets; // blizzard side bug
+            // let brackets = await this.fetchBlizzard(path);
+            // console.info(brackets);
+            // brackets = brackets.brackets;
             const hasBrackets = Array.isArray(brackets) && brackets.length > 0;
             const bracketFetches = hasBrackets
                 ? brackets.map(bracket =>this.fetchBlizzard(bracket.href))
