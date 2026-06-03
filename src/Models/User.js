@@ -58,11 +58,11 @@ const userSchema = new mongoose.Schema({
         default: 'user',
         
     },
-    discordID: {
-        default: undefined,
+    discordIDs: [{
         type: String,
-        index: true
-    },
+        ref: "DiscordIDs",
+        index: true,
+    }],
     favChars: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Char",
