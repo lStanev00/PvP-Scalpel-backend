@@ -25,6 +25,13 @@ export default async function linkDiscordHandler(interaction) {
         return;
     }
 
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel("Link Discord Account")
+            .setStyle(ButtonStyle.Link)
+            .setURL(linkUrl),
+    );
+
     await interaction.reply({
         content: [
             "🔗 **Connect your Discord account**",
