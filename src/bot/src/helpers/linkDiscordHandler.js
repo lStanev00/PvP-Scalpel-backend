@@ -1,4 +1,5 @@
-import { MessageFlags } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
+
 import { generateLinkDiscordHash } from "../../../caching/linkDiscordCache/linkDiscord.js";
 
 const defaultLinkBaseUrl = "https://www.pvpscalpel.com/linkDiscord";
@@ -25,7 +26,14 @@ export default async function linkDiscordHandler(interaction) {
     }
 
     await interaction.reply({
-        content: `Link your Discord account here:\n${buildDiscordLinkUrl(hash)}`,
+        content: [
+            "🔗 **Connect your Discord account**",
+            "",
+            "Press the button below to link your Discord account with **PvP Scalpel**.",
+            "",
+            "Only you can see this message.",
+        ].join("\n"),
+        components: [row],
         flags: MessageFlags.Ephemeral,
     });
 }
