@@ -527,7 +527,7 @@ async function buildAppliedContent(draft) {
 
     content.push("");
     content.push(
-        "Your application has been submitted for review. A PvP Scalpel team member will contact you soon by DM. \n ### Stay sharp and pump smart. ⚔️",
+        "Your application has been submitted for review. A PvP Scalpel team member will contact you soon by DM. \n### Stay sharp and pump smart. ⚔️",
     );
     return content.join("\n");
 }
