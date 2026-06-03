@@ -17,7 +17,7 @@ function buildDiscordLinkUrl(hash) {
 export default async function linkDiscordHandler(interaction) {
     const hash = await generateLinkDiscordHash(interaction.user.id);
 
-    if (!hash) {
+    if (!hash) { // validate hash 
         await interaction.reply({
             content: "Could not generate a Discord link code. Try again in a bit.",
             flags: MessageFlags.Ephemeral,
@@ -25,6 +25,8 @@ export default async function linkDiscordHandler(interaction) {
         return;
     }
 
+    //build button
+    const linkUrl = buildDiscordLinkUrl(hash);
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setLabel("Link Discord Account")
