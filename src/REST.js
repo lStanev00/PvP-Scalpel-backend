@@ -1,4 +1,4 @@
-// version: 0.0.13
+// version: 0.0.14
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
@@ -40,7 +40,7 @@ app.listen(port, console.info(`REST's running at http://localhost:${port} or ${p
 // const region = await searchRegionFromMapBySlug("eu");
 // console.info(region);
 
-// the lines bellow can become a functionoing module they are ready as is the result is retrived and stored leaderboards of eu tops 
+// the lines bellow can become a functioning module they are ready as is the result is retrived and stored leaderboards of eu tops 
 // const data = await helpFetch.fetchBlizzard("https://eu.api.blizzard.com/data/wow/pvp-season/41/pvp-leaderboard/?namespace=dynamic-eu");
 // const ldbList = data?.leaderboards;
 // for (const {key} of ldbList) {

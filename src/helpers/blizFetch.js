@@ -110,4 +110,6 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
 }
 export default fetchData
 // Example usage
-// fetchData(`eu`, `chamber-of-aspects`, `Jinada`)
+// const mecho = fetchData(`eu`, `chamber-of-aspects`, `Jinada`)
+// const mecho = await fetchData(`eu`, `ravencrest`, `Swapgodxtwo`, false, true);
+// console.info(mecho)

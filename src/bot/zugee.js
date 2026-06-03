@@ -1,4 +1,4 @@
-// version: 1.1.27
+// version: 1.1.32
 
 // This is a discord bot
 // the name of the file is the name of the bot
