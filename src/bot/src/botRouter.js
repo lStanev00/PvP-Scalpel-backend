@@ -5,6 +5,7 @@ import joinHandler, {
     joinButtonHandler,
     joinModalHandler,
 } from "./botHandlers/joinHandler.js";
+import linkDiscordHandler from "./helpers/linkDiscordHandler.js";
 import pingHandler from "./botHandlers/pingHandler.js";
 import searchHandler from "./botHandlers/searchHandler.js";
 import unknownHandler from "./botHandlers/unknownHandler.js";
@@ -91,6 +92,8 @@ export default async function botRouter(interaction) {
                 return await searchHandler(interaction);
             case "join":
                 return await joinHandler(interaction);
+            case "link":
+                return await linkDiscordHandler(interaction);
             default:
                 return await unknownHandler(interaction);
         }
