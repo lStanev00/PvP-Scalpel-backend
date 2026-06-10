@@ -172,7 +172,6 @@ pipeline {
                     # REST depends on Redis, workers, and the S3 gateway being started.
                     docker compose up -d --no-recreate redis
                     docker compose up -d --no-recreate workers
-                    docker compose up -d --no-recreate s3-golang
                     # Recreate only the selected service. --no-deps prevents dependency services from being recreated.
                     docker compose up -d --no-deps --force-recreate "$REST_SERVICE_NAME"
                 '''
