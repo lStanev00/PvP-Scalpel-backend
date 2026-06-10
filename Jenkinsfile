@@ -181,7 +181,18 @@ pipeline {
 
     post {
         always {
-            sh "docker image prune -f"
+            script {
+                lock(resource: "pvp-scalpel-docker-image-prune") {
+                    def pruneStatus = sh(
+                        script: "docker image prune -f",
+                        returnStatus: true
+                    )
+
+                    if (pruneStatus != 0) {
+                        echo "WARNING: Docker image prune failed with exit code ${pruneStatus}; preserving the deployment result."
+                    }
+                }
+            }
         }
     }
 }
