@@ -5,6 +5,8 @@ import mail from "../mailer.js";
 import { getOptions } from "../helpers/cookieOptions.js";
 import bcrypt from 'bcrypt'
 import validateToken from "../helpers/authToken.js";
+import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
+import { validateLinkDiscordHash } from "../caching/linkDiscordCache/linkDiscord.js";
 const JWT_SECRET = process.env.JWT_SECRET
 
 const authController = Router();
@@ -19,6 +21,7 @@ authController.patch("/reset/password", resetPasswordPatch);
 authController.patch("/validate/token", valdiateTokenPatch);
 authController.get("/verify/me", getMe);
 authController.get("/logout", logoutGet);
+authController.post("/link/discord", linkDiscord);
 
 
 async function logoutGet(req, res) {
@@ -424,6 +427,32 @@ async function changeEmailPatch(req, res) {
         res.status(500).end();
         return console.warn(error);
     }
+}
+
+async function linkDiscord(req, res) {
+
+    const user = req.user;
+    if (!user) return jsonResponse(res, 403); // no user means this route is no accessed
+
+    const code = req.body?.code;
+    if (!code) return jsonMessage(res, 403, "There's no valid code, or has expired"); // code missing
+
+    try {
+        const success = await validateLinkDiscordHash(code, user._id);
+
+        if (success === null) return jsonResponse(res, 403);
+        else if (success === undefined)
+            return jsonMessage(res, 409, "This discord id is already claimed");
+        else if (success) {
+            return jsonResponse(res, 201);
+        } else {
+            return jsonResponse(res, 500);
+        }
+    } catch (error) {
+        console.warn(error);
+        return jsonResponse(res, 500);
+    }
+
 }
 
 export default authController;

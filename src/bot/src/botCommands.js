@@ -12,6 +12,11 @@ configDotenv({ path: "src/bot/bot.env" });
 
 const commandBuilders = [
     new SlashCommandBuilder()
+        .setName("link")
+        .setDescription("Generate a private PvP Scalpel account link for your Discord account.")
+        .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
+        .setContexts(InteractionContextType.Guild),
+    new SlashCommandBuilder()
         .setName("join")
         .setDescription("Join PvP Scalpel. Zugee will walk you throw an aplication.")
         .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
