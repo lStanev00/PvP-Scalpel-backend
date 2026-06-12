@@ -21,8 +21,13 @@ const manifestSchema = new Schema(
     },
 );
 
-const VideoMetaSchema = new Schema(
+const MediaMetaSchema = new Schema(
     {
+        type: { 
+            type: String,
+            enum: ["video"],
+            required: true
+        },
         title: {
             type: String,
             required: true,
@@ -52,13 +57,13 @@ const VideoMetaSchema = new Schema(
         },
         manifest: {
             type: manifestSchema,
-            required: true
-        }
+            required: true,
+        },
     },
     {
         timestamps: true,
     },
 );
 
-const VideoMeta = model("VideoMeta", VideoMetaSchema);
-export default VideoMeta;
+const MediaMeta = model("MediaMeta", MediaMetaSchema);
+export default MediaMeta;
