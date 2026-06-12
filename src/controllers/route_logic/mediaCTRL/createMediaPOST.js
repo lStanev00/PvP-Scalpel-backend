@@ -72,8 +72,9 @@ export async function createMediaPOST(req, res) {
         });
 
         await initMediaForm(media);
-        
+
         return jsonResponse(res, 201, media.toObject());
+        
     } catch (error) {
         if (error?.name === "ValidationError" || error?.name === "CastError") {
             return jsonMessage(res, 400, error.message);
