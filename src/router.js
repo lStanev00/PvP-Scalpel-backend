@@ -9,6 +9,7 @@ import userActionCTRL from "./controllers/userActionsCTRL.js";
 import weeklyLadderCTRL from "./controllers/weeklyLadderCTRL.js";
 import CDNCTRL from "./controllers/CDNCTRL.js";
 import gameDataCTRL from "./controllers/gameDataCTRL.js";
+import mediaCTRL from "./controllers/mediaCTRL.js";
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use(`/`, userActionCTRL);
 router.use(`/`, weeklyLadderCTRL);
 router.use("/", CDNCTRL);
 router.use("/", gameDataCTRL);
+router.use("/", mediaCTRL);
 
 export default router

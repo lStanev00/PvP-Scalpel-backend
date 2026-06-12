@@ -5,13 +5,13 @@ import GameBrackets from "./GameBrackets.js";
 
 const manifestSchema = new Schema(
     {
-        videoParts: {
+        meidaParts: {
             type: [String],
             default: [],
         },
         thumbnail: {
             type: String,
-            required: true,
+            default: null,
         },
     },
     {
@@ -23,10 +23,19 @@ const manifestSchema = new Schema(
 
 const MediaMetaSchema = new Schema(
     {
-        type: { 
+        type: {
             type: String,
             enum: ["video"],
-            required: true
+            required: true,
+        },
+        state: {
+            type: String,
+            enum: ["initializing", "uploading", "done"],
+            required: true,
+        },
+        isPrivate: {
+            type: Boolean,
+            default: false,
         },
         title: {
             type: String,
@@ -57,7 +66,7 @@ const MediaMetaSchema = new Schema(
         },
         manifest: {
             type: manifestSchema,
-            required: true,
+            required: false,
         },
     },
     {
