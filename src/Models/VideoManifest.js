@@ -17,6 +17,7 @@ const manifestSchema = new Schema(
     {
         timestamps: false,
         _id: false,
+        versionKey: false,
     },
 );
 
