@@ -1,3 +1,4 @@
+import { uploadPresignLink } from "../../../caching/CDNCache/CDN/cdn.config.js";
 import { initMediaForm } from "../../../caching/mediaCache/mediaCache.js";
 import { jsonMessage, jsonResponse } from "../../../helpers/resposeHelpers.js";
 import MediaMeta from "../../../Models/MediaMeta.js";
@@ -69,12 +70,22 @@ export async function createMediaPOST(req, res) {
             characters : characters ? characters : [],
             bracket,
             manifest,
+            parts
         });
 
         await initMediaForm(media);
 
-        return jsonResponse(res, 201, media.toObject());
-        
+        const uploadURLS = [];
+        for (const part of fileData) {
+            const bucket = "pvp-scalpel-frontend";
+            const keyId = `videos/${media._id}/part_${fileData.findIndex(part)}`;
+
+            const url = await uploadPresignLink({bucket, keyId});
+            if(url.uploadUrl) uploadURLS.push(url.uploadUrl);
+
+        }
+        return jsonResponse(res, 201, {mediaObj: media.toObject(), urls: uploadURLS});
+
     } catch (error) {
         if (error?.name === "ValidationError" || error?.name === "CastError") {
             return jsonMessage(res, 400, error.message);
