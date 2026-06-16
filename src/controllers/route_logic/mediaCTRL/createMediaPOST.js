@@ -61,7 +61,7 @@ export async function createMediaPOST(req, res) {
         } else if (!Array.isArray(fileData) || fileData.length === 0) jsonMessage(res, 500, "1");
 
         const media = await MediaMeta.create({
-            type = type,
+            type,
             state: "initializing",
             isPrivate,
             title,
