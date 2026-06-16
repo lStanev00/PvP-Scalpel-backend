@@ -1,4 +1,6 @@
 import MediaMeta from "../../Models/MediaMeta.js";
+import delCache from "../../helpers/redis/deletersRedis.js";
+import getCache from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 
 const hashKey = "media:data";
@@ -27,6 +29,9 @@ export async function initMediaForm(mongooseDoc) {
 
     return true;
 }
+
+export const getMediaCache = async (key) => await getCache(key, hashKey);
+export const finalizeUploadCache = async (key) => await delCache(key, hashKey);
 
 /**
  * @param {unknown} doc

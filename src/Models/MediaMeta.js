@@ -5,7 +5,7 @@ import GameBrackets from "./GameBrackets.js";
 
 const manifestSchema = new Schema(
     {
-        meidaParts: {
+        mediaParts: {
             type: [String],
             default: [],
         },
@@ -33,6 +33,10 @@ const MediaMetaSchema = new Schema(
             enum: ["initializing", "uploading", "done"],
             required: true,
         },
+        censored:{
+            type: Boolean,
+            default: false
+        },
         isPrivate: {
             type: Boolean,
             default: false,
@@ -40,8 +44,13 @@ const MediaMetaSchema = new Schema(
         title: {
             type: String,
             required: true,
+            default: ""
         },
-        description: String,
+        description: {
+            required: false,
+            type: String,
+            default: ""
+        },
         views: {
             type: Number,
             default: 0,
