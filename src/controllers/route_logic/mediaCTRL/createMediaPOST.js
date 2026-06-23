@@ -41,14 +41,8 @@ import MediaMeta from "../../../Models/MediaMeta.js";
  */
 export async function createMediaPOST(req, res) {
     const {
-        type,
-        isPrivate,
-        title,
-        description,
-        characters,
-        bracket,
-        manifest,
         fileData,
+        manifest,
     } = req.body ?? {};
 
     try {
@@ -61,14 +55,10 @@ export async function createMediaPOST(req, res) {
         } else if (!Array.isArray(fileData) || fileData.length === 0) return jsonMessage(res, 500, "1");
 
         const media = await MediaMeta.create({
-            type,
+            type : "video",
             state: "initializing",
-            isPrivate,
-            title,
-            description,
             author: req.user._id,
-            characters : characters ? characters : [],
-            bracket,
+            // characters : characters ? characters : [],
             manifest,
         });
 
