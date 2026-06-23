@@ -72,6 +72,7 @@ const MediaMetaSchema = new Schema(
             type: Number,
             ref: GameBrackets,
             required: false,
+            default: 0,
         },
         manifest: {
             type: manifestSchema,
