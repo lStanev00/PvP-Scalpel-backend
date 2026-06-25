@@ -3,6 +3,7 @@ import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import GameClass from "../Models/GameClass.js";
 import GameSpecialization from "../Models/GameSpecialization.js";
 import retrieveValidSpells from "./route_logic/gameDataCTRL/retrieveValidSpells.js";
+import { getGameBrackets } from "../caching/gameBrackets/gameBracketsCache.js";
 
 const gameDataCTRL = Router();
 
@@ -10,6 +11,7 @@ const TEN_DAYS_SECONDS = 60 * 60 * 24 * 10;
 
 gameDataCTRL.get("/game/classes", getGameClasses);
 gameDataCTRL.get("/game/specs", getGameSpecs);
+gameDataCTRL.get("/game/brackets", getBrackets);
 gameDataCTRL.post("/game/spells", getGameSpellsByIds);
 
 function setTenDayCache(res) {
@@ -46,6 +48,16 @@ async function getGameSpellsByIds(req, res) {
     } catch (error) {
         console.warn(error);
         return jsonMessage(res, 500, "Internal server error");
+    }
+}
+
+async function getBrackets(_, res) {
+    try {
+        const brackets = getGameBrackets();
+        if(brackets) return jsonResponse(res, 200, brackets);
+    } catch (error) {
+        console.error(error);
+        return jsonResponse(res, 500);
     }
 }
 
