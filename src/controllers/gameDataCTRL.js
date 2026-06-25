@@ -54,7 +54,10 @@ async function getGameSpellsByIds(req, res) {
 async function getBrackets(_, res) {
     try {
         const brackets = await getGameBrackets();
-        if(brackets) return jsonResponse(res, 200, brackets);
+        if(brackets){
+            setTenDayCache(res);
+            return jsonResponse(res, 200, brackets);
+        } 
     } catch (error) {
         console.error(error);
         return jsonResponse(res, 500);
