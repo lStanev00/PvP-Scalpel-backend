@@ -42,7 +42,6 @@ import MediaMeta from "../../../Models/MediaMeta.js";
 export async function createMediaPOST(req, res) {
     const {
         fileData,
-        manifest,
     } = req.body ?? {};
 
     try {
@@ -58,8 +57,10 @@ export async function createMediaPOST(req, res) {
             type : "video",
             state: "initializing",
             author: req.user._id,
+            manifest : {
+                chunksNumber: fileData.length
+            }
             // characters : characters ? characters : [],
-            manifest,
         });
 
         await initMediaForm(media);

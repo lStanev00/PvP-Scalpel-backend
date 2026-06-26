@@ -9,6 +9,9 @@ const manifestSchema = new Schema(
             type: [String],
             default: [],
         },
+        chunksNumber: {
+            type: Number
+        },
         thumbnail: {
             type: String,
             default: null,
