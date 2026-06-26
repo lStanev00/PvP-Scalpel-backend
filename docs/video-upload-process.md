@@ -25,7 +25,7 @@ Important source files:
 
 ## End-to-End Sequence
 
-1. An authenticated admin calls `POST /media` with media metadata and `fileData`.
+1. An authenticated admin calls `POST /media` with `fileData` and, optionally, an initial `manifest`.
 2. The REST handler creates a `MediaMeta` document with `state: "initializing"`.
 3. The new media document is cached in Redis under the `media:data` hash for two hours.
 4. For each item in `fileData`, the backend asks the CDN service for a presigned upload URL.
@@ -33,7 +33,7 @@ Important source files:
 6. The client uploads video parts directly to the CDN using the returned presigned URLs.
 7. After each successful part upload, the client sends a WebSocket `uploadMedia` message with inner `type: "uploadFeedback"`.
 8. The WebSocket handler records each uploaded part route in `mediaDoc.manifest.mediaParts[index]` and moves the media state to `uploading`.
-9. The client may update title, description, bracket, characters, and privacy through the WebSocket `metaUpdate` message.
+9. The client updates title, description, bracket, characters, and privacy through the WebSocket `metaUpdate` message. The current REST initialization handler does not read those editable metadata fields from the request body.
 10. The client requests a thumbnail upload URL with `getThumbnailImageUpload`, uploads the thumbnail directly to the CDN, then records the thumbnail path with `thumbnailUpdate`.
 11. The client sends `finalize` with the expected `partsCount`.
 12. The WebSocket handler validates required metadata, uploaded parts, and thumbnail. If valid, it sets `state: "done"` and clears the Redis upload cache entry.
@@ -52,12 +52,6 @@ Expected body shape:
 
 ```json
 {
-  "type": "video",
-  "isPrivate": false,
-  "title": "Arena match",
-  "description": "Optional description",
-  "characters": ["<characterObjectId>"],
-  "bracket": 2,
   "manifest": {
     "mediaParts": [],
     "thumbnail": null
@@ -71,18 +65,15 @@ Expected body shape:
 
 `fileData` is required and must be a non-empty array. The backend does not currently inspect each file item for size, MIME type, checksum, or filename. It only uses the array length to create one presigned upload URL per item.
 
+The current handler only destructures `fileData` and `manifest` from the request body. It always creates a video media document and ignores request-body values such as `type`, `isPrivate`, `title`, `description`, `characters`, and `bracket`. Those fields keep their schema defaults until changed through `metaUpdate`.
+
 On success, the handler creates:
 
 ```js
 {
-  type,
+  type: "video",
   state: "initializing",
-  isPrivate,
-  title,
-  description,
   author: req.user._id,
-  characters: characters ? characters : [],
-  bracket,
   manifest
 }
 ```
@@ -327,13 +318,13 @@ Important fields:
 | `type` | Currently only `"video"` is allowed. |
 | `state` | Upload lifecycle state: `"initializing"`, `"uploading"`, or `"done"`. |
 | `censored` | Boolean flag, default `false`. |
-| `isPrivate` | Boolean privacy flag, default `false`. |
-| `title` | Required title string, default `""`. |
+| `isPrivate` | Boolean privacy flag, default `false`; currently set after initialization through `metaUpdate`. |
+| `title` | Required title string, default `""`; must be non-empty before `finalize`. |
 | `description` | Optional description string, default `""`. |
 | `views` | View counter, default `0`. |
 | `author` | User ObjectId reference. |
-| `characters` | Array of character ObjectId references. |
-| `bracket` | Game bracket numeric reference. |
+| `characters` | Array of character ObjectId references; currently set after initialization through `metaUpdate`. |
+| `bracket` | Game bracket numeric reference, default `0`; currently set after initialization through `metaUpdate` when a truthy value is provided. |
 | `manifest.mediaParts` | Ordered list of CDN object paths for video parts. |
 | `manifest.thumbnail` | CDN object path for the thumbnail. |
 
@@ -411,7 +402,9 @@ Common WebSocket failures:
 These are current code details that future work should account for:
 
 - The TypeScript declaration uses `meidaParts`, while the Mongoose schema and runtime code use `mediaParts`.
-- `createMediaPOST` uses `fileData.findIndex(part)` to build part keys. If `fileData` contains duplicate object references or duplicate primitive values, `findIndex` can return the first matching index instead of the current loop position.
+- The `CreateMediaBody` typedef still lists editable metadata fields, but the current `createMediaPOST` runtime only reads `fileData` and `manifest`.
+- `createMediaPOST` builds part keys with `fileData.entries()`, so object keys are generated as `videos/<mediaId>/part_<index>` in request array order.
+- `createMediaPOST` only pushes CDN responses that contain `uploadUrl`, so a degraded CDN response can make `urls.length` smaller than `fileData.length`.
 - `uploadPresignLink()` supports `mimeType`, but the current media upload calls do not pass it.
 - The CDN authorization token is hardcoded in `cdn.config.js`, while the README lists `JWT_CDN_PUBLIC` as an environment variable. This should be reviewed before production hardening.
 - The backend records the object paths reported by the client; it does not currently verify that the CDN objects actually exist before finalization.
@@ -429,5 +422,5 @@ From the backend contract, a compatible client should:
 4. Send `uploadFeedback` for each uploaded part with the correct part index and CDN route.
 5. Keep a WebSocket connection authenticated with the same user or an admin user.
 6. Upload a thumbnail through the thumbnail presign flow.
-7. Send all required metadata before finalization.
+7. Send required editable metadata, especially a non-empty `title`, through `metaUpdate` before finalization.
 8. Call `finalize` before the two-hour Redis upload cache expires.
