@@ -33,7 +33,7 @@ const MediaMetaSchema = new Schema(
         },
         state: {
             type: String,
-            enum: ["initializing", "uploading", "done"],
+            enum: ["initializing", "uploading", "await_data", "done"],
             required: true,
         },
         censored:{
