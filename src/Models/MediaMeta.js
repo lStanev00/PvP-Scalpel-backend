@@ -46,11 +46,9 @@ const MediaMetaSchema = new Schema(
         },
         title: {
             type: String,
-            required: true,
             default: ""
         },
         description: {
-            required: false,
             type: String,
             default: ""
         },
