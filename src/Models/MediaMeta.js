@@ -9,6 +9,9 @@ const manifestSchema = new Schema(
             type: [String],
             default: [],
         },
+        chunksNumber: {
+            type: Number
+        },
         thumbnail: {
             type: String,
             default: null,
@@ -43,11 +46,9 @@ const MediaMetaSchema = new Schema(
         },
         title: {
             type: String,
-            required: true,
             default: ""
         },
         description: {
-            required: false,
             type: String,
             default: ""
         },
@@ -72,6 +73,7 @@ const MediaMetaSchema = new Schema(
             type: Number,
             ref: GameBrackets,
             required: false,
+            default: 0,
         },
         manifest: {
             type: manifestSchema,

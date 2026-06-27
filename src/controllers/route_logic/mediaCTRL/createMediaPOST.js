@@ -41,13 +41,6 @@ import MediaMeta from "../../../Models/MediaMeta.js";
  */
 export async function createMediaPOST(req, res) {
     const {
-        type,
-        isPrivate,
-        title,
-        description,
-        characters,
-        bracket,
-        manifest,
         fileData,
     } = req.body ?? {};
 
@@ -58,26 +51,24 @@ export async function createMediaPOST(req, res) {
                 400,
                 "There's not provided data for the file key should be `fileData`",
             );
-        } else if (!Array.isArray(fileData) || fileData.length === 0) jsonMessage(res, 500, "1");
+        } else if (!Array.isArray(fileData) || fileData.length === 0) return jsonMessage(res, 500, "1");
 
         const media = await MediaMeta.create({
-            type = type,
+            type : "video",
             state: "initializing",
-            isPrivate,
-            title,
-            description,
             author: req.user._id,
-            characters : characters ? characters : [],
-            bracket,
-            manifest,
+            manifest : {
+                chunksNumber: fileData.length
+            }
+            // characters : characters ? characters : [],
         });
 
         await initMediaForm(media);
 
         const uploadURLS = [];
-        for (const part of fileData) {
+        for (const [index] of fileData.entries()) {
             const bucket = "pvp-scalpel-frontend";
-            const keyId = `videos/${media._id}/part_${fileData.findIndex(part)}`;
+            const keyId = `videos/${media._id}/part_${index}`;
 
             const url = await uploadPresignLink({bucket, keyId});
             if(url.uploadUrl) uploadURLS.push(url.uploadUrl);
