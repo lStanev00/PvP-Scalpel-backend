@@ -105,6 +105,10 @@ export default async function uploadHandler(ws, msg) {
             mediaDoc.manifest.mediaParts[index] = route;
             mediaDoc.state = "uploading";
 
+            if(mediaDoc.manifest.chunksNumber === mediaDoc.manifest.mediaParts.length) {
+                mediaDoc.state = "await_data";
+            }
+
             const saved = await mediaDoc.save();
             await initMediaForm(saved);
 
