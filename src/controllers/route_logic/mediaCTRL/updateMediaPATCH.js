@@ -42,6 +42,9 @@ export default async function updateMediaPATCH(req, res) {
     try {
         const mediaDoc = await MediaMeta.findById(_id);
         if(!mediaDoc) return jsonMessage(res, 404, "The media with this id does not exist");
+        console.info(mediaDoc.author)
+        console.info(user.user._id)
+        console.info(user)
         if(mediaDoc.author !== user._id) return jsonResponse(res, 403);
 
         if(title) mediaDoc.title = title;
