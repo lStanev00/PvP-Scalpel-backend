@@ -8,7 +8,7 @@ import updateMediaPATCH from "./route_logic/mediaCTRL/updateMediaPATCH.js";
 const mediaCTRL = Router();
 
 mediaCTRL.post("/media", requireAdmin, createMediaPOST);
-mediaCTRL.patch("media", updateMediaPATCH);
+mediaCTRL.patch("/media", updateMediaPATCH);
 mediaCTRL.get("/userMedia", requireAdmin, userMediaGET);
 
 
