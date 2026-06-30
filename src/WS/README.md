@@ -110,7 +110,7 @@ Allowed origins:
 - `https://app.pvpscalpel.com`
 - `https://guid.pvpscalpel.com`
 - `https://api.pvpscalpel.com/`
-- `https://pvp-scalpel-frontend-production.up.railway.app`
+- `https://quarantine-uploads-production.up.railway.app`
 - `http://localhost:5173`
 - `http://localhost:1420`
 - `http://tauri.localhost`
