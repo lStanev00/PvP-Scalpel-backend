@@ -140,7 +140,7 @@ export default async function uploadHandler(ws, msg) {
         } else if (type === "getThumbnailImageUpload") {
             // issue a thumbnail post url
 
-            const bucket = "pvp-scalpel-frontend";
+            const bucket = "quarantine-uploads";
             const keyId = `videos/${mediaDoc._id}/thumbnail`;
 
             const url = await uploadPresignLink({ bucket, keyId });

@@ -108,7 +108,7 @@ The request includes:
 
 ```json
 {
-  "bucket": "pvp-scalpel-frontend",
+  "bucket": "quarantine-uploads",
   "keyId": "videos/<mediaId>/part_<index>"
 }
 ```

@@ -67,10 +67,10 @@ export async function createMediaPOST(req, res) {
 
         const uploadURLS = [];
         for (const [index] of fileData.entries()) {
-            const bucket = "pvp-scalpel-frontend";
+            const quarantineBocket = "quarantine-uploads";
             const keyId = `videos/${media._id}/part_${index}`;
 
-            const url = await uploadPresignLink({bucket, keyId});
+            const url = await uploadPresignLink({bucket: quarantineBocket, keyId});
             if(url.uploadUrl) uploadURLS.push(url.uploadUrl);
 
         }
