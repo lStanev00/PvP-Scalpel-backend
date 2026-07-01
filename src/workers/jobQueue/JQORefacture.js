@@ -96,6 +96,14 @@ async function startQueue() {
                         await QueueWorker2.retrieveCharacter(jobData);
                     }
                 }
+            } else if(type === "processMedia") {
+                try {
+                    const worker1Jobs = (await QueueWorker1.getWorkerJobs()).length;
+                    const worker2Jobs = (await QueueWorker2.getWorkerJobs()).length;
+                    
+                } catch (error) {
+                    
+                }
             }
             currentJobInfo = null;
         }
