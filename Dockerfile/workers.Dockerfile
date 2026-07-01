@@ -23,12 +23,11 @@ RUN npm ci --omit=dev \
     && npm cache clean --force \
     && apk del .build-deps
 
-COPY src ./src
-COPY docker/worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
+COPY --chown=node:node src ./src
+COPY --chown=node:node docker/worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
 
 RUN chmod +x /usr/local/bin/worker-entrypoint.sh \
     && mkdir -p /run/clamav /var/lib/clamav /var/log/clamav \
-    && chown -R node:node /app \
     && chmod 777 /run/clamav
 
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/worker-entrypoint.sh"]
