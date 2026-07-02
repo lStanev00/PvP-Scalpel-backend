@@ -21,7 +21,9 @@ telling this approach is better and safer but is more controlled from me, which 
 
 Process video/media after upload
 1 Save to non-public quarantine bucket ✅
-2 Malware scan after each upload finishes // => Working on 
+2 Malware scan after each upload finishes // => Working on
+
+ - dockerized the antivirus software in the workers container so can be called inside also mapped the volume of the bucket to the container
 3 Video MIME/type validation — MP4, MOV, magic bytes, etc.
 4 AI content checks — pornography, non-game content, watermarks, and legal/compliance issues will be censored, flagged, and reported where legally required
 5 Content ownership & license checks
@@ -30,6 +32,8 @@ Process video/media after upload
 
 
 --- These are non relevant to the project comments ---
-76k
-28k
+76k 
+28k pass
+148k - x1756 ~ x8.58g = 172k(32)
+101k + 151k
 --- ///////////////////* END *//////////////////// ---
