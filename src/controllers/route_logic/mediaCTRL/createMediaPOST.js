@@ -1,5 +1,4 @@
 import { uploadPresignLink } from "../../../caching/CDNCache/CDN/cdn.config.js";
-import { initMediaForm } from "../../../caching/mediaCache/mediaCache.js";
 import { jsonMessage, jsonResponse } from "../../../helpers/resposeHelpers.js";
 import MediaMeta from "../../../Models/MediaMeta.js";
 
@@ -62,8 +61,6 @@ export async function createMediaPOST(req, res) {
             }
             // characters : characters ? characters : [],
         });
-
-        await initMediaForm(media);
 
         const uploadURLS = [];
         for (const [index] of fileData.entries()) {

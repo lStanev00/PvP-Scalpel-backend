@@ -352,7 +352,7 @@ const ttl = 7200;
 
 Lifecycle:
 
-- `initMediaForm(mediaDoc)` validates the Mongoose document and stores `mediaDoc.toObject()` in Redis.
+- `cacheMedia(mediaDoc)` validates the Mongoose document and stores `mediaDoc.toObject()` in Redis.
 - The cache entry key is the media document `_id`.
 - The cache entry TTL is 7200 seconds, or two hours.
 - `getMediaCache(mediaID)` is required before the WebSocket handler will process upload actions.

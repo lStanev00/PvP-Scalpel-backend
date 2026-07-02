@@ -12,7 +12,7 @@ await threadBoot(true);
 
 const QueueWorker1 = new QueueWorker("QueueWorker1"); // rest + ws
 const QueueWorker2 = new QueueWorker("QueueWorker2"); // ws
-const QueueWorker3 = new QueueWorker("QueueWorker3"); // media
+const QueueWorker3 = new QueueWorker("QueueWorker3"); // media can put non time sensitive
 
 let draining = false;
 let currentJobInfo = null;
@@ -99,7 +99,7 @@ async function startQueue() {
                 }
             } else if(type === "processMedia") {
                 try {
-                                        
+
                 } catch (error) {
                     
                 }
