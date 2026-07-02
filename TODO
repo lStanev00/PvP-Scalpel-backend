@@ -16,4 +16,24 @@ Please note the planned resolution will resolve in manny proccess spawns which i
 for this platform i dont see any other "native" resolution, i do it that way so we stay out of outside dependancies,
 which if you are developer and read this u alredy know they are being exploited and this resolve in vonurabilities, am not
 telling this approach is better and safer but is more controlled from me, which is my safespot.
-76k
+
+01.07/26 new task
+
+Process video/media after upload
+1 Save to non-public quarantine bucket ✅
+2 Malware scan after each upload finishes // => Working on
+
+ - dockerized the antivirus software in the workers container so can be called inside also mapped the volume of the bucket to the container
+3 Video MIME/type validation — MP4, MOV, magic bytes, etc.
+4 AI content checks — pornography, non-game content, watermarks, and legal/compliance issues will be censored, flagged, and reported where legally required
+5 Content ownership & license checks
+6 File compression to reduce size
+7 Render/export pipeline into streamable format
+
+
+--- These are non relevant to the project comments ---
+76k 
+28k pass
+148k - x1756 ~ x8.58g = 172k(32)
+101k + 151k
+--- ///////////////////* END *//////////////////// ---
