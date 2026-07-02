@@ -10,8 +10,9 @@ import { delay } from "../../helpers/startBGTask.js";
 
 await threadBoot(true);
 
-const QueueWorker1 = new QueueWorker("QueueWorker1");
-const QueueWorker2 = new QueueWorker("QueueWorker2");
+const QueueWorker1 = new QueueWorker("QueueWorker1"); // rest + ws
+const QueueWorker2 = new QueueWorker("QueueWorker2"); // ws
+const QueueWorker3 = new QueueWorker("QueueWorker3"); // media
 
 let draining = false;
 let currentJobInfo = null;
@@ -98,9 +99,7 @@ async function startQueue() {
                 }
             } else if(type === "processMedia") {
                 try {
-                    const worker1Jobs = (await QueueWorker1.getWorkerJobs()).length;
-                    const worker2Jobs = (await QueueWorker2.getWorkerJobs()).length;
-                    
+                                        
                 } catch (error) {
                     
                 }
