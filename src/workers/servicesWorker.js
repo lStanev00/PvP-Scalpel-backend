@@ -1,4 +1,4 @@
-// version: 1.9.0
+// version: 1.9.1
 import { promisify } from "node:util";
 import { redisCharacterCacheTTL } from "../helpers/redis/connectRedis.js";
 import threadBoot from "../helpers/threadBoot.js";
@@ -33,7 +33,7 @@ async function scanFolder(path) {
                 "--fdpass",
                 "--config-file",
                 "/etc/clamav/clamd.conf",
-                "--recursive",
+                "--multiscan",
                 "--infected",
                 folderPath,
             ],

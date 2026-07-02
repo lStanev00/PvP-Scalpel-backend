@@ -55,4 +55,4 @@ echo "Testing clamd..."
 clamdscan --fdpass --config-file="$CLAMD_CONF" --version
 
 echo "Starting Node worker..."
-exec su-exec node "$@"
+exec su-exec node:982 "$@"
