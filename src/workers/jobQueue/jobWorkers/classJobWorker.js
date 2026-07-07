@@ -165,6 +165,23 @@ export default class QueueWorker {
         return await this.pushJob(queueJob);
     }
 
+    async processMedia(job) {
+        const {type, data} = job;
+        if (type !== "processMedia") {
+            return JQOLog.warn(`${type} is not processMedia`);
+        }
+
+        if(!data._id) {
+            return JQOLog.warn("there's no id in the job : processMedia")
+        }
+        const jobs = await this.getQueuedJobs();
+        const exist = jobs.find(entry => entry._id === data._id);
+
+        if(exist.length > 0) return JQOLog.warn(`ProcessMedia job already exist logging the data next line\n${job}`);
+
+        return await this.pushJob(job);
+    }
+
     async registerListeners() {
         if (!this.isRunning || this.processRef === undefined) {
             return JQOLog.warn(
@@ -261,6 +278,9 @@ export default class QueueWorker {
                     context: data,
                 }).catch(JQOLog.error);
             }
+        } else if (type === "processMedia") {
+            if(job) await this.removeWorkerJob(job).catch(JQOLog.error);
+
         }
     }
 }

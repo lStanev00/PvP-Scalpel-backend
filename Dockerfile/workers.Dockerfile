@@ -9,6 +9,7 @@ RUN apk add --no-cache \
         clamav \
         clamav-daemon \
         clamav-scanner \
+        ffmpeg \
         freshclam \
         su-exec \
         tini \
