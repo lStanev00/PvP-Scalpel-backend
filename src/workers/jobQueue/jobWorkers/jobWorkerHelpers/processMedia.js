@@ -1,10 +1,10 @@
-import scanFolder from "../../../../helpers/scanFolder.js";
+import { detectMimeFromFile, scanFolder } from "./processMedia/bucketFSWorkerOps.js";
 import MediaMeta from "../../../../Models/MediaMeta.js";
 
 export default async function processMedia(job) {
     const { type, data } = job;
     const { _id } = data;
-
+    const quarantineBucket = "/quarantine-uploads";
     try {
         const workDoc = await MediaMeta.findById(_id);
         // validations
@@ -17,8 +17,10 @@ export default async function processMedia(job) {
         workDoc.state = "processing";
         await workDoc.save();
 
-        const quarantinePath = `/quarantine-uploads/${workDoc.id}`;
+        const subFolder = workDoc.type === "video" ? "videos" : "";
+        const quarantinePath = `${quarantineBucket}/${subFolder}/${workDoc.id}`;
 
+        // step 1 virus/harmfull check
         const mawareScan = await scanFolder(quarantinePath);
         if (mawareScan.infected) {
             workDoc.quarantined = true;
@@ -36,8 +38,22 @@ export default async function processMedia(job) {
         }
 
         console.info("maware scan passed");
+        // step 2 mime type pass
+        for (const innerPath of workDoc.manifest.mediaParts) {
+            // innerPath example => videos/6a467f2086a1dea21699bd1e/part_0
+            const path = `${quarantineBucket}/${innerPath}`;
+            const mimeFormat = await detectMimeFromFile(path);
+            if (mimeFormat.startsWith("application/octet-stream")) {
+                workDoc.quarantined = true;
+                await endDocProcessing(workDoc);
 
-        
+                console.warn(
+                    `The file is with incorrect mime type and will be quarantined.\n=> path:${path}\n=> owner ID: ${workDoc.author}`
+                );
+
+                return
+            }
+        }
     } catch (error) {}
 }
 

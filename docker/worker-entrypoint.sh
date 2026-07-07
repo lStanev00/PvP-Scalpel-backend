@@ -4,6 +4,8 @@ set -e
 CLAMD_CONF="/etc/clamav/clamd.conf"
 FRESHCLAM_CONF="/etc/clamav/freshclam.conf"
 CLAMD_SOCKET="/run/clamav/clamd.sock"
+BUCKET_ROOT="${BUCKET_ROOT:-/mnt/s3-bucket}"
+BUCKET_GROUP_GID="${BUCKET_GROUP_GID:-982}"
 
 echo "Preparing ClamAV config..."
 
@@ -54,5 +56,17 @@ done
 echo "Testing clamd..."
 clamdscan --fdpass --config-file="$CLAMD_CONF" --version
 
+echo "Testing ffmpeg..."
+ffmpeg -version | head -n 1
+ffprobe -version | head -n 1
+
+if [ -d "$BUCKET_ROOT" ]; then
+    echo "Checking bucket read access for node:$BUCKET_GROUP_GID..."
+    if ! su-exec node:"$BUCKET_GROUP_GID" sh -c 'test -r "$1" && test -x "$1"' sh "$BUCKET_ROOT"; then
+        echo "Worker cannot read bucket mount at $BUCKET_ROOT as node:$BUCKET_GROUP_GID"
+        exit 1
+    fi
+fi
+
 echo "Starting Node worker..."
-exec su-exec node:982 "$@"
+exec su-exec node:"$BUCKET_GROUP_GID" "$@"
