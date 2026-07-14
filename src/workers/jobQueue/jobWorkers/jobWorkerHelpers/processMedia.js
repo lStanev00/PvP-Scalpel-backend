@@ -1,5 +1,6 @@
 import { detectMimeFromFile, scanFolder } from "./processMedia/bucketFSWorkerOps.js";
 import MediaMeta from "../../../../Models/MediaMeta.js";
+import enqueueAIValidation from "./processMedia/enqueueAIValidation.js";
 
 export default async function processMedia(job) {
     const { type, data } = job;
@@ -26,7 +27,7 @@ export default async function processMedia(job) {
             workDoc.quarantined = true;
             await endDocProcessing(workDoc);
 
-            console.warn(`MAWARE:\n media id: ${workDoc.id}\nuser it: ${workDoc.author}`);
+            return console.warn(`MAWARE:\n media id: ${workDoc.id}\nuser it: ${workDoc.author}`);
         }
 
         if (!mawareScan.clean) {
@@ -48,12 +49,35 @@ export default async function processMedia(job) {
                 await endDocProcessing(workDoc);
 
                 console.warn(
-                    `The file is with incorrect mime type and will be quarantined.\n=> path:${path}\n=> owner ID: ${workDoc.author}`
+                    `The file is with incorrect mime type and will be quarantined.\n=> path:${path}\n=> owner ID: ${workDoc.author}`,
                 );
 
-                return
+                return;
             }
         }
+
+        // step 3 content clarity check with local ai
+        for (const innerPath of workDoc.manifest.mediaParts) {
+            const path = `${quarantineBucket}/${innerPath}`;
+            const validation = await enqueueAIValidation(path);
+            console.info(
+                `conclusion for: ${path}\n${validation.reasons.join("\n  => ")}\n results in: ${validation.decision} \nwith confidence: ${validation.confidence}`,
+            );
+
+            if (validation.decision === "allow") continue;
+
+            if (validation.pornography) {
+                console.warn(path + ` is pornography!`);
+            }
+
+            if (validation.decision === "manual_review")
+                console.warn(workDoc.id + " needs manual review");
+            workDoc.censored = true;
+            await workDoc.save();
+            await endDocProcessing(workDoc);
+        }
+
+        // STEP 6 Render/export pipeline into streamable format
     } catch (error) {}
 }
 
