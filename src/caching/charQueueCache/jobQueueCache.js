@@ -34,9 +34,17 @@ const humanReadableName = "Job Queue Cache";
  */
 
 /**
+ * One media-processing queue entry stored in the global Redis queue.
+ *
+ * @typedef {object} ProcessMediaQueueJob
+ * @property {"processMedia"} type
+ * @property {{_id: string}} data
+ */
+
+/**
  * One job entry stored in the global Redis queue.
  *
- * @typedef {RetrieveCharacterQueueJob | BulkRetrieveCharacterQueueJob} QueueJob
+ * @typedef {RetrieveCharacterQueueJob | BulkRetrieveCharacterQueueJob | ProcessMediaQueueJob} QueueJob
  */
 
 /**
@@ -92,6 +100,17 @@ function validateJobQueueEntry(jobEntry) {
                 validateCharacterQueueJobData(jobData, "bulkRetrieveCharacter"),
             ),
         };
+    }
+
+    if (jobEntry.type === "processMedia") {
+        if (!jobEntry.data || typeof jobEntry.data !== "object" || Array.isArray(jobEntry.data)) {
+            throw new TypeError("processMedia job data must be an object.");
+        }
+        if (typeof jobEntry.data._id !== "string" || jobEntry.data._id.trim() === "") {
+            throw new TypeError("processMedia jobs require a non-empty _id value.");
+        }
+
+        return jobEntry;
     }
 
     throw new TypeError(`Unsupported job queue entry type "${jobEntry.type}".`);

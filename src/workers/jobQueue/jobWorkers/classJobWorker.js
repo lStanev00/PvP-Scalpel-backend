@@ -174,10 +174,10 @@ export default class QueueWorker {
         if(!data._id) {
             return JQOLog.warn("there's no id in the job : processMedia")
         }
-        const jobs = await this.getQueuedJobs();
-        const exist = jobs.find(entry => entry._id === data._id);
+        const jobs = await this.getWorkerJobs();
+        const exists = jobs.some((entry) => entry?.data?._id === data._id);
 
-        if(exist.length > 0) return JQOLog.warn(`ProcessMedia job already exist logging the data next line\n${job}`);
+        if(exists) return JQOLog.warn(`ProcessMedia job already exist logging the data next line\n${job}`);
 
         return await this.pushJob(job);
     }
@@ -279,8 +279,10 @@ export default class QueueWorker {
                 }).catch(JQOLog.error);
             }
         } else if (type === "processMedia") {
-            if(job) await this.removeWorkerJob(job).catch(JQOLog.error);
+            const job = data?.job;
+            if (!job) return JQOLog.warn("processMedia completion is missing its job data");
 
+            await this.removeWorkerJob(job).catch(JQOLog.error);
         }
     }
 }

@@ -1,6 +1,7 @@
 import { detectMimeFromFile, scanFolder } from "./processMedia/bucketFSWorkerOps.js";
 import MediaMeta from "../../../../Models/MediaMeta.js";
 import enqueueAIValidation from "./processMedia/enqueueAIValidation.js";
+import concatToStream from "./processMedia/concatToStream.js";
 
 export default async function processMedia(job) {
     const { type, data } = job;
@@ -78,7 +79,10 @@ export default async function processMedia(job) {
         }
 
         // STEP 6 Render/export pipeline into streamable format
-    } catch (error) {}
+
+        const result = await concatToStream(workDoc.id, workDoc.manifest.mediaParts);
+        console.info(result);
+    } catch (error) {console.warn(error)}
 }
 
 async function endDocProcessing(workDoc) {

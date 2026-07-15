@@ -1,6 +1,7 @@
 import { redisCache } from "../../../helpers/redis/connectRedis.js";
 import threadBoot from "../../../helpers/threadBoot.js";
 import prepareCharData from "./jobWorkerHelpers/prepareCharData.js";
+import processMedia from "./jobWorkerHelpers/processMedia.js";
 
 await threadBoot(true);
 const IDLE_TIMEOUT_MS = 30_000;
@@ -44,6 +45,8 @@ process.on("message", async (jobInfo) => {
                         job: currentJobInfo,
                     },
                 });
+            } else if (type === "processMedia") {
+                await processMedia(currentJobInfo);
             }
         }
     } catch (e) {

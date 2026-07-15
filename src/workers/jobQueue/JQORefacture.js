@@ -99,7 +99,7 @@ async function startQueue() {
                 }
             } else if(type === "processMedia") {
                 try {
-
+                    await QueueWorker3.processMedia(currentJobInfo)
                 } catch (error) {
                     
                 }
