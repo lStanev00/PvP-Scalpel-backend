@@ -180,7 +180,7 @@ function pathModuleSafeNormalize(filePath) {
     const normalizedPath = path.posix.normalize(filePath);
     if (
         normalizedPath !== filePath ||
-        !/^\/mnt\/work\/[a-f\d]{24}\/source\/part_\d+$/.test(normalizedPath)
+        !/^\/mnt\/work\/[a-f\d]{24}\/source\/media\.mp4$/.test(normalizedPath)
     ) {
         throw new TypeError(`Unsafe AI video source path: ${filePath}`);
     }

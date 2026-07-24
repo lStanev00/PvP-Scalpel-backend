@@ -16,7 +16,7 @@ function resolveWorkPath(filePath) {
     if (
         normalizedPath !== filePath ||
         !normalizedPath.startsWith(`${WORK_ROOT}/`) ||
-        !/^\/mnt\/work\/[a-f\d]{24}\/source(?:\/(?:part_\d+|thumbnail))?$/.test(
+        !/^\/mnt\/work\/[a-f\d]{24}\/source(?:\/(?:part_\d+|media\.mp4|thumbnail))?$/.test(
             normalizedPath,
         )
     ) {
