@@ -2,11 +2,11 @@
     This is the formating checking for thew media uploaded by an user
     this proccess involves stages:
         0. Download exact quarantine objects into an isolated local work folder.
-        1. Scan the locally staged upload folder for malware.
-        2. Validate the upload container from the first staged part's MIME signature.
-        3. Moderate every staged part with the local AI validation service.
-        4. Generate a random thumbnail from part_0 when none was uploaded.
-        5. Concatenate approved parts and export the media as an HLS stream.
+        1. Reassemble and scan the complete locally staged upload for malware.
+        2. Validate the complete upload's MIME signature.
+        3. Moderate the complete upload with the local AI validation service.
+        4. Generate a random thumbnail from the complete upload when none was uploaded.
+        5. Export the approved complete upload as an HLS stream.
         6. Publish the HLS output and thumbnail to public object storage.
         7. Delete the quarantine sources after the media is persisted as done.
 
@@ -21,6 +21,7 @@ import stageMediaLocally, {
     cleanupLocalMedia,
 } from "./processMedia/stageMediaLocally.js";
 import generateMediaThumbnail from "./processMedia/generateMediaThumbnail.js";
+import assembleMediaParts from "./processMedia/assembleMediaParts.js";
 import commitMediaToPublic, {
     deleteQuarantineMedia,
 } from "./commitMediaToPublic.js";
@@ -45,11 +46,11 @@ import commitMediaToPublic, {
  *
  * Processing stages:
  * 0. Download exact quarantine objects into an isolated local work folder.
- * 1. Scan the locally staged upload folder for malware.
- * 2. Validate the upload container from the first staged part's MIME signature.
- * 3. Moderate every staged part with the local AI validation service.
- * 4. Generate a random thumbnail from part_0 when none was uploaded.
- * 5. Concatenate approved parts and export the media as an HLS stream.
+ * 1. Reassemble and scan the complete locally staged upload for malware.
+ * 2. Validate the complete upload's MIME signature.
+ * 3. Moderate the complete upload with the local AI validation service.
+ * 4. Generate a random thumbnail from the complete upload when none was uploaded.
+ * 5. Export the approved complete upload as an HLS stream.
  * 6. Publish the HLS output and thumbnail to public object storage.
  * 7. Delete the quarantine sources after the media is persisted as done.
  *
@@ -116,7 +117,11 @@ export default async function processMedia(job) {
         );
         localMediaStaged = true;
 
-        // Stage 1: scan the complete locally staged upload for malware.
+        // Stage 1: restore the original byte stream, then scan all staged files.
+        const localMediaPath = await assembleMediaParts(
+            workDoc.id,
+            stagedMedia.mediaPartPaths,
+        );
         const malwareScan = await scanFolder(stagedMedia.sourceDirectory);
         if (malwareScan?.infected) {
             workDoc.quarantined = true;
@@ -130,10 +135,8 @@ export default async function processMedia(job) {
             throw new Error("Malware scanner returned an invalid result");
         }
 
-        // Stage 2: only part_0 contains the uploaded file's container signature.
-        // Later part_* files are byte-range continuations and correctly look like
-        // application/octet-stream when inspected as standalone files.
-        const mimeFormat = await detectMimeFromFile(stagedMedia.mediaPartPaths[0]);
+        // Stage 2: detect the container from the restored complete upload.
+        const mimeFormat = await detectMimeFromFile(localMediaPath);
         if (mimeFormat === "application/octet-stream") {
             workDoc.quarantined = true;
             await cleanupLocalMedia(mediaId);
@@ -147,11 +150,9 @@ export default async function processMedia(job) {
             );
         }
 
-        // Stage 3: moderate the uploaded media content with the local AI service.
-        for (const localPartPath of stagedMedia.mediaPartPaths) {
-            const validation = await enqueueAIValidation(localPartPath);
-            if (validation.decision === "allow") continue; // continue if there's no forbidden content otherwse censor it and finish the job
-
+        // Stage 3: moderate representative frames from the complete upload.
+        const validation = await enqueueAIValidation(localMediaPath);
+        if (validation.decision !== "allow") {
             workDoc.censored = true;
             await cleanupLocalMedia(mediaId);
             localMediaStaged = false;
@@ -165,13 +166,13 @@ export default async function processMedia(job) {
             stagedMedia.thumbnailPath ||
             (await generateMediaThumbnail(
                 workDoc.id,
-                stagedMedia.mediaPartPaths[0],
+                localMediaPath,
             ));
 
-        // Stage 5: concatenate approved parts and render the streamable HLS output.
+        // Stage 5: render the approved complete upload as a streamable HLS output.
         const concatData = await concatToStream(
             workDoc.id,
-            stagedMedia.mediaPartPaths,
+            localMediaPath,
         );
 
         // Stage 6: publish only generated HLS files and the staged thumbnail.

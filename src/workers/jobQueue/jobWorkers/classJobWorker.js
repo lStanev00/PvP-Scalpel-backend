@@ -184,8 +184,11 @@ export default class QueueWorker {
         const jobs = await this.getWorkerJobs();
         const exists = jobs.some((entry) => entry?.data?._id === data._id);
 
-        if (exists)
-            return JQOLog.warn(`ProcessMedia job already exist logging the data next line\n${job}`);
+        if (exists) {
+            return JQOLog.warn(
+                `ProcessMedia job already exists for ${data._id}; skipping duplicate:\n${JSON.stringify(job, null, 2)}`,
+            );
+        }
 
         return await this.pushJob(job);
     }

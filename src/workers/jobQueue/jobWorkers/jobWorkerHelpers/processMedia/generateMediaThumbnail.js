@@ -21,25 +21,25 @@ const THUMBNAIL_TIMEOUT_MS = readPositiveInteger(
 );
 
 /**
- * Extracts one random JPEG frame from the first validated local media part.
+ * Extracts one random JPEG frame from the complete validated local video.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string} firstMediaPartPath Exact staged `part_0` path.
+ * @param {string} mediaPath Exact staged `media.mp4` path.
  * @returns {Promise<string>} Exact generated local thumbnail path.
  */
-export default async function generateMediaThumbnail(mediaId, firstMediaPartPath) {
+export default async function generateMediaThumbnail(mediaId, mediaPath) {
     const normalizedMediaId = normalizeMediaId(mediaId);
     const sourceDirectory = path.posix.join(WORK_ROOT, normalizedMediaId, "source");
-    const expectedFirstPartPath = path.posix.join(sourceDirectory, "part_0");
+    const expectedMediaPath = path.posix.join(sourceDirectory, "media.mp4");
     const thumbnailPath = path.posix.join(sourceDirectory, "thumbnail");
     const partialThumbnailPath = `${thumbnailPath}.partial`;
 
-    if (firstMediaPartPath !== expectedFirstPartPath) {
-        throw new TypeError(`Unexpected first media part path: ${firstMediaPartPath}`);
+    if (mediaPath !== expectedMediaPath) {
+        throw new TypeError(`Unexpected complete media path: ${mediaPath}`);
     }
-    await verifyRegularFile(firstMediaPartPath, "thumbnail source");
+    await verifyRegularFile(mediaPath, "thumbnail source");
 
-    const duration = await readDuration(firstMediaPartPath);
+    const duration = await readDuration(mediaPath);
     const timestamp = selectRandomTimestamp(duration);
 
     await rm(partialThumbnailPath, { force: true });
@@ -53,7 +53,7 @@ export default async function generateMediaThumbnail(mediaId, firstMediaPartPath
             "-ss",
             timestamp.toFixed(3),
             "-i",
-            firstMediaPartPath,
+            mediaPath,
             "-frames:v",
             "1",
             "-an",
@@ -102,14 +102,16 @@ async function readDuration(filePath) {
         );
         stdout = result.stdout;
     } catch (error) {
-        throw new Error(`Failed to inspect the first media part: ${error.message}`, {
+        throw new Error(`Failed to inspect the complete media upload: ${error.message}`, {
             cause: error,
         });
     }
 
     const duration = Number.parseFloat(stdout.trim());
     if (!Number.isFinite(duration) || duration <= 0) {
-        throw new Error("The first media part has no usable duration for thumbnail generation");
+        throw new Error(
+            "The complete media upload has no usable duration for thumbnail generation",
+        );
     }
 
     return duration;

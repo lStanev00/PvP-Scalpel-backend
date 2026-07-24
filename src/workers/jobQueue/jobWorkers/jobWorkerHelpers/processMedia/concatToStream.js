@@ -7,8 +7,6 @@ import {
     readdir,
     realpath,
     rm,
-    unlink,
-    writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 
@@ -27,45 +25,36 @@ const FFMPEG_TIMEOUT_MS = readPositiveInteger(
  */
 
 /**
- * Concatenates ordered, independently playable MP4 parts and transcodes them into
- * one H.264/AAC HLS VOD rendition under `/tmp`.
+ * Transcodes one complete reconstructed MP4 into an H.264/AAC HLS VOD rendition
+ * under the media job's private work directory.
  *
- * Every input must use a compatible stream layout and recording configuration so
- * FFmpeg's concat demuxer can read the files as one sequence. This helper only
- * creates local output; uploading files and updating media metadata are left to
- * the caller.
+ * This helper only creates local output; uploading files and updating media
+ * metadata are left to the caller.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string[]} mediaParts Ordered staged files in the exact form
- * `/mnt/work/<mediaId>/source/part_<index>`.
+ * @param {string} mediaPath Complete staged file in the exact form
+ * `/mnt/work/<mediaId>/source/media.mp4`.
  * @returns {Promise<HLSOutput>} Paths to the generated playlist and segments.
- * @throws {TypeError} When `mediaId` or `mediaParts` is invalid.
+ * @throws {TypeError} When `mediaId` or `mediaPath` is invalid.
  * @throws {Error} When an input is unreadable, FFmpeg fails, or valid HLS output
  * is not produced.
  */
-export default async function concatToStream(mediaId, mediaParts) {
+export default async function concatToStream(mediaId, mediaPath) {
     const normalizedMediaId = normalizeMediaId(mediaId);
     const workDirectory = path.posix.join(WORK_ROOT, normalizedMediaId); // local volume + id
     const outputDirectory = path.posix.join(workDirectory, "hls");
-    const concatListPath = path.posix.join(workDirectory, "parts.ffconcat");
     const playlistPath = path.posix.join(outputDirectory, "index.m3u8");
 
     try {
-        const inputPaths = resolveMediaParts(normalizedMediaId, mediaParts);
-        await verifyInputsReadable(inputPaths);
+        const inputPath = resolveMediaPath(normalizedMediaId, mediaPath);
+        await verifyInputReadable(inputPath);
 
         await rm(outputDirectory, { recursive: true, force: true });
-        await rm(concatListPath, { force: true });
         await mkdir(outputDirectory, { recursive: true });
-        await writeFile(concatListPath, buildConcatList(inputPaths), {
-            encoding: "utf8",
-            flag: "wx",
-        });
 
-        await runFFmpeg(buildFFmpegArgs(concatListPath, outputDirectory, playlistPath));
+        await runFFmpeg(buildFFmpegArgs(inputPath, outputDirectory, playlistPath));
 
         const segmentPaths = await verifyHLSOutput(outputDirectory, playlistPath);
-        await unlink(concatListPath);
 
         return {
             outputDirectory,
@@ -86,69 +75,50 @@ function normalizeMediaId(mediaId) {
     return mediaId.toLowerCase();
 }
 
-function resolveMediaParts(mediaId, mediaParts) {
-    if (!Array.isArray(mediaParts) || mediaParts.length === 0) {
-        throw new TypeError("concatToStream requires at least one ordered media part");
-    }
-
-    const resolvedParts = [];
-    for (let index = 0; index < mediaParts.length; index++) {
-        const expectedPath = path.posix.join(
-            WORK_ROOT,
-            mediaId,
-            "source",
-            `part_${index}`,
+function resolveMediaPath(mediaId, mediaPath) {
+    const expectedPath = path.posix.join(
+        WORK_ROOT,
+        mediaId,
+        "source",
+        "media.mp4",
+    );
+    if (mediaPath !== expectedPath) {
+        throw new TypeError(
+            `Invalid complete media path; expected "${expectedPath}"`,
         );
-        if (mediaParts[index] !== expectedPath) {
-            throw new TypeError(
-                `Invalid media part at index ${index}; expected "${expectedPath}"`,
-            );
-        }
-
-        resolvedParts.push(expectedPath);
     }
 
-    return resolvedParts;
+    return expectedPath;
 }
 
-async function verifyInputsReadable(inputPaths) {
-    for (const inputPath of inputPaths) {
-        try {
-            const [inputStats, resolvedPath] = await Promise.all([
-                lstat(inputPath),
-                realpath(inputPath),
-                access(inputPath, fsConstants.R_OK),
-            ]);
-            if (
-                !inputStats.isFile() ||
-                inputStats.isSymbolicLink() ||
-                resolvedPath !== inputPath
-            ) {
-                throw new Error("input is not a regular non-symlink file");
-            }
-        } catch (error) {
-            throw new Error(`Media part is not readable: ${inputPath}`, { cause: error });
+async function verifyInputReadable(inputPath) {
+    try {
+        const [inputStats, resolvedPath] = await Promise.all([
+            lstat(inputPath),
+            realpath(inputPath),
+            access(inputPath, fsConstants.R_OK),
+        ]);
+        if (
+            !inputStats.isFile() ||
+            inputStats.isSymbolicLink() ||
+            resolvedPath !== inputPath
+        ) {
+            throw new Error("input is not a regular non-symlink file");
         }
+    } catch (error) {
+        throw new Error(`Complete media upload is not readable: ${inputPath}`, {
+            cause: error,
+        });
     }
 }
 
-function buildConcatList(inputPaths) {
-    return `ffconcat version 1.0\n${inputPaths
-        .map((inputPath) => `file '${inputPath}'`)
-        .join("\n")}\n`;
-}
-
-function buildFFmpegArgs(concatListPath, outputDirectory, playlistPath) {
+function buildFFmpegArgs(inputPath, outputDirectory, playlistPath) {
     return [
         "-hide_banner",
         "-nostdin",
         "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
         "-i",
-        concatListPath,
+        inputPath,
         "-map",
         "0:v:0",
         "-map",
