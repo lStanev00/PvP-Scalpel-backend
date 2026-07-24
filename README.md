@@ -49,6 +49,13 @@ Required:
 - `CDN_PRIVATE_DOMAIN` - internal CDN host for refreshes.
 - `CDN_PORT` - internal CDN port.
 - `JWT_CDN_PUBLIC` - token for CDN requests.
+- `STORAGE_LOCAL_ENDPOINT` - internal MinIO Docker origin used by media workers; defaults to `http://minio:4010`.
+- `MEDIA_DOWNLOAD_TIMEOUT_MS` - maximum time for one quarantine-object download; defaults to 10 minutes.
+- `MEDIA_MAX_PARTS` - maximum staged parts per media job; defaults to 100.
+- `MEDIA_MAX_PART_BYTES` - maximum bytes per staged media part; defaults to 512 MiB.
+- `MEDIA_MAX_THUMBNAIL_BYTES` - maximum staged thumbnail size; defaults to 20 MiB.
+- `MEDIA_MAX_JOB_BYTES` - maximum total staged bytes per media job; defaults to 10 GiB.
+- `MEDIA_FFMPEG_TIMEOUT_MS` - maximum runtime for one FFmpeg operation; defaults to 60 minutes.
 
 Optional / legacy:
 - `TESTDEV`

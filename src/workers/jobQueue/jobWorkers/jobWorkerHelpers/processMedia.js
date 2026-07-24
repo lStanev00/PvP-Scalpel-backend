@@ -1,9 +1,10 @@
 /*/
     This is the formating checking for thew media uploaded by an user
     this proccess involves stages:
-        1. Scan the quarantined upload folder for malware.
-        2. Validate every uploaded part by its detected MIME signature.
-        3. Moderate every part with the local AI validation service.
+        0. Download exact quarantine objects into an isolated local work folder.
+        1. Scan the locally staged upload folder for malware.
+        2. Validate every staged part by its detected MIME signature.
+        3. Moderate every staged part with the local AI validation service.
         4. Concatenate approved parts and export the media as an HLS stream.
         5. Publish the HLS output and thumbnail to public object storage.
         6. Delete the quarantine sources after the media is persisted as done.
@@ -15,11 +16,12 @@ import { detectMimeFromFile, scanFolder } from "./processMedia/bucketFSWorkerOps
 import MediaMeta from "../../../../Models/MediaMeta.js";
 import enqueueAIValidation from "./processMedia/enqueueAIValidation.js";
 import concatToStream from "./processMedia/concatToStream.js";
+import stageMediaLocally, {
+    cleanupLocalMedia,
+} from "./processMedia/stageMediaLocally.js";
 import commitMediaToPublic, {
     deleteQuarantineMedia,
 } from "./commitMediaToPublic.js";
-
-const quarantineBucket = "/quarantine-uploads";
 
 /**
  * @typedef {"processed"|"quarantined"|"censored"|"invalid_job"|"not_found"|"invalid_state"|"failed"} ProcessMediaOutcome
@@ -39,9 +41,10 @@ const quarantineBucket = "/quarantine-uploads";
  * Processes one queued media document and always returns a completion result.
  *
  * Processing stages:
- * 1. Scan the quarantined upload folder for malware.
- * 2. Validate every uploaded part by its detected MIME signature.
- * 3. Moderate every part with the local AI validation service.
+ * 0. Download exact quarantine objects into an isolated local work folder.
+ * 1. Scan the locally staged upload folder for malware.
+ * 2. Validate every staged part by its detected MIME signature.
+ * 3. Moderate every staged part with the local AI validation service.
  * 4. Concatenate approved parts and export the media as an HLS stream.
  * 5. Publish the HLS output and thumbnail to public object storage.
  * 6. Delete the quarantine sources after the media is persisted as done.
@@ -63,6 +66,7 @@ export default async function processMedia(job) {
     const mediaId = typeof rawMediaId === "string" ? rawMediaId.trim().toLowerCase() : "";
     let workDoc;
     let claimedProcessing = false;
+    let localMediaStaged = false;
 
     if (job?.type !== "processMedia" || !/^[a-f\d]{24}$/.test(mediaId)) {
         return failureResult(
@@ -100,13 +104,20 @@ export default async function processMedia(job) {
         await workDoc.save();
         claimedProcessing = true;
 
-        const subFolder = workDoc.type === "video" ? "videos" : "";
-        const quarantinePath = `${quarantineBucket}/${subFolder}/${workDoc.id}`;
+        const quarantineThumbnailKey = workDoc.manifest?.thumbnail;
+        const stagedMedia = await stageMediaLocally(
+            workDoc.id,
+            mediaParts,
+            quarantineThumbnailKey,
+        );
+        localMediaStaged = true;
 
-        // Stage 1: scan the complete quarantined upload for malware.
-        const malwareScan = await scanFolder(quarantinePath);
+        // Stage 1: scan the complete locally staged upload for malware.
+        const malwareScan = await scanFolder(stagedMedia.sourceDirectory);
         if (malwareScan?.infected) {
             workDoc.quarantined = true;
+            await cleanupLocalMedia(mediaId);
+            localMediaStaged = false;
             await finishProcessing(workDoc);
             claimedProcessing = false;
             return successResult(mediaId, "quarantined");
@@ -116,11 +127,12 @@ export default async function processMedia(job) {
         }
 
         // Stage 2: reject parts whose file signature is not a supported media MIME type.
-        for (const innerPath of mediaParts) {
-            const path = `${quarantineBucket}/${innerPath}`;
-            const mimeFormat = await detectMimeFromFile(path);
+        for (const localPartPath of stagedMedia.mediaPartPaths) {
+            const mimeFormat = await detectMimeFromFile(localPartPath);
             if (mimeFormat.startsWith("application/octet-stream")) {
                 workDoc.quarantined = true;
+                await cleanupLocalMedia(mediaId);
+                localMediaStaged = false;
                 await finishProcessing(workDoc);
                 claimedProcessing = false;
                 return successResult(mediaId, "quarantined");
@@ -128,27 +140,31 @@ export default async function processMedia(job) {
         }
 
         // Stage 3: moderate the uploaded media content with the local AI service.
-        for (const innerPath of mediaParts) {
-            const path = `${quarantineBucket}/${innerPath}`;
-            const validation = await enqueueAIValidation(path);
+        for (const localPartPath of stagedMedia.mediaPartPaths) {
+            const validation = await enqueueAIValidation(localPartPath);
             if (validation.decision === "allow") continue; // continue if there's no forbidden content otherwse censor it and finish the job
 
             workDoc.censored = true;
+            await cleanupLocalMedia(mediaId);
+            localMediaStaged = false;
             await finishProcessing(workDoc);
             claimedProcessing = false;
             return successResult(mediaId, "censored");
         }
 
         // Stage 4: concatenate approved parts and render the streamable HLS output.
-        const concatData = await concatToStream(workDoc.id, mediaParts);
-        const quarantineThumbnailKey = workDoc.manifest.thumbnail;
+        const concatData = await concatToStream(
+            workDoc.id,
+            stagedMedia.mediaPartPaths,
+        );
 
-        // Stage 5: publish only generated HLS files and the quarantine thumbnail.
+        // Stage 5: publish only generated HLS files and the staged thumbnail.
         const publicMedia = await commitMediaToPublic(
             workDoc.id,
             concatData,
-            quarantineThumbnailKey,
+            stagedMedia.thumbnailPath,
         );
+        localMediaStaged = false;
         workDoc.manifest.playlist = publicMedia.playlistKey;
         workDoc.manifest.thumbnail = publicMedia.thumbnailKey;
 
@@ -185,6 +201,17 @@ export default async function processMedia(job) {
         // the proccessing genuinly threw error and need investigating
         const handledError = error instanceof Error ? error : new Error(String(error));
         let message = handledError.message;
+
+        if (localMediaStaged) {
+            try {
+                await cleanupLocalMedia(mediaId);
+                localMediaStaged = false;
+            } catch (cleanupError) {
+                const cleanupMessage =
+                    cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+                message += `; failed to clean local media staging: ${cleanupMessage}`;
+            }
+        }
 
         if (claimedProcessing && workDoc) {
             try {
