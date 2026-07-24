@@ -34,9 +34,17 @@ const humanReadableName = "Job Queue Cache";
  */
 
 /**
+ * One media-processing queue entry stored in the global Redis queue.
+ *
+ * @typedef {object} ProcessMediaQueueJob
+ * @property {"processMedia"} type
+ * @property {{_id: string}} data
+ */
+
+/**
  * One job entry stored in the global Redis queue.
  *
- * @typedef {RetrieveCharacterQueueJob | BulkRetrieveCharacterQueueJob} QueueJob
+ * @typedef {RetrieveCharacterQueueJob | BulkRetrieveCharacterQueueJob | ProcessMediaQueueJob} QueueJob
  */
 
 /**
@@ -91,6 +99,29 @@ function validateJobQueueEntry(jobEntry) {
             data: jobEntry.data.map((jobData) =>
                 validateCharacterQueueJobData(jobData, "bulkRetrieveCharacter"),
             ),
+        };
+    }
+
+    if (jobEntry.type === "processMedia") {
+        if (!jobEntry.data || typeof jobEntry.data !== "object" || Array.isArray(jobEntry.data)) {
+            throw new TypeError("processMedia job data must be an object.");
+        }
+
+        const mediaId =
+            typeof jobEntry.data._id === "string"
+                ? jobEntry.data._id.trim().toLowerCase()
+                : "";
+
+        if (!/^[a-f\d]{24}$/.test(mediaId)) {
+            throw new TypeError("processMedia jobs require a valid 24-character hexadecimal _id.");
+        }
+
+        return {
+            ...jobEntry,
+            data: {
+                ...jobEntry.data,
+                _id: mediaId,
+            },
         };
     }
 
@@ -162,6 +193,25 @@ export async function enqueueJobQueueEntry(jobEntry, ttl = -1) {
         console.warn(error);
         return null;
     }
+}
+
+/**
+ * Append one media-processing job to the global Redis queue.
+ *
+ * @param {string} mediaId
+ * @param {number} [ttl=-1]
+ * @returns {Promise<number|null>}
+ */
+export async function enqueueMediaJob(mediaId, ttl = -1) {
+    return await enqueueJobQueueEntry(
+        {
+            type: "processMedia",
+            data: {
+                _id: mediaId,
+            },
+        },
+        ttl,
+    );
 }
 
 /**

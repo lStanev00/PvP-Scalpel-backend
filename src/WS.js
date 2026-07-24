@@ -1,10 +1,11 @@
-// version: 0.4.23
+// version: 0.4.28
 import http from "node:http";
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
 import { getConnectionLogContext } from "./helpers/ipHelpers.js";
 import { wsMessage } from "./WS/helpers/wsResponseHelpers.js";
 import wsRouter from "./WS/wsRouter.js";
+import getWsAuthContext from "./WS/helpers/wsAuthContext.js";
 import threadBoot from "./helpers/threadBoot.js";
 import { isAllowedOrigin } from "./corsSetup.js";
 
@@ -85,11 +86,39 @@ server.on("upgrade", (req, socket, head) => {
     });
 });
 
-wss.on("connection", (ws, req) => {
+wss.on("connection", async (ws, req) => {
     ws.isAlive = true;
     const connectionContext = getConnectionLogContext(req);
 
     console.log("[WS] client connected", connectionContext.ip, connectionContext.origin ?? "no-origin");
+
+    try {
+        const authContext = await getWsAuthContext(req);
+
+        if (authContext.authError) {
+            console.warn("[WS] rejected authenticated client", {
+                ip: connectionContext.ip,
+                origin: connectionContext.origin,
+                reason: authContext.authError,
+            });
+            wsMessage(ws, "error", "Authentication failed");
+            ws.close(1008, "Authentication failed");
+            return;
+        }
+
+        if (authContext.authenticated) {
+            ws.JWT = authContext.JWT;
+            ws.user = authContext.user;
+        }
+    } catch (error) {
+        console.error("[WS] auth context failed", {
+            ip: connectionContext.ip,
+            error,
+        });
+        wsMessage(ws, "error", "Authentication unavailable");
+        ws.close(1011, "Authentication unavailable");
+        return;
+    }
 
     wsMessage(ws, "connected", "welcome");
 

@@ -10,8 +10,9 @@ import { delay } from "../../helpers/startBGTask.js";
 
 await threadBoot(true);
 
-const QueueWorker1 = new QueueWorker("QueueWorker1");
-const QueueWorker2 = new QueueWorker("QueueWorker2");
+const QueueWorker1 = new QueueWorker("QueueWorker1"); // rest + ws
+const QueueWorker2 = new QueueWorker("QueueWorker2"); // ws
+const QueueWorker3 = new QueueWorker("QueueWorker3"); // media can put non time sensitive
 
 let draining = false;
 let currentJobInfo = null;
@@ -52,8 +53,9 @@ async function waitForWorkersToExit(interruptOnNewJob = false) {
 
         const queueWorker1Exited = QueueWorker1.processRef === undefined || QueueWorker1.processRef === null;
         const queueWorker2Exited = QueueWorker2.processRef === undefined || QueueWorker2.processRef === null;
+        const queueWorker3Exited = QueueWorker3.processRef === undefined || QueueWorker3.processRef === null;
 
-        if (queueWorker1Exited && queueWorker2Exited) {
+        if (queueWorker1Exited && queueWorker2Exited && queueWorker3Exited) {
             return "exited";
         }
 
@@ -95,6 +97,14 @@ async function startQueue() {
                     } else {
                         await QueueWorker2.retrieveCharacter(jobData);
                     }
+                }
+            } else if(type === "processMedia") {
+                try {
+                    await QueueWorker3.processMedia(currentJobInfo)
+                } catch (error) {
+                    JQOLog.error(
+                        `Failed to dispatch processMedia ${data?._id ?? "unknown"}: ${error?.stack ?? error}`,
+                    );
                 }
             }
             currentJobInfo = null;

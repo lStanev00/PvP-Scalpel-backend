@@ -1,3 +1,4 @@
+// that's the main entry
 import { fork } from "node:child_process";
 import { getJobQueueSize } from "../../caching/charQueueCache/jobQueueCache.js";
 import { redisCache } from "../../helpers/redis/connectRedis.js";

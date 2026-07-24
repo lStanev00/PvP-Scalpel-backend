@@ -1,6 +1,7 @@
 import { wsMessage } from "./helpers/wsResponseHelpers.js";
 import pingHandler from "./wsHandlers/pingHandler.js";
 import queueCheckHandler from "./wsHandlers/queueCheckHandler.js";
+import uploadHandler from "./wsHandlers/uploadHandler.js";
 import unknownHandler from "./wsHandlers/unknownHandler.js";
 
 /**
@@ -24,6 +25,8 @@ export default async function wsRouter(ws, raw) {
             return await pingHandler(ws, msg);
         case "queueCheck":
             return await queueCheckHandler(ws, msg);
+        case "uploadMedia":
+            return await uploadHandler(ws, msg);
         default:
             return await unknownHandler(ws, msg);
     }
