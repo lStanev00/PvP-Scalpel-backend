@@ -103,7 +103,7 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
  * @param {string[]} mediaParts Ordered quarantine part keys.
- * @param {string} thumbnailKey Quarantine thumbnail key.
+ * @param {string|null|undefined} thumbnailKey Optional quarantine thumbnail key.
  * @param {string} mediaState Current persisted media state.
  * @returns {Promise<QuarantineCleanupResult>} Per-key cleanup result.
  */
@@ -169,11 +169,17 @@ function validateQuarantineKeys(mediaId, mediaParts, thumbnailKey) {
     }
 
     const expectedThumbnailKey = path.posix.join(PUBLIC_VIDEO_ROOT, mediaId, "thumbnail");
-    if (thumbnailKey !== expectedThumbnailKey) {
+    if (
+        thumbnailKey !== null &&
+        typeof thumbnailKey !== "undefined" &&
+        thumbnailKey !== expectedThumbnailKey
+    ) {
         throw new TypeError(`Unexpected quarantine thumbnail key: ${thumbnailKey}`);
     }
 
-    return [...mediaParts, thumbnailKey];
+    return thumbnailKey === expectedThumbnailKey
+        ? [...mediaParts, thumbnailKey]
+        : [...mediaParts];
 }
 
 async function validateSourceFiles(mediaId, concatResult, thumbnailPath) {

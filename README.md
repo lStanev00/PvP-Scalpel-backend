@@ -56,6 +56,7 @@ Required:
 - `MEDIA_MAX_THUMBNAIL_BYTES` - maximum staged thumbnail size; defaults to 20 MiB.
 - `MEDIA_MAX_JOB_BYTES` - maximum total staged bytes per media job; defaults to 10 GiB.
 - `MEDIA_FFMPEG_TIMEOUT_MS` - maximum runtime for one FFmpeg operation; defaults to 60 minutes.
+- `MEDIA_THUMBNAIL_TIMEOUT_MS` - maximum generated-thumbnail extraction time; defaults to 2 minutes.
 
 Optional / legacy:
 - `TESTDEV`

@@ -5,9 +5,10 @@
         1. Scan the locally staged upload folder for malware.
         2. Validate every staged part by its detected MIME signature.
         3. Moderate every staged part with the local AI validation service.
-        4. Concatenate approved parts and export the media as an HLS stream.
-        5. Publish the HLS output and thumbnail to public object storage.
-        6. Delete the quarantine sources after the media is persisted as done.
+        4. Generate a random thumbnail from part_0 when none was uploaded.
+        5. Concatenate approved parts and export the media as an HLS stream.
+        6. Publish the HLS output and thumbnail to public object storage.
+        7. Delete the quarantine sources after the media is persisted as done.
 
     The proccess itself is not time sensitive and is optimised for workflow completion roughtly estimates work to
     6-20 minutes based on the server setup and proccessing power of the hardware as described in docs\server-resources.md
@@ -19,6 +20,7 @@ import concatToStream from "./processMedia/concatToStream.js";
 import stageMediaLocally, {
     cleanupLocalMedia,
 } from "./processMedia/stageMediaLocally.js";
+import generateMediaThumbnail from "./processMedia/generateMediaThumbnail.js";
 import commitMediaToPublic, {
     deleteQuarantineMedia,
 } from "./commitMediaToPublic.js";
@@ -45,9 +47,10 @@ import commitMediaToPublic, {
  * 1. Scan the locally staged upload folder for malware.
  * 2. Validate every staged part by its detected MIME signature.
  * 3. Moderate every staged part with the local AI validation service.
- * 4. Concatenate approved parts and export the media as an HLS stream.
- * 5. Publish the HLS output and thumbnail to public object storage.
- * 6. Delete the quarantine sources after the media is persisted as done.
+ * 4. Generate a random thumbnail from part_0 when none was uploaded.
+ * 5. Concatenate approved parts and export the media as an HLS stream.
+ * 6. Publish the HLS output and thumbnail to public object storage.
+ * 7. Delete the quarantine sources after the media is persisted as done.
  *
  * Return values:
  * - `200 / processed`: approved media was exported and marked done.
@@ -152,17 +155,25 @@ export default async function processMedia(job) {
             return successResult(mediaId, "censored");
         }
 
-        // Stage 4: concatenate approved parts and render the streamable HLS output.
+        // Stage 4: generate a safe local fallback when no thumbnail was uploaded.
+        const thumbnailPath =
+            stagedMedia.thumbnailPath ||
+            (await generateMediaThumbnail(
+                workDoc.id,
+                stagedMedia.mediaPartPaths[0],
+            ));
+
+        // Stage 5: concatenate approved parts and render the streamable HLS output.
         const concatData = await concatToStream(
             workDoc.id,
             stagedMedia.mediaPartPaths,
         );
 
-        // Stage 5: publish only generated HLS files and the staged thumbnail.
+        // Stage 6: publish only generated HLS files and the staged thumbnail.
         const publicMedia = await commitMediaToPublic(
             workDoc.id,
             concatData,
-            stagedMedia.thumbnailPath,
+            thumbnailPath,
         );
         localMediaStaged = false;
         workDoc.manifest.playlist = publicMedia.playlistKey;
@@ -171,7 +182,7 @@ export default async function processMedia(job) {
         await finishProcessing(workDoc);
         claimedProcessing = false;
 
-        // Stage 6: remove exact quarantine sources only after state `done` is persisted.
+        // Stage 7: remove exact quarantine sources only after state `done` is persisted.
         try {
             const cleanup = await deleteQuarantineMedia(
                 workDoc.id,
