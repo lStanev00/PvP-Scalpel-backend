@@ -25,18 +25,19 @@ Important source files:
 
 ## End-to-End Sequence
 
-1. An authenticated admin calls `POST /media` with `fileData` and, optionally, an initial `manifest`.
-2. The REST handler creates a `MediaMeta` document with `state: "initializing"`.
+1. An authenticated admin calls `POST /media` with `fileData`.
+2. The REST handler creates a `MediaMeta` document with `state: "initializing"` and `manifest.chunksNumber` equal to `fileData.length`.
 3. The new media document is cached in Redis under the `media:data` hash for two hours.
 4. For each item in `fileData`, the backend asks the CDN service for a presigned upload URL.
 5. The REST response returns the created `mediaObj` and the list of upload `urls`.
 6. The client uploads video parts directly to the CDN using the returned presigned URLs.
 7. After each successful part upload, the client sends a WebSocket `uploadMedia` message with inner `type: "uploadFeedback"`.
 8. The WebSocket handler records each uploaded part route in `mediaDoc.manifest.mediaParts[index]` and moves the media state to `uploading`.
-9. The client updates title, description, bracket, characters, and privacy through the WebSocket `metaUpdate` message. The current REST initialization handler does not read those editable metadata fields from the request body.
-10. The client requests a thumbnail upload URL with `getThumbnailImageUpload`, uploads the thumbnail directly to the CDN, then records the thumbnail path with `thumbnailUpdate`.
-11. The client sends `finalize` with the expected `partsCount`.
-12. The WebSocket handler validates required metadata, uploaded parts, and thumbnail. If valid, it sets `state: "done"` and clears the Redis upload cache entry.
+9. When `manifest.mediaParts.length` equals `manifest.chunksNumber`, the WebSocket handler moves the media state to `await_data`.
+10. The client updates title, description, bracket, characters, and privacy through the WebSocket `metaUpdate` message. The current REST initialization handler does not read those editable metadata fields from the request body.
+11. The client requests a thumbnail upload URL with `getThumbnailImageUpload`, uploads the thumbnail directly to the CDN, then records the thumbnail path with `thumbnailUpdate`.
+12. The client sends `finalize` with the expected `partsCount`.
+13. The WebSocket handler validates required metadata, uploaded parts, and thumbnail. If valid, it sets `state: "done"` and clears the Redis upload cache entry.
 
 ## REST Initialization: `POST /media`
 
@@ -52,10 +53,6 @@ Expected body shape:
 
 ```json
 {
-  "manifest": {
-    "mediaParts": [],
-    "thumbnail": null
-  },
   "fileData": [
     { "name": "part-0.mp4" },
     { "name": "part-1.mp4" }
@@ -65,7 +62,7 @@ Expected body shape:
 
 `fileData` is required and must be a non-empty array. The backend does not currently inspect each file item for size, MIME type, checksum, or filename. It only uses the array length to create one presigned upload URL per item.
 
-The current handler only destructures `fileData` and `manifest` from the request body. It always creates a video media document and ignores request-body values such as `type`, `isPrivate`, `title`, `description`, `characters`, and `bracket`. Those fields keep their schema defaults until changed through `metaUpdate`.
+The current handler only destructures `fileData` from the request body. It always creates a video media document and ignores request-body values such as `type`, `isPrivate`, `title`, `description`, `characters`, `bracket`, and `manifest`. Those fields keep their schema defaults until changed through `metaUpdate`, except for `manifest.chunksNumber`, which is initialized from `fileData.length`.
 
 On success, the handler creates:
 
@@ -74,7 +71,9 @@ On success, the handler creates:
   type: "video",
   state: "initializing",
   author: req.user._id,
-  manifest
+  manifest: {
+    chunksNumber: fileData.length
+  }
 }
 ```
 
@@ -183,9 +182,12 @@ Backend behavior:
 - Ensures `mediaDoc.manifest.mediaParts` is an array.
 - Writes `route` at `mediaDoc.manifest.mediaParts[index]`.
 - Sets `mediaDoc.state = "uploading"`.
+- If `mediaDoc.manifest.chunksNumber === mediaDoc.manifest.mediaParts.length`, changes the state to `await_data`.
 - Saves the document.
 - Refreshes the Redis cache entry with the saved document.
 - Sends an `uploadFeedback` WebSocket response containing the saved media.
+
+Current validation gap: `index` and `route` are not validated before assignment. Clients should send zero-based contiguous indexes and non-empty CDN object paths because bad values are otherwise persisted until finalization catches them, if it catches them.
 
 ### `metaUpdate`
 
@@ -316,7 +318,7 @@ Important fields:
 | Field | Meaning |
 | --- | --- |
 | `type` | Currently only `"video"` is allowed. |
-| `state` | Upload lifecycle state: `"initializing"`, `"uploading"`, or `"done"`. |
+| `state` | Upload lifecycle state: `"initializing"`, `"uploading"`, `"await_data"`, or `"done"`. |
 | `censored` | Boolean flag, default `false`. |
 | `isPrivate` | Boolean privacy flag, default `false`; currently set after initialization through `metaUpdate`. |
 | `title` | Required title string, default `""`; must be non-empty before `finalize`. |
@@ -326,15 +328,16 @@ Important fields:
 | `characters` | Array of character ObjectId references; currently set after initialization through `metaUpdate`. |
 | `bracket` | Game bracket numeric reference, default `0`; currently set after initialization through `metaUpdate` when a truthy value is provided. |
 | `manifest.mediaParts` | Ordered list of CDN object paths for video parts. |
+| `manifest.chunksNumber` | Number of video parts expected for the upload, initialized from `fileData.length`. |
 | `manifest.thumbnail` | CDN object path for the thumbnail. |
 
 State transitions:
 
 ```text
-initializing -> uploading -> done
+initializing -> uploading -> await_data -> done
 ```
 
-`initializing` is assigned when the media record is created. `uploading` is assigned after at least one `uploadFeedback` message is processed. `done` is assigned only by `finalize` after all required metadata and upload paths are present.
+`initializing` is assigned when the media record is created. `uploading` is assigned after at least one `uploadFeedback` message is processed. `await_data` is assigned when the recorded media parts array length equals `manifest.chunksNumber`. `done` is assigned only by `finalize` after all required metadata and upload paths are present.
 
 ## Redis Upload Cache
 
@@ -349,7 +352,7 @@ const ttl = 7200;
 
 Lifecycle:
 
-- `initMediaForm(mediaDoc)` validates the Mongoose document and stores `mediaDoc.toObject()` in Redis.
+- `cacheMedia(mediaDoc)` validates the Mongoose document and stores `mediaDoc.toObject()` in Redis.
 - The cache entry key is the media document `_id`.
 - The cache entry TTL is 7200 seconds, or two hours.
 - `getMediaCache(mediaID)` is required before the WebSocket handler will process upload actions.
@@ -402,13 +405,17 @@ Common WebSocket failures:
 These are current code details that future work should account for:
 
 - The TypeScript declaration uses `meidaParts`, while the Mongoose schema and runtime code use `mediaParts`.
-- The `CreateMediaBody` typedef still lists editable metadata fields, but the current `createMediaPOST` runtime only reads `fileData` and `manifest`.
+- The TypeScript declaration does not currently include `manifest.chunksNumber` or the `await_data` state.
+- The `CreateMediaBody` typedef still lists editable metadata fields and `manifest`, but the current `createMediaPOST` runtime only reads `fileData`.
 - `createMediaPOST` builds part keys with `fileData.entries()`, so object keys are generated as `videos/<mediaId>/part_<index>` in request array order.
+- `createMediaPOST` stores `manifest.chunksNumber = fileData.length`; the client-provided `manifest` is ignored.
 - `createMediaPOST` only pushes CDN responses that contain `uploadUrl`, so a degraded CDN response can make `urls.length` smaller than `fileData.length`.
 - `uploadPresignLink()` supports `mimeType`, but the current media upload calls do not pass it.
 - The CDN authorization token is hardcoded in `cdn.config.js`, while the README lists `JWT_CDN_PUBLIC` as an environment variable. This should be reviewed before production hardening.
 - The backend records the object paths reported by the client; it does not currently verify that the CDN objects actually exist before finalization.
 - There is no current backend merge/transcode step in this repository. The uploaded video parts are tracked as ordered manifest entries.
+- `uploadFeedback` does not validate `index` or `route` before writing to `manifest.mediaParts[index]`.
+- `await_data` is based on the JavaScript array length matching `chunksNumber`, not on a separate count of validated contiguous parts.
 - `metaUpdate` only updates several fields when values are truthy, so empty strings cannot clear `title` or `description` through this action.
 - Finalization requires `description` to be a string, but the non-empty description check is commented out.
 

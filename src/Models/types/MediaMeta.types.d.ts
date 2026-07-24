@@ -1,8 +1,10 @@
 import type { HydratedDocument, Types } from "mongoose";
 
 export interface MediaManifestData {
-    meidaParts: string[];
+    mediaParts: string[];
+    chunksNumber?: number;
     thumbnail: string | null;
+    playlist?: string | null;
 }
 
 export interface MediaMetaData {
