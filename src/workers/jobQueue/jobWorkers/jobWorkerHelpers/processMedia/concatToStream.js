@@ -33,7 +33,8 @@ const STDERR_TAIL_LIMIT = 8 * 1024;
  * is not produced.
  */
 export default async function concatToStream(mediaId, mediaParts) {
-    const workDirectory = path.posix.join(WORK_ROOT, mediaId); // local volume + id 
+    const normalizedMediaId = normalizeMediaId(mediaId);
+    const workDirectory = path.posix.join(WORK_ROOT, normalizedMediaId); // local volume + id
     const outputDirectory = path.posix.join(workDirectory, "hls");
     const concatListPath = path.posix.join(workDirectory, "parts.ffconcat");
     const playlistPath = path.posix.join(outputDirectory, "index.m3u8");
@@ -63,6 +64,14 @@ export default async function concatToStream(mediaId, mediaParts) {
         await rm(workDirectory, { recursive: true, force: true }).catch(() => {});
         throw error;
     }
+}
+
+function normalizeMediaId(mediaId) {
+    if (typeof mediaId !== "string" || !/^[a-f\d]{24}$/i.test(mediaId)) {
+        throw new TypeError("concatToStream requires a valid 24-character media ID");
+    }
+
+    return mediaId.toLowerCase();
 }
 
 function resolveMediaParts(mediaId, mediaParts) {

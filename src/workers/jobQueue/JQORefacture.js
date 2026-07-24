@@ -53,8 +53,9 @@ async function waitForWorkersToExit(interruptOnNewJob = false) {
 
         const queueWorker1Exited = QueueWorker1.processRef === undefined || QueueWorker1.processRef === null;
         const queueWorker2Exited = QueueWorker2.processRef === undefined || QueueWorker2.processRef === null;
+        const queueWorker3Exited = QueueWorker3.processRef === undefined || QueueWorker3.processRef === null;
 
-        if (queueWorker1Exited && queueWorker2Exited) {
+        if (queueWorker1Exited && queueWorker2Exited && queueWorker3Exited) {
             return "exited";
         }
 
@@ -101,7 +102,9 @@ async function startQueue() {
                 try {
                     await QueueWorker3.processMedia(currentJobInfo)
                 } catch (error) {
-                    
+                    JQOLog.error(
+                        `Failed to dispatch processMedia ${data?._id ?? "unknown"}: ${error?.stack ?? error}`,
+                    );
                 }
             }
             currentJobInfo = null;

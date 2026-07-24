@@ -10,7 +10,7 @@ let idleTimer = undefined;
 const workerName = process.env.WORKER_NAME;
 let isDraining = false;
 
-if (workerName !== "QueueWorker1" && workerName !== "QueueWorker2") {
+if (!["QueueWorker1", "QueueWorker2", "QueueWorker3"].includes(workerName)) {
     throw new Error(`Invalid workerName "${workerName}" provided to job worker.`);
 }
 
@@ -46,7 +46,14 @@ process.on("message", async (jobInfo) => {
                     },
                 });
             } else if (type === "processMedia") {
-                await processMedia(currentJobInfo);
+                const result = await processMedia(currentJobInfo);
+                process.send({
+                    type: "processMedia",
+                    data: {
+                        ...result,
+                        job: currentJobInfo,
+                    },
+                });
             }
         }
     } catch (e) {
