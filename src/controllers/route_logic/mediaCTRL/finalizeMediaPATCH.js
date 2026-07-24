@@ -4,7 +4,7 @@ import MediaMeta from "../../../Models/MediaMeta.js";
 
 export default async function finalizeMediaPATCH(req, res) {
     // const { user } = req;
-    // const { _id } = req.body;
+    const { _id } = req.body;
 
     // if (!user) return jsonMessage(res, 403, "no Auth");
     try {
