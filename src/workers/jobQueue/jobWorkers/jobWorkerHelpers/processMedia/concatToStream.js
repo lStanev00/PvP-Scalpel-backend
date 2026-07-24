@@ -25,8 +25,8 @@ const FFMPEG_TIMEOUT_MS = readPositiveInteger(
  */
 
 /**
- * Transcodes one complete reconstructed MP4 into an H.264/AAC HLS VOD rendition
- * under the media job's private work directory.
+ * Transcodes one complete reconstructed MP4 into a bitrate-limited H.264/AAC
+ * HLS VOD rendition under the media job's private work directory.
  *
  * This helper only creates local output; uploading files and updating media
  * metadata are left to the caller.
@@ -131,12 +131,20 @@ function buildFFmpegArgs(inputPath, outputDirectory, playlistPath) {
         "23",
         "-pix_fmt",
         "yuv420p",
+        "-vf",
+        "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+        "-maxrate",
+        "4000k",
+        "-bufsize",
+        "8000k",
         "-force_key_frames",
         "expr:gte(t,n_forced*6)",
         "-sc_threshold",
         "0",
         "-c:a",
         "aac",
+        "-af",
+        "aresample=async=1000:first_pts=0",
         "-b:a",
         "128k",
         "-ac",

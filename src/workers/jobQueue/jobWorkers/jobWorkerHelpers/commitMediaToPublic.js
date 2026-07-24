@@ -51,7 +51,10 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
     const source = await validateSourceFiles(normalizedMediaId, concatResult, thumbnailPath);
     const publicPrefix = path.posix.join(PUBLIC_VIDEO_ROOT, normalizedMediaId);
     const playlistKey = path.posix.join(publicPrefix, "hls", "index.m3u8");
-    const publicThumbnailKey = path.posix.join(publicPrefix, "thumbnail");
+    const publicThumbnailKey = path.posix.join(
+        publicPrefix,
+        `thumbnail${thumbnailExtension(source.thumbnailMime)}`,
+    );
     const uploadedKeys = [];
 
     for (const segmentPath of source.segmentPaths) {
@@ -293,6 +296,19 @@ async function detectThumbnailMime(thumbnailPath) {
         throw new TypeError(`Unsupported thumbnail MIME signature: ${thumbnailPath}`);
     } finally {
         await file.close();
+    }
+}
+
+function thumbnailExtension(mimeType) {
+    switch (mimeType) {
+        case "image/jpeg":
+            return ".jpg";
+        case "image/png":
+            return ".png";
+        case "image/webp":
+            return ".webp";
+        default:
+            throw new TypeError(`Unsupported public thumbnail MIME type: ${mimeType}`);
     }
 }
 

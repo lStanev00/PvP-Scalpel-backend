@@ -21,7 +21,8 @@ const THUMBNAIL_TIMEOUT_MS = readPositiveInteger(
 );
 
 /**
- * Extracts one random JPEG frame from the complete validated local video.
+ * Extracts a representative JPEG frame near a random point in the complete
+ * validated local video. The result fits within 1280x720 without upscaling.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
  * @param {string} mediaPath Exact staged `media.mp4` path.
@@ -58,7 +59,7 @@ export default async function generateMediaThumbnail(mediaId, mediaPath) {
             "1",
             "-an",
             "-vf",
-            "scale=1280:-2:force_original_aspect_ratio=decrease",
+            "thumbnail=30,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
             "-q:v",
             "2",
             "-vcodec",
