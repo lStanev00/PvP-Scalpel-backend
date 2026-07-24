@@ -34,7 +34,7 @@ const MAXIMUM_MEDIA_JOB_BYTES = readPositiveInteger(
  * @property {string} workDirectory Local work root for this media job.
  * @property {string} sourceDirectory Directory containing downloaded quarantine objects.
  * @property {string[]} mediaPartPaths Ordered regular local media-part files.
- * @property {string} thumbnailPath Regular local thumbnail file.
+ * @property {string|null} thumbnailPath Regular local thumbnail file, or null when none was uploaded.
  * @property {number} totalBytes Total downloaded bytes.
  */
 
@@ -48,12 +48,16 @@ const MAXIMUM_MEDIA_JOB_BYTES = readPositiveInteger(
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
  * @param {string[]} mediaParts Ordered quarantine object keys.
- * @param {string} thumbnailKey Quarantine thumbnail object key.
+ * @param {string|null|undefined} thumbnailKey Optional quarantine thumbnail object key.
  * @returns {Promise<StagedMedia>}
  */
 export default async function stageMediaLocally(mediaId, mediaParts, thumbnailKey) {
     const normalizedMediaId = normalizeMediaId(mediaId);
-    const sourceKeys = validateSourceKeys(normalizedMediaId, mediaParts, thumbnailKey);
+    const { partKeys, validatedThumbnailKey } = validateSourceKeys(
+        normalizedMediaId,
+        mediaParts,
+        thumbnailKey,
+    );
     const workDirectory = path.posix.join(WORK_ROOT, normalizedMediaId);
     const sourceDirectory = path.posix.join(workDirectory, "source");
     const mediaPartPaths = [];
@@ -67,7 +71,7 @@ export default async function stageMediaLocally(mediaId, mediaParts, thumbnailKe
         for (let index = 0; index < mediaParts.length; index++) {
             const destinationPath = path.posix.join(sourceDirectory, `part_${index}`);
             const downloadedBytes = await downloadObjectToFile(
-                sourceKeys[index],
+                partKeys[index],
                 destinationPath,
                 Math.min(MAXIMUM_MEDIA_PART_BYTES, MAXIMUM_MEDIA_JOB_BYTES - totalBytes),
             );
@@ -76,13 +80,16 @@ export default async function stageMediaLocally(mediaId, mediaParts, thumbnailKe
             mediaPartPaths.push(destinationPath);
         }
 
-        const thumbnailPath = path.posix.join(sourceDirectory, "thumbnail");
-        const downloadedThumbnailBytes = await downloadObjectToFile(
-            sourceKeys[sourceKeys.length - 1],
-            thumbnailPath,
-            Math.min(MAXIMUM_THUMBNAIL_BYTES, MAXIMUM_MEDIA_JOB_BYTES - totalBytes),
-        );
-        totalBytes += downloadedThumbnailBytes;
+        let thumbnailPath = null;
+        if (validatedThumbnailKey) {
+            thumbnailPath = path.posix.join(sourceDirectory, "thumbnail");
+            const downloadedThumbnailBytes = await downloadObjectToFile(
+                validatedThumbnailKey,
+                thumbnailPath,
+                Math.min(MAXIMUM_THUMBNAIL_BYTES, MAXIMUM_MEDIA_JOB_BYTES - totalBytes),
+            );
+            totalBytes += downloadedThumbnailBytes;
+        }
 
         return {
             workDirectory,
@@ -122,7 +129,7 @@ function validateSourceKeys(mediaId, mediaParts, thumbnailKey) {
         );
     }
 
-    const validatedParts = mediaParts.map((mediaPart, index) => {
+    const partKeys = mediaParts.map((mediaPart, index) => {
         const expectedKey = `videos/${mediaId}/part_${index}`;
         if (mediaPart !== expectedKey) {
             throw new TypeError(`Unexpected quarantine media part: ${mediaPart}`);
@@ -130,11 +137,18 @@ function validateSourceKeys(mediaId, mediaParts, thumbnailKey) {
         return expectedKey;
     });
     const expectedThumbnailKey = `videos/${mediaId}/thumbnail`;
-    if (thumbnailKey !== expectedThumbnailKey) {
+    if (
+        thumbnailKey !== null &&
+        typeof thumbnailKey !== "undefined" &&
+        thumbnailKey !== expectedThumbnailKey
+    ) {
         throw new TypeError(`Unexpected quarantine thumbnail key: ${thumbnailKey}`);
     }
 
-    return [...validatedParts, expectedThumbnailKey];
+    return {
+        partKeys,
+        validatedThumbnailKey: thumbnailKey === expectedThumbnailKey ? thumbnailKey : null,
+    };
 }
 
 async function downloadObjectToFile(keyId, destinationPath, maximumBytes) {
