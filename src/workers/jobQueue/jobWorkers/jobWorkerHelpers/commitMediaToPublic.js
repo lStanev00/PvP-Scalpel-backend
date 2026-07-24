@@ -9,7 +9,6 @@ const PUBLIC_BUCKET = "pvp-scalpel-frontend";
 const QUARANTINE_BUCKET = "quarantine-uploads";
 const PUBLIC_VIDEO_ROOT = "videos";
 const WORK_ROOT = "/mnt/work";
-const QUARANTINE_ROOT = "/mnt/s3-bucket/quarantine-uploads";
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const MAXIMUM_DELETE_OBJECTS = 1000;
 
@@ -41,15 +40,15 @@ const MAXIMUM_DELETE_OBJECTS = 1000;
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
  * @param {HLSOutput} concatResult Generated HLS paths returned by `concatToStream`.
- * @param {string} thumbnailKey Quarantine object key in the form
- * `videos/<mediaId>/thumbnail`.
+ * @param {string} thumbnailPath Staged local thumbnail path in the form
+ * `/mnt/work/<mediaId>/source/thumbnail`.
  * @returns {Promise<PublicMediaCommit>} Public keys and local cleanup status.
  * @throws {TypeError} When IDs, paths, or generated output are invalid.
  * @throws {Error} When validation, presigning, reading, or uploading fails.
  */
-export default async function commitMediaToPublic(mediaId, concatResult, thumbnailKey) {
+export default async function commitMediaToPublic(mediaId, concatResult, thumbnailPath) {
     const normalizedMediaId = normalizeMediaId(mediaId);
-    const source = await validateSourceFiles(normalizedMediaId, concatResult, thumbnailKey);
+    const source = await validateSourceFiles(normalizedMediaId, concatResult, thumbnailPath);
     const publicPrefix = path.posix.join(PUBLIC_VIDEO_ROOT, normalizedMediaId);
     const playlistKey = path.posix.join(publicPrefix, "hls", "index.m3u8");
     const publicThumbnailKey = path.posix.join(publicPrefix, "thumbnail");
@@ -177,7 +176,7 @@ function validateQuarantineKeys(mediaId, mediaParts, thumbnailKey) {
     return [...mediaParts, thumbnailKey];
 }
 
-async function validateSourceFiles(mediaId, concatResult, thumbnailKey) {
+async function validateSourceFiles(mediaId, concatResult, thumbnailPath) {
     if (!concatResult || typeof concatResult !== "object") {
         throw new TypeError("commitMediaToPublic requires concatToStream output");
     }
@@ -185,8 +184,11 @@ async function validateSourceFiles(mediaId, concatResult, thumbnailKey) {
     const workDirectory = path.posix.join(WORK_ROOT, mediaId);
     const outputDirectory = path.posix.join(workDirectory, "hls");
     const playlistPath = path.posix.join(outputDirectory, "index.m3u8");
-    const expectedThumbnailKey = path.posix.join(PUBLIC_VIDEO_ROOT, mediaId, "thumbnail");
-    const thumbnailPath = path.posix.join(QUARANTINE_ROOT, expectedThumbnailKey);
+    const expectedThumbnailPath = path.posix.join(
+        workDirectory,
+        "source",
+        "thumbnail",
+    );
 
     if (concatResult.outputDirectory !== outputDirectory) {
         throw new TypeError(`Unexpected HLS output directory: ${concatResult.outputDirectory}`);
@@ -194,8 +196,8 @@ async function validateSourceFiles(mediaId, concatResult, thumbnailKey) {
     if (concatResult.playlistPath !== playlistPath) {
         throw new TypeError(`Unexpected HLS playlist path: ${concatResult.playlistPath}`);
     }
-    if (thumbnailKey !== expectedThumbnailKey) {
-        throw new TypeError(`Unexpected thumbnail key: ${thumbnailKey}`);
+    if (thumbnailPath !== expectedThumbnailPath) {
+        throw new TypeError(`Unexpected thumbnail path: ${thumbnailPath}`);
     }
     if (!Array.isArray(concatResult.segmentPaths) || concatResult.segmentPaths.length === 0) {
         throw new TypeError("Generated HLS output requires at least one segment");
