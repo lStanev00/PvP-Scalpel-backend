@@ -63,10 +63,12 @@ SendBufTimeout 200
 
 These settings are reasonable for the current upload design where video is split into chunks of about 90 MB each.
 
-Do not scan the whole MinIO bucket root during normal operation. Only scan the specific quarantine path for one media item, for example:
+Do not mount or scan MinIO's backing data directory. The worker downloads exact
+quarantine objects through the private storage REST service and internal MinIO
+Docker endpoint, then scans only the isolated staging directory:
 
 ```text
-/mnt/s3-bucket/quarantine-uploads/<mediaId>
+/mnt/work/<mediaId>/source
 ```
 
 ## Expected Scan Cost
@@ -93,7 +95,7 @@ Use conservative processing limits on the current host:
 - Keep chunk size around 90-100 MB.
 - Use a short timeout for per-chunk scans, around 2 minutes.
 - Use a longer timeout for one complete media folder scan, around 15-30 minutes.
-- Avoid scanning `/mnt/s3-bucket` or `/mnt/s3-bucket/quarantine-uploads` globally in normal worker flow.
+- Never scan or read MinIO's backing volume directly; only scan completed local staging files.
 
 Multiple simultaneous large media scan/process jobs can overwhelm the HDD and make the server feel stuck.
 
