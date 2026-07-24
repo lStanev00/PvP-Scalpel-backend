@@ -294,8 +294,10 @@ export default class QueueWorker {
             const mediaId = data?._id ?? job.data?._id ?? "unknown";
 
             if (data?.succeed) {
+                const reason =
+                    typeof data?.reason === "string" ? ` (${data.reason})` : "";
                 JQOLog.info(
-                    `Worker ${this.name} completed processMedia ${mediaId} with outcome ${data.outcome}`,
+                    `Worker ${this.name} completed processMedia ${mediaId} with outcome ${data.outcome}${reason}`,
                 );
                 return;
             }

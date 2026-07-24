@@ -3,7 +3,7 @@
     this proccess involves stages:
         0. Download exact quarantine objects into an isolated local work folder.
         1. Scan the locally staged upload folder for malware.
-        2. Validate every staged part by its detected MIME signature.
+        2. Validate the upload container from the first staged part's MIME signature.
         3. Moderate every staged part with the local AI validation service.
         4. Generate a random thumbnail from part_0 when none was uploaded.
         5. Concatenate approved parts and export the media as an HLS stream.
@@ -35,6 +35,7 @@ import commitMediaToPublic, {
  * @property {boolean} succeed Whether the job reached an expected terminal outcome.
  * @property {200|400|404|409|500} status Worker completion status.
  * @property {ProcessMediaOutcome} outcome Machine-readable processing outcome.
+ * @property {string} [reason] Machine-readable reason for an expected safety outcome.
  * @property {string} [message] Failure description; omitted for successful outcomes.
  * @property {string} [stack] Original error stack for unexpected processing failures.
  */
@@ -45,7 +46,7 @@ import commitMediaToPublic, {
  * Processing stages:
  * 0. Download exact quarantine objects into an isolated local work folder.
  * 1. Scan the locally staged upload folder for malware.
- * 2. Validate every staged part by its detected MIME signature.
+ * 2. Validate the upload container from the first staged part's MIME signature.
  * 3. Moderate every staged part with the local AI validation service.
  * 4. Generate a random thumbnail from part_0 when none was uploaded.
  * 5. Concatenate approved parts and export the media as an HLS stream.
@@ -123,23 +124,27 @@ export default async function processMedia(job) {
             localMediaStaged = false;
             await finishProcessing(workDoc);
             claimedProcessing = false;
-            return successResult(mediaId, "quarantined");
+            return successResult(mediaId, "quarantined", "malware_detected");
         }
         if (!malwareScan?.clean) {
             throw new Error("Malware scanner returned an invalid result");
         }
 
-        // Stage 2: reject parts whose file signature is not a supported media MIME type.
-        for (const localPartPath of stagedMedia.mediaPartPaths) {
-            const mimeFormat = await detectMimeFromFile(localPartPath);
-            if (mimeFormat.startsWith("application/octet-stream")) {
-                workDoc.quarantined = true;
-                await cleanupLocalMedia(mediaId);
-                localMediaStaged = false;
-                await finishProcessing(workDoc);
-                claimedProcessing = false;
-                return successResult(mediaId, "quarantined");
-            }
+        // Stage 2: only part_0 contains the uploaded file's container signature.
+        // Later part_* files are byte-range continuations and correctly look like
+        // application/octet-stream when inspected as standalone files.
+        const mimeFormat = await detectMimeFromFile(stagedMedia.mediaPartPaths[0]);
+        if (mimeFormat === "application/octet-stream") {
+            workDoc.quarantined = true;
+            await cleanupLocalMedia(mediaId);
+            localMediaStaged = false;
+            await finishProcessing(workDoc);
+            claimedProcessing = false;
+            return successResult(
+                mediaId,
+                "quarantined",
+                "unsupported_media_signature",
+            );
         }
 
         // Stage 3: moderate the uploaded media content with the local AI service.
@@ -152,7 +157,7 @@ export default async function processMedia(job) {
             localMediaStaged = false;
             await finishProcessing(workDoc);
             claimedProcessing = false;
-            return successResult(mediaId, "censored");
+            return successResult(mediaId, "censored", "moderation_rejected");
         }
 
         // Stage 4: generate a safe local fallback when no thumbnail was uploaded.
@@ -255,14 +260,16 @@ async function finishProcessing(workDoc) {
  *
  * @param {string} _id
  * @param {"processed"|"quarantined"|"censored"} outcome
+ * @param {string} [reason]
  * @returns {ProcessMediaResult} Successful result with status `200`.
  */
-function successResult(_id, outcome) {
+function successResult(_id, outcome, reason) {
     return {
         _id,
         succeed: true,
         status: 200,
         outcome,
+        ...(typeof reason === "string" ? { reason } : {}),
     };
 }
 
