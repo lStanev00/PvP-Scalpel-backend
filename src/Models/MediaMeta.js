@@ -16,6 +16,10 @@ const manifestSchema = new Schema(
             type: String,
             default: null,
         },
+        playlist: {
+            type: String,
+            default: null,
+        },
     },
     {
         timestamps: false,

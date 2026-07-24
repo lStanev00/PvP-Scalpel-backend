@@ -20,16 +20,16 @@ telling this approach is better and safer but is more controlled from me, which 
 01.07/26 new task
 
 Process video/media after upload
-1 Save to non-public quarantine bucket ✅
-2 Malware scan after each upload finishes ✅
+0 Save to non-public quarantine bucket ✅
+1 Malware scan after each upload finishes ✅
 
  - dockerized the antivirus software in the workers container so can be called inside also mapped the volume of the bucket to the container
   
-3 Video MIME/type validation — MP4, MOV, magic bytes, etc. // => Working on
-4 AI content checks — pornography, non-game content, watermarks, and legal/compliance issues will be censored, flagged, and reported where legally required
-5 Content ownership & license checks
-6 File compression to reduce size
-7 Render/export pipeline into streamable format
+2 Video MIME/type validation — MP4, MOV, magic bytes, etc. ✅
+3 AI content checks — pornography, non-game content, watermarks, and legal/compliance issues will be censored, flagged, and reported where legally required ✅
+4 Content ownership & license checks // Skip for now
+5 File compression to reduce size // Skip for now scale later
+6 Render/export pipeline into streamable format
 
 
 --- These are non relevant to the project comments ---
@@ -40,5 +40,5 @@ Process video/media after upload
 61k + 134k pass
 151k + 10k pass
 36k ~ 40k
-298k(41953)
+298k(41953) OUTPUT: 13039 * 25.97 = 338 622.83 (2 640.40 cut); * 0.95 = 321 690.9
 --- ///////////////////* END *//////////////////// ---
