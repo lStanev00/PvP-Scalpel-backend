@@ -1,5 +1,5 @@
 import { uploadPresignLink } from "../../caching/CDNCache/CDN/cdn.config.js";
-import { finalizeUploadCache, getMediaCache, initMediaForm } from "../../caching/mediaCache/mediaCache.js";
+import { finalizeUploadCache, getMediaCache } from "../../caching/mediaCache/mediaCache.js";
 import MediaMeta from "../../Models/MediaMeta.js";
 import { wsMessage } from "../helpers/wsResponseHelpers.js";
 
@@ -110,7 +110,6 @@ export default async function uploadHandler(ws, msg) {
             }
 
             const saved = await mediaDoc.save();
-            await initMediaForm(saved);
 
             wsMessage(ws, "uploadFeedback", {
                 received: msgContext,
@@ -130,8 +129,6 @@ export default async function uploadHandler(ws, msg) {
             if (typeof isPrivate === "boolean") mediaDoc.isPrivate = isPrivate;
 
             const saved = await mediaDoc.save();
-
-            await initMediaForm(saved);
 
             wsMessage(ws, "metaUpdate", {
                 received: msgContext,
@@ -162,8 +159,6 @@ export default async function uploadHandler(ws, msg) {
                 mediaDoc.manifest.thumbnail = path;
 
                 const saved = await mediaDoc.save();
-
-                await initMediaForm(saved);
 
                 wsMessage(ws, "thumbnailUpdate", {
                     received: msgContext,

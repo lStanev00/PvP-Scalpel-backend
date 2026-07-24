@@ -8,8 +8,10 @@ import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.
 import { QueueClaimTTL } from "../../../helpers/redis/connectRedis.js";
 
 const queueClaimKey = (search) => `queuedChar:${search}`;
-const queueCharacterSearch = async (search) => await setCacheIfAbsent(queueClaimKey(search), true, 15, QueueClaimTTL);
-const dequeueCharacterSearch = async (search) => await delCache(queueClaimKey(search), "", QueueClaimTTL);
+const queueCharacterSearch = async (search) =>
+    await setCacheIfAbsent(queueClaimKey(search), true, 15, QueueClaimTTL);
+const dequeueCharacterSearch = async (search) =>
+    await delCache(queueClaimKey(search), "", QueueClaimTTL);
 
 /**
  * Payload for the `retrieveCharacter` job handled by `jobWorker.js`.
@@ -24,13 +26,18 @@ const dequeueCharacterSearch = async (search) => await delCache(queueClaimKey(se
  */
 
 /**
+ * Payload for a `processMedia` job handled by `jobWorker.js`.
+ *
+ * @typedef {object} ProcessMediaJobData
+ * @property {string} _id
+ */
+
+/**
  * One job message sent from the orchestrator to the child-process queue worker.
  *
- * Currently the worker only handles `type === "retrieveCharacter"`.
- *
  * @typedef {object} QueueWorkerJob
- * @property {string} type
- * @property {RetrieveCharacterJobData} data
+ * @property {"retrieveCharacter"|"processMedia"} type
+ * @property {RetrieveCharacterJobData|ProcessMediaJobData} data
  */
 
 /**
@@ -125,7 +132,7 @@ export default class QueueWorker {
             message: undefined,
             exit: undefined,
         };
-    }
+    };
 
     /**
      * Queues one character-search job for this worker after checking whether the
@@ -163,6 +170,24 @@ export default class QueueWorker {
         if (queueClaim !== 1) return queueClaim === null ? false : undefined;
 
         return await this.pushJob(queueJob);
+    }
+
+    async processMedia(job) {
+        const { type, data } = job;
+        if (type !== "processMedia") {
+            return JQOLog.warn(`${type} is not processMedia`);
+        }
+
+        if (!data._id) {
+            return JQOLog.warn("there's no id in the job : processMedia");
+        }
+        const jobs = await this.getWorkerJobs();
+        const exists = jobs.some((entry) => entry?.data?._id === data._id);
+
+        if (exists)
+            return JQOLog.warn(`ProcessMedia job already exist logging the data next line\n${job}`);
+
+        return await this.pushJob(job);
     }
 
     async registerListeners() {
@@ -211,7 +236,7 @@ export default class QueueWorker {
      */
     async addWorkerJob(job) {
         const jobs = await this.getWorkerJobs();
-        jobs.push(job)
+        jobs.push(job);
         await this.setWorkerJobs(jobs);
     }
 
@@ -261,6 +286,40 @@ export default class QueueWorker {
                     context: data,
                 }).catch(JQOLog.error);
             }
+        } else if (type === "processMedia") {
+            const job = data?.job;
+            if (!job) return JQOLog.warn("processMedia completion is missing its job data");
+
+            await this.removeWorkerJob(job).catch(JQOLog.error);
+            const mediaId = data?._id ?? job.data?._id ?? "unknown";
+
+            if (data?.succeed) {
+                JQOLog.info(
+                    `Worker ${this.name} completed processMedia ${mediaId} with outcome ${data.outcome}`,
+                );
+                return;
+            }
+            const status = data.status ? Number(data.status) : 0;
+            if (status === 0) {
+                JQOLog.warn(
+                    `There was a problem with the status code on the following object: \n ${JSON.stringify(data, null, 4)}`,
+                );
+            } else if (status.toString().startsWith("4") || status.toString().startsWith("5")) {
+                JQOLog.error(
+                    `Worker ${this.name} failed processMedia ${mediaId} with status ${status}`,
+                );
+                await WorkerError.create({
+                    workerName: this.name,
+                    source: "QueueWorker.onMessage",
+                    jobType: type,
+                    message:
+                        typeof data?.message === "string"
+                            ? data.message
+                            : `Worker ${this.name} failed to process media ${mediaId}.`,
+                    stack: typeof data?.stack === "string" ? data.stack : undefined,
+                    context: data,
+                }).catch(JQOLog.error);
+            }
         }
-    }
+    };
 }

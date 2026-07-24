@@ -10,9 +10,13 @@ const manifestSchema = new Schema(
             default: [],
         },
         chunksNumber: {
-            type: Number
+            type: Number,
         },
         thumbnail: {
+            type: String,
+            default: null,
+        },
+        playlist: {
             type: String,
             default: null,
         },
@@ -33,12 +37,13 @@ const MediaMetaSchema = new Schema(
         },
         state: {
             type: String,
-            enum: ["initializing", "uploading", "await_data", "done"],
+            enum: ["initializing", "uploading", "await_data", "need_process", "processing", "done"],
             required: true,
         },
-        censored:{
+        quarantined: { type: Boolean, default: false },
+        censored: {
             type: Boolean,
-            default: false
+            default: false,
         },
         isPrivate: {
             type: Boolean,
@@ -46,11 +51,11 @@ const MediaMetaSchema = new Schema(
         },
         title: {
             type: String,
-            default: ""
+            default: "",
         },
         description: {
             type: String,
-            default: ""
+            default: "",
         },
         views: {
             type: Number,
@@ -84,6 +89,47 @@ const MediaMetaSchema = new Schema(
         timestamps: true,
     },
 );
+
+async function cacheSavedMedia(doc) {
+    if (!doc) return;
+
+    try {
+        const { cacheMedia } = await import("../caching/mediaCache/mediaCache.js");
+        await cacheMedia(doc);
+    } catch (error) {
+        console.warn(`Failed to cache MediaMeta ${doc?._id} after data change`);
+        console.warn(error);
+    }
+}
+
+async function cacheMediaFromQuery(query) {
+    try {
+        const docs = await query.model.find(query.getQuery());
+
+        for (const doc of docs) {
+            await cacheSavedMedia(doc);
+        }
+    } catch (error) {
+        console.warn("Failed to refresh MediaMeta cache after query update");
+        console.warn(error);
+    }
+}
+
+MediaMetaSchema.post("save", async function (doc) {
+    await cacheSavedMedia(doc);
+});
+
+for (const operation of [
+    "findOneAndUpdate",
+    "findOneAndReplace",
+    "updateOne",
+    "replaceOne",
+    "updateMany",
+]) {
+    MediaMetaSchema.post(operation, async function () {
+        await cacheMediaFromQuery(this);
+    });
+}
 
 const MediaMeta = model("MediaMeta", MediaMetaSchema);
 export default MediaMeta;

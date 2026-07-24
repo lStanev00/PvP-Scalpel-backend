@@ -14,7 +14,7 @@ const ttl = 7200;
  * @throws {TypeError} When the input is not a MediaMeta document.
  * @throws {import("mongoose").Error.ValidationError} When schema validation fails.
  */
-export async function initMediaForm(mongooseDoc) {
+export async function cacheMedia(mongooseDoc) {
     /** @type {MediaMetaDocument | null} */
     const mediaDoc = await validateMediaDoc(mongooseDoc);
 
@@ -25,12 +25,37 @@ export async function initMediaForm(mongooseDoc) {
     if (result === null) {
         return false;
     }
-    console.info(`media with id ${mediaDoc._id} just has been cached and initialized`);
+    console.info(`media with id ${mediaDoc._id} just has been cached`);
 
     return true;
 }
 
-export const getMediaCache = async (key) => await getCache(key, hashKey);
+/**
+ * Looks up media metadata from Redis first, then falls back to MongoDB by `_id`.
+ *
+ * When MongoDB returns a document, the document is cached before it is returned.
+ * Cache lookup failures or database errors are logged and normalized to `null`.
+ *
+ * @param {string} key MediaMeta document id.
+ * @returns {Promise<MediaMetaDocument | Record<string, unknown> | null>} Cached plain object,
+ * MongoDB document, or `null` when no media metadata is found or lookup fails.
+ */
+export const getMediaCache = async (key) => {
+    try {
+        const cached = await getCache(key, hashKey);
+        if(cached) return cached;
+        
+        const doc = await MediaMeta.findById(key);
+
+        if (doc) await cacheMedia(doc);
+
+        return doc;
+
+    } catch (error) {
+        console.warn(error);
+        return null;
+    }
+}
 export const finalizeUploadCache = async (key) => await delCache(key, hashKey);
 
 /**
