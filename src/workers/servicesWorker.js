@@ -1,4 +1,4 @@
-// version: 1.9.2
+// version: 1.9.3
 import { redisCharacterCacheTTL } from "../helpers/redis/connectRedis.js";
 import threadBoot from "../helpers/threadBoot.js";
 import startServices from "../services/servicesMain.js";
