@@ -106,11 +106,23 @@ function validateJobQueueEntry(jobEntry) {
         if (!jobEntry.data || typeof jobEntry.data !== "object" || Array.isArray(jobEntry.data)) {
             throw new TypeError("processMedia job data must be an object.");
         }
-        if (typeof jobEntry.data._id !== "string" || jobEntry.data._id.trim() === "") {
-            throw new TypeError("processMedia jobs require a non-empty _id value.");
+
+        const mediaId =
+            typeof jobEntry.data._id === "string"
+                ? jobEntry.data._id.trim().toLowerCase()
+                : "";
+
+        if (!/^[a-f\d]{24}$/.test(mediaId)) {
+            throw new TypeError("processMedia jobs require a valid 24-character hexadecimal _id.");
         }
 
-        return jobEntry;
+        return {
+            ...jobEntry,
+            data: {
+                ...jobEntry.data,
+                _id: mediaId,
+            },
+        };
     }
 
     throw new TypeError(`Unsupported job queue entry type "${jobEntry.type}".`);
@@ -181,6 +193,25 @@ export async function enqueueJobQueueEntry(jobEntry, ttl = -1) {
         console.warn(error);
         return null;
     }
+}
+
+/**
+ * Append one media-processing job to the global Redis queue.
+ *
+ * @param {string} mediaId
+ * @param {number} [ttl=-1]
+ * @returns {Promise<number|null>}
+ */
+export async function enqueueMediaJob(mediaId, ttl = -1) {
+    return await enqueueJobQueueEntry(
+        {
+            type: "processMedia",
+            data: {
+                _id: mediaId,
+            },
+        },
+        ttl,
+    );
 }
 
 /**
