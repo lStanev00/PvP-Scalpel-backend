@@ -1,4 +1,5 @@
 import { constants as fsConstants, createWriteStream } from "node:fs";
+import { createHash } from "node:crypto";
 import { lstat, mkdir, realpath, rename, rm } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -49,14 +50,27 @@ const MAXIMUM_MEDIA_JOB_BYTES = readPositiveInteger(
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
  * @param {string[]} mediaParts Ordered quarantine object keys.
  * @param {string|null|undefined} thumbnailKey Optional quarantine thumbnail object key.
+ * @param {{totalBytes: number, chunkSizes: number[], chunkSha256: string[]}} integrity
+ * Expected byte sizes and SHA-256 digests from upload initialization.
  * @returns {Promise<StagedMedia>}
  */
-export default async function stageMediaLocally(mediaId, mediaParts, thumbnailKey) {
+export default async function stageMediaLocally(
+    mediaId,
+    mediaParts,
+    thumbnailKey,
+    integrity,
+) {
     const normalizedMediaId = normalizeMediaId(mediaId);
-    const { partKeys, validatedThumbnailKey } = validateSourceKeys(
+    const {
+        partKeys,
+        partIntegrity,
+        totalBytes: expectedTotalBytes,
+        validatedThumbnailKey,
+    } = validateSourceManifest(
         normalizedMediaId,
         mediaParts,
         thumbnailKey,
+        integrity,
     );
     const workDirectory = path.posix.join(WORK_ROOT, normalizedMediaId);
     const sourceDirectory = path.posix.join(workDirectory, "source");
@@ -74,10 +88,16 @@ export default async function stageMediaLocally(mediaId, mediaParts, thumbnailKe
                 partKeys[index],
                 destinationPath,
                 Math.min(MAXIMUM_MEDIA_PART_BYTES, MAXIMUM_MEDIA_JOB_BYTES - totalBytes),
+                partIntegrity[index],
             );
 
             totalBytes += downloadedBytes;
             mediaPartPaths.push(destinationPath);
+        }
+        if (totalBytes !== expectedTotalBytes) {
+            throw new Error(
+                `Staged media size ${totalBytes} does not match expected size ${expectedTotalBytes}`,
+            );
         }
 
         let thumbnailPath = null;
@@ -118,7 +138,7 @@ export async function cleanupLocalMedia(mediaId) {
     });
 }
 
-function validateSourceKeys(mediaId, mediaParts, thumbnailKey) {
+function validateSourceManifest(mediaId, mediaParts, thumbnailKey, integrity) {
     if (
         !Array.isArray(mediaParts) ||
         mediaParts.length === 0 ||
@@ -136,6 +156,41 @@ function validateSourceKeys(mediaId, mediaParts, thumbnailKey) {
         }
         return expectedKey;
     });
+    const totalBytes = integrity?.totalBytes;
+    const chunkSizes = integrity?.chunkSizes;
+    const chunkSha256 = integrity?.chunkSha256;
+    if (
+        !Number.isSafeInteger(totalBytes) ||
+        totalBytes <= 0 ||
+        totalBytes > MAXIMUM_MEDIA_JOB_BYTES ||
+        !Array.isArray(chunkSizes) ||
+        !Array.isArray(chunkSha256) ||
+        chunkSizes.length !== partKeys.length ||
+        chunkSha256.length !== partKeys.length
+    ) {
+        throw new TypeError("Media staging requires a complete integrity manifest");
+    }
+
+    let calculatedBytes = 0;
+    const partIntegrity = chunkSizes.map((size, index) => {
+        const sha256 = chunkSha256[index];
+        if (
+            !Number.isSafeInteger(size) ||
+            size <= 0 ||
+            size > MAXIMUM_MEDIA_PART_BYTES ||
+            typeof sha256 !== "string" ||
+            !/^[a-f\d]{64}$/.test(sha256)
+        ) {
+            throw new TypeError(`Invalid integrity metadata for media part ${index}`);
+        }
+
+        calculatedBytes += size;
+        return { size, sha256 };
+    });
+    if (!Number.isSafeInteger(calculatedBytes) || calculatedBytes !== totalBytes) {
+        throw new TypeError("Media part sizes do not match the expected total size");
+    }
+
     const expectedThumbnailKey = `videos/${mediaId}/thumbnail`;
     if (
         thumbnailKey !== null &&
@@ -147,11 +202,18 @@ function validateSourceKeys(mediaId, mediaParts, thumbnailKey) {
 
     return {
         partKeys,
+        partIntegrity,
+        totalBytes,
         validatedThumbnailKey: thumbnailKey === expectedThumbnailKey ? thumbnailKey : null,
     };
 }
 
-async function downloadObjectToFile(keyId, destinationPath, maximumBytes) {
+async function downloadObjectToFile(
+    keyId,
+    destinationPath,
+    maximumBytes,
+    expectedIntegrity,
+) {
     if (!Number.isSafeInteger(maximumBytes) || maximumBytes <= 0) {
         throw new Error("Media job exceeds the configured local staging size");
     }
@@ -185,8 +247,15 @@ async function downloadObjectToFile(keyId, destinationPath, maximumBytes) {
             response.destroy();
             throw new Error(`Quarantine object exceeds the staging limit: ${keyId}`);
         }
+        if (expectedIntegrity && contentLength !== expectedIntegrity.size) {
+            response.destroy();
+            throw new Error(
+                `Quarantine object size does not match the upload manifest: ${keyId}`,
+            );
+        }
 
         let receivedBytes = 0;
+        const sha256 = expectedIntegrity ? createHash("sha256") : null;
         const byteLimiter = new Transform({
             transform(chunk, encoding, callback) {
                 receivedBytes += chunk.length;
@@ -194,6 +263,7 @@ async function downloadObjectToFile(keyId, destinationPath, maximumBytes) {
                     callback(new Error(`Quarantine download exceeded its declared size: ${keyId}`));
                     return;
                 }
+                sha256?.update(chunk);
                 callback(null, chunk);
             },
         });
@@ -211,6 +281,11 @@ async function downloadObjectToFile(keyId, destinationPath, maximumBytes) {
         });
         if (receivedBytes !== contentLength) {
             throw new Error(`Quarantine download was incomplete: ${keyId}`);
+        }
+        if (expectedIntegrity && sha256.digest("hex") !== expectedIntegrity.sha256) {
+            throw new Error(
+                `Quarantine object SHA-256 does not match the upload manifest: ${keyId}`,
+            );
         }
 
         await rename(partialPath, destinationPath);

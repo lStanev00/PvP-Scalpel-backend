@@ -16,7 +16,9 @@
 import { detectMimeFromFile, scanFolder } from "./processMedia/bucketFSWorkerOps.js";
 import MediaMeta from "../../../../Models/MediaMeta.js";
 import enqueueAIValidation from "./processMedia/enqueueAIValidation.js";
-import concatToStream from "./processMedia/concatToStream.js";
+import concatToStream, {
+    InvalidMediaStreamError,
+} from "./processMedia/concatToStream.js";
 import stageMediaLocally, {
     cleanupLocalMedia,
 } from "./processMedia/stageMediaLocally.js";
@@ -56,7 +58,7 @@ import commitMediaToPublic, {
  *
  * Return values:
  * - `200 / processed`: approved media was exported and marked done.
- * - `200 / quarantined`: malware or an unsupported MIME signature was handled.
+ * - `200 / quarantined`: malware, unsupported MIME, or a corrupt media stream was handled.
  * - `200 / censored`: AI moderation rejected the media and processing stopped.
  * - `400 / invalid_job`: the job type or media ID is invalid.
  * - `404 / not_found`: no media document exists for the supplied ID.
@@ -114,6 +116,11 @@ export default async function processMedia(job) {
             workDoc.id,
             mediaParts,
             quarantineThumbnailKey,
+            {
+                totalBytes: workDoc.manifest?.totalBytes,
+                chunkSizes: workDoc.manifest?.chunkSizes,
+                chunkSha256: workDoc.manifest?.chunkSha256,
+            },
         );
         localMediaStaged = true;
 
@@ -170,10 +177,23 @@ export default async function processMedia(job) {
             ));
 
         // Stage 5: render the approved complete upload as a streamable HLS output.
-        const concatData = await concatToStream(
-            workDoc.id,
-            localMediaPath,
-        );
+        let concatData;
+        try {
+            concatData = await concatToStream(
+                workDoc.id,
+                localMediaPath,
+            );
+        } catch (error) {
+            if (!(error instanceof InvalidMediaStreamError)) {
+                throw error;
+            }
+
+            localMediaStaged = false;
+            workDoc.quarantined = true;
+            await finishProcessing(workDoc);
+            claimedProcessing = false;
+            return successResult(mediaId, "quarantined", "corrupt_media_stream");
+        }
 
         // Stage 6: publish only generated HLS files and the staged thumbnail.
         const publicMedia = await commitMediaToPublic(
