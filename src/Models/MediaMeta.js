@@ -3,6 +3,64 @@ import User from "./User.js";
 import Char from "./Chars.js";
 import GameBrackets from "./GameBrackets.js";
 
+const mediaRecoverySchema = new Schema(
+    {
+        attempted: {
+            type: Boolean,
+            required: true,
+        },
+        attempts: {
+            type: Number,
+            min: 1,
+            default: 1,
+        },
+        lastAttemptAt: {
+            type: Date,
+            default: null,
+        },
+        sourceFingerprint: {
+            type: String,
+            match: /^[a-f\d]{64}$/,
+            default: null,
+        },
+        succeeded: {
+            type: Boolean,
+            required: true,
+        },
+        method: {
+            type: String,
+            enum: ["structural", "salvage", null],
+            default: null,
+        },
+        reason: {
+            type: String,
+            required: true,
+        },
+        videoRatio: {
+            type: Number,
+            min: 0,
+            max: 1,
+            default: null,
+        },
+        audioRatio: {
+            type: Number,
+            min: 0,
+            max: 1,
+            default: null,
+        },
+        lastError: {
+            type: String,
+            maxlength: 2048,
+            default: null,
+        },
+    },
+    {
+        timestamps: false,
+        _id: false,
+        versionKey: false,
+    },
+);
+
 const manifestSchema = new Schema(
     {
         mediaParts: {
@@ -35,6 +93,10 @@ const manifestSchema = new Schema(
         },
         playlist: {
             type: String,
+            default: null,
+        },
+        recovery: {
+            type: mediaRecoverySchema,
             default: null,
         },
     },
