@@ -2,7 +2,7 @@
     This is the formating checking for thew media uploaded by an user
     this proccess involves stages:
         0. Download exact quarantine objects into an isolated local work folder.
-        1. Reassemble and scan the complete locally staged upload for malware.
+        1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
         2. Validate the complete upload's MIME signature.
         3. Moderate the complete upload with the local AI validation service.
         4. Generate a random thumbnail from the complete upload when none was uploaded.
@@ -13,6 +13,7 @@
     The proccess itself is not time sensitive and is optimised for workflow completion roughtly estimates work to
     6-20 minutes based on the server setup and proccessing power of the hardware as described in docs\server-resources.md
 /*/
+import { createHash } from "node:crypto";
 import { detectMimeFromFile, scanFolder } from "./processMedia/bucketFSWorkerOps.js";
 import MediaMeta from "../../../../Models/MediaMeta.js";
 import enqueueAIValidation from "./processMedia/enqueueAIValidation.js";
@@ -49,7 +50,7 @@ import commitMediaToPublic, {
  *
  * Processing stages:
  * 0. Download exact quarantine objects into an isolated local work folder.
- * 1. Reassemble and scan the complete locally staged upload for malware.
+ * 1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
  * 2. Validate the complete upload's MIME signature.
  * 3. Moderate the complete upload with the local AI validation service.
  * 4. Generate a random thumbnail from the complete upload when none was uploaded.
@@ -59,11 +60,11 @@ import commitMediaToPublic, {
  *
  * Return values:
  * - `200 / processed`: approved media was exported and marked done.
- * - `200 / quarantined`: malware, unsupported MIME, or a corrupt media stream was handled.
+ * - `200 / quarantined`: malware or an unsupported MIME was handled.
  * - `200 / censored`: AI moderation rejected the media and processing stopped.
  * - `400 / invalid_job`: the job type or media ID is invalid.
  * - `404 / not_found`: no media document exists for the supplied ID.
- * - `409 / invalid_state`: the document is not ready for initial processing.
+ * - `409 / invalid_state`: the document is neither pending nor a quarantined retry.
  * - `500 / failed`: an unexpected processing or persistence operation failed.
  *
  * @param {{type?: string, data?: {_id?: string}}} job
@@ -91,14 +92,21 @@ export default async function processMedia(job) {
             // not found in dbase 404
             return failureResult(mediaId, 404, "not_found", "Media document was not found");
         }
-        if (workDoc.state !== "need_process") {
+        const isQuarantinedRetry =
+            workDoc.state === "done" && workDoc.quarantined === true;
+        if (workDoc.state !== "need_process" && !isQuarantinedRetry) {
             // this module is for inital proccessin by date: 24.7/26 is subject to change
             // for now will remain as is and will throw if the document is not with state listed on the in block
             return failureResult(
                 mediaId,
                 409,
                 "invalid_state",
-                `Media state must be need_process, received ${workDoc.state}`,
+                `Media must be need_process or done and quarantined, received state=${workDoc.state} quarantined=${workDoc.quarantined}`,
+            );
+        }
+        if (isQuarantinedRetry) {
+            console.info(
+                `[processMedia][${mediaId}][state] reopening done quarantined media for processing`,
             );
         }
 
@@ -113,10 +121,15 @@ export default async function processMedia(job) {
         claimedProcessing = true;
 
         const quarantineThumbnailKey = workDoc.manifest?.thumbnail;
+        const sourceFingerprint = buildRecoverySourceFingerprint(workDoc.manifest);
+        const recoveryRetry = isMatchingRecoveryRetry(
+            workDoc.manifest?.recovery,
+            sourceFingerprint,
+        );
         const stagedMedia = await stageMediaLocally(
             workDoc.id,
             mediaParts,
-            quarantineThumbnailKey,
+            recoveryRetry ? null : quarantineThumbnailKey,
             {
                 totalBytes: workDoc.manifest?.totalBytes,
                 chunkSizes: workDoc.manifest?.chunkSizes,
@@ -130,43 +143,79 @@ export default async function processMedia(job) {
             workDoc.id,
             stagedMedia.mediaPartPaths,
         );
-        const malwareScan = await scanFolder(stagedMedia.sourceDirectory);
-        if (malwareScan?.infected) {
-            workDoc.quarantined = true;
-            await cleanupLocalMedia(mediaId);
-            localMediaStaged = false;
-            await finishProcessing(workDoc);
-            claimedProcessing = false;
-            return successResult(mediaId, "quarantined", "malware_detected");
-        }
-        if (!malwareScan?.clean) {
-            throw new Error("Malware scanner returned an invalid result");
-        }
+        let processingMediaPath = localMediaPath;
+        let recoveryApplied = false;
 
-        // Stage 2: detect the container from the restored complete upload.
-        const mimeFormat = await detectMimeFromFile(localMediaPath);
-        if (mimeFormat === "application/octet-stream") {
-            workDoc.quarantined = true;
-            await cleanupLocalMedia(mediaId);
-            localMediaStaged = false;
-            await finishProcessing(workDoc);
-            claimedProcessing = false;
-            return successResult(
-                mediaId,
-                "quarantined",
-                "unsupported_media_signature",
+        if (recoveryRetry) {
+            console.info(
+                `[processMedia][${mediaId}][recovery] matching retry detected; skipping malware, MIME, and AI checks`,
             );
-        }
+            const recovery = await runRecoveryAttempt(
+                workDoc,
+                mediaId,
+                localMediaPath,
+                sourceFingerprint,
+                true,
+            );
+            processingMediaPath = recovery.mediaPath;
+            recoveryApplied = true;
+        } else {
+            if (workDoc.manifest?.recovery?.attempted) {
+                console.warn(
+                    `[processMedia][${mediaId}][recovery] upload fingerprint changed or is missing; running all safety checks`,
+                );
+            }
 
-        // Stage 3: moderate representative frames from the complete upload.
-        const validation = await enqueueAIValidation(localMediaPath);
-        if (validation.decision !== "allow") {
-            workDoc.censored = true;
-            await cleanupLocalMedia(mediaId);
-            localMediaStaged = false;
-            await finishProcessing(workDoc);
-            claimedProcessing = false;
-            return successResult(mediaId, "censored", "moderation_rejected");
+            // Stage 1: scan the exact reconstructed source before native parsing.
+            console.info(`[processMedia][${mediaId}][malware] scan started`);
+            const malwareScan = await scanFolder(stagedMedia.sourceDirectory);
+            if (malwareScan?.infected) {
+                workDoc.quarantined = true;
+                await cleanupLocalMedia(mediaId);
+                localMediaStaged = false;
+                await finishProcessing(workDoc);
+                claimedProcessing = false;
+                console.warn(`[processMedia][${mediaId}][malware] infection detected`);
+                return successResult(mediaId, "quarantined", "malware_detected");
+            }
+            if (!malwareScan?.clean) {
+                throw new Error("Malware scanner returned an invalid result");
+            }
+            console.info(`[processMedia][${mediaId}][malware] scan passed`);
+
+            // Stage 2: detect the container from the restored complete upload.
+            const mimeFormat = await detectMimeFromFile(localMediaPath);
+            if (mimeFormat === "application/octet-stream") {
+                workDoc.quarantined = true;
+                await cleanupLocalMedia(mediaId);
+                localMediaStaged = false;
+                await finishProcessing(workDoc);
+                claimedProcessing = false;
+                console.warn(`[processMedia][${mediaId}][mime] unsupported signature`);
+                return successResult(
+                    mediaId,
+                    "quarantined",
+                    "unsupported_media_signature",
+                );
+            }
+            console.info(`[processMedia][${mediaId}][mime] accepted ${mimeFormat}`);
+
+            // Stage 3: moderate representative frames from the complete upload.
+            console.info(`[processMedia][${mediaId}][moderation] validation started`);
+            const validation = await enqueueAIValidation(localMediaPath);
+            if (validation.decision !== "allow") {
+                workDoc.censored = true;
+                workDoc.quarantined = false;
+                await cleanupLocalMedia(mediaId);
+                localMediaStaged = false;
+                await finishProcessing(workDoc);
+                claimedProcessing = false;
+                console.warn(
+                    `[processMedia][${mediaId}][moderation] rejected with ${validation.decision}`,
+                );
+                return successResult(mediaId, "censored", "moderation_rejected");
+            }
+            console.info(`[processMedia][${mediaId}][moderation] allowed`);
         }
 
         // Stage 4: generate a safe local fallback when no thumbnail was uploaded.
@@ -174,36 +223,35 @@ export default async function processMedia(job) {
             stagedMedia.thumbnailPath ||
             (await generateMediaThumbnail(
                 workDoc.id,
-                localMediaPath,
+                processingMediaPath,
             ));
 
         // Stage 5: render the approved complete upload as a streamable HLS output.
         let concatData;
-        let recoveryApplied = false;
         try {
             concatData = await concatToStream(
                 workDoc.id,
-                localMediaPath,
+                processingMediaPath,
             );
         } catch (error) {
             if (!(error instanceof InvalidMediaStreamError)) {
                 throw error;
             }
 
-            const recovery = await recoverCorruptMedia(
-                workDoc.id,
-                localMediaPath,
-            );
-            workDoc.manifest.recovery = toRecoveryManifest(recovery);
-            if (!recovery.succeed) {
-                workDoc.quarantined = true;
-                await cleanupLocalMedia(mediaId);
-                localMediaStaged = false;
-                await finishProcessing(workDoc);
-                claimedProcessing = false;
-                return successResult(mediaId, "quarantined", recovery.reason);
+            if (recoveryApplied) {
+                await markRecoveryExportFailure(workDoc, error);
+                throw new Error("Recovered media failed HLS export", {
+                    cause: error,
+                });
             }
 
+            const recovery = await runRecoveryAttempt(
+                workDoc,
+                mediaId,
+                localMediaPath,
+                sourceFingerprint,
+                false,
+            );
             try {
                 concatData = await concatToStream(
                     workDoc.id,
@@ -215,21 +263,10 @@ export default async function processMedia(job) {
                     throw recoveryOutputError;
                 }
 
-                workDoc.manifest.recovery = {
-                    ...toRecoveryManifest(recovery),
-                    succeeded: false,
-                    reason: "recovery_hls_export_rejected",
-                };
-                workDoc.quarantined = true;
-                await cleanupLocalMedia(mediaId);
-                localMediaStaged = false;
-                await finishProcessing(workDoc);
-                claimedProcessing = false;
-                return successResult(
-                    mediaId,
-                    "quarantined",
-                    "recovery_hls_export_rejected",
-                );
+                await markRecoveryExportFailure(workDoc, recoveryOutputError);
+                throw new Error("Recovered media failed HLS export", {
+                    cause: recoveryOutputError,
+                });
             }
         }
 
@@ -242,6 +279,7 @@ export default async function processMedia(job) {
         localMediaStaged = false;
         workDoc.manifest.playlist = publicMedia.playlistKey;
         workDoc.manifest.thumbnail = publicMedia.thumbnailKey;
+        workDoc.quarantined = false;
 
         await finishProcessing(workDoc);
         claimedProcessing = false;
@@ -280,6 +318,9 @@ export default async function processMedia(job) {
         // the proccessing genuinly threw error and need investigating
         const handledError = error instanceof Error ? error : new Error(String(error));
         let message = handledError.message;
+        console.error(
+            `[processMedia][${mediaId}][failure] ${truncateRecoveryMessage(message)}`,
+        );
 
         if (localMediaStaged) {
             try {
@@ -296,6 +337,9 @@ export default async function processMedia(job) {
             try {
                 workDoc.state = "need_process";
                 await workDoc.save();
+                console.warn(
+                    `[processMedia][${mediaId}][state] reset to need_process`,
+                );
             } catch (recoveryError) {
                 const recoveryMessage =
                     recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
@@ -318,6 +362,133 @@ async function finishProcessing(workDoc) {
     return await workDoc.save();
 }
 
+function buildRecoverySourceFingerprint(manifest) {
+    const fingerprintSource = JSON.stringify({
+        mediaParts: manifest?.mediaParts,
+        totalBytes: manifest?.totalBytes,
+        chunkSizes: manifest?.chunkSizes,
+        chunkSha256: manifest?.chunkSha256,
+    });
+
+    return createHash("sha256").update(fingerprintSource).digest("hex");
+}
+
+function isMatchingRecoveryRetry(recovery, sourceFingerprint) {
+    return (
+        recovery?.attempted === true &&
+        typeof recovery?.sourceFingerprint === "string" &&
+        recovery.sourceFingerprint === sourceFingerprint
+    );
+}
+
+async function runRecoveryAttempt(
+    workDoc,
+    mediaId,
+    localMediaPath,
+    sourceFingerprint,
+    isRetry,
+) {
+    const previousRecovery = workDoc.manifest?.recovery;
+    const previousAttempts =
+        Number.isSafeInteger(previousRecovery?.attempts) &&
+        previousRecovery.attempts > 0
+            ? previousRecovery.attempts
+            : previousRecovery?.attempted
+                ? 1
+                : 0;
+    const attempts = previousAttempts + 1;
+    const lastAttemptAt = new Date();
+
+    workDoc.manifest.recovery = {
+        attempted: true,
+        attempts,
+        lastAttemptAt,
+        sourceFingerprint,
+        succeeded: false,
+        method: null,
+        reason: "recovery_in_progress",
+        videoRatio: null,
+        audioRatio: null,
+        lastError: null,
+    };
+    workDoc.quarantined = false;
+    await workDoc.save();
+    console.info(
+        `[processMedia][${mediaId}][recovery] attempt=${attempts} mode=${isRetry ? "retry" : "initial"} started`,
+    );
+
+    let recovery;
+    try {
+        recovery = await recoverCorruptMedia(
+            workDoc.id,
+            localMediaPath,
+        );
+    } catch (error) {
+        const handledError =
+            error instanceof Error ? error : new Error(String(error));
+        workDoc.manifest.recovery = toRecoveryManifest(
+            {
+                succeed: false,
+                method: null,
+                reason: "recovery_operational_failure",
+                videoRatio: null,
+                audioRatio: null,
+            },
+            {
+                attempts,
+                lastAttemptAt,
+                sourceFingerprint,
+                lastError: truncateRecoveryMessage(handledError.message),
+            },
+        );
+        await workDoc.save();
+        console.error(
+            `[processMedia][${mediaId}][recovery] attempt=${attempts} operational failure: ${truncateRecoveryMessage(handledError.message)}`,
+        );
+        throw handledError;
+    }
+
+    workDoc.manifest.recovery = toRecoveryManifest(
+        recovery,
+        {
+            attempts,
+            lastAttemptAt,
+            sourceFingerprint,
+            lastError: null,
+        },
+    );
+    await workDoc.save();
+
+    if (!recovery.succeed) {
+        const ratioSummary =
+            `video=${formatRecoveryRatio(recovery.videoRatio)} ` +
+            `audio=${formatRecoveryRatio(recovery.audioRatio)}`;
+        console.warn(
+            `[processMedia][${mediaId}][recovery] attempt=${attempts} unsuccessful reason=${recovery.reason} ${ratioSummary}; state will reset to need_process`,
+        );
+        throw new Error(
+            `Media recovery was unsuccessful: ${recovery.reason} (${ratioSummary})`,
+        );
+    }
+
+    console.info(
+        `[processMedia][${mediaId}][recovery] attempt=${attempts} succeeded method=${recovery.method} video=${formatRecoveryRatio(recovery.videoRatio)} audio=${formatRecoveryRatio(recovery.audioRatio)}`,
+    );
+    return recovery;
+}
+
+async function markRecoveryExportFailure(workDoc, error) {
+    const message =
+        error instanceof Error ? error.message : String(error);
+    workDoc.manifest.recovery.succeeded = false;
+    workDoc.manifest.recovery.reason = "recovery_hls_export_rejected";
+    workDoc.manifest.recovery.lastError = truncateRecoveryMessage(message);
+    await workDoc.save();
+    console.error(
+        `[processMedia][${workDoc.id}][recovery] recovered input failed HLS export: ${truncateRecoveryMessage(message)}`,
+    );
+}
+
 /**
  * Converts recovery output into bounded persisted diagnostics.
  *
@@ -327,24 +498,45 @@ async function finishProcessing(workDoc) {
  * @param {string} recovery.reason
  * @param {number|null} recovery.videoRatio
  * @param {number|null} recovery.audioRatio
+ * @param {object} metadata
+ * @param {number} metadata.attempts
+ * @param {Date} metadata.lastAttemptAt
+ * @param {string} metadata.sourceFingerprint
+ * @param {string|null} metadata.lastError
  * @returns {{
  * attempted: true,
+ * attempts: number,
+ * lastAttemptAt: Date,
+ * sourceFingerprint: string,
  * succeeded: boolean,
  * method: "structural"|"salvage"|null,
  * reason: string,
  * videoRatio: number|null,
- * audioRatio: number|null
+ * audioRatio: number|null,
+ * lastError: string|null
  * }}
  */
-function toRecoveryManifest(recovery) {
+function toRecoveryManifest(recovery, metadata) {
     return {
         attempted: true,
+        attempts: metadata.attempts,
+        lastAttemptAt: metadata.lastAttemptAt,
+        sourceFingerprint: metadata.sourceFingerprint,
         succeeded: recovery.succeed,
         method: recovery.method,
         reason: recovery.reason,
         videoRatio: recovery.videoRatio,
         audioRatio: recovery.audioRatio,
+        lastError: metadata.lastError,
     };
+}
+
+function truncateRecoveryMessage(message) {
+    return String(message).replace(/\s+/g, " ").trim().slice(0, 2048);
+}
+
+function formatRecoveryRatio(ratio) {
+    return ratio === null ? "n/a" : ratio.toFixed(3);
 }
 
 /**

@@ -9,6 +9,20 @@ const mediaRecoverySchema = new Schema(
             type: Boolean,
             required: true,
         },
+        attempts: {
+            type: Number,
+            min: 1,
+            default: 1,
+        },
+        lastAttemptAt: {
+            type: Date,
+            default: null,
+        },
+        sourceFingerprint: {
+            type: String,
+            match: /^[a-f\d]{64}$/,
+            default: null,
+        },
         succeeded: {
             type: Boolean,
             required: true,
@@ -32,6 +46,11 @@ const mediaRecoverySchema = new Schema(
             type: Number,
             min: 0,
             max: 1,
+            default: null,
+        },
+        lastError: {
+            type: String,
+            maxlength: 2048,
             default: null,
         },
     },

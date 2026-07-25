@@ -102,11 +102,19 @@ export default async function recoverCorruptMedia(mediaId, mediaPath) {
     await mkdir(recoveryDirectory, { recursive: false, mode: 0o700 });
     await verifyDirectory(recoveryDirectory);
 
+    recoveryLog(normalizedMediaId, "probe", "inspecting corrupt source");
     const sourceProbe = await probeMedia(mediaPath);
     if (!sourceProbe) {
+        recoveryLog(
+            normalizedMediaId,
+            "probe",
+            "source metadata is unreadable",
+            "warn",
+        );
         return failedRecovery("recovery_source_unprobeable");
     }
 
+    recoveryLog(normalizedMediaId, "structural", "native repair started");
     const structuralCompleted = await attemptStructuralRepair(
         normalizedMediaId,
         mediaPath,
@@ -128,6 +136,11 @@ export default async function recoverCorruptMedia(mediaId, mediaPath) {
                 structuralQuality.audioRatio >= MIN_AUDIO_RECOVERY_RATIO
             )
         ) {
+            recoveryLog(
+                normalizedMediaId,
+                "structural",
+                `accepted video=${formatRatio(structuralQuality.videoRatio)} audio=${formatRatio(structuralQuality.audioRatio)}`,
+            );
             return {
                 succeed: true,
                 method: "structural",
@@ -137,11 +150,22 @@ export default async function recoverCorruptMedia(mediaId, mediaPath) {
                 audioRatio: structuralQuality.audioRatio,
             };
         }
+
+        recoveryLog(
+            normalizedMediaId,
+            "structural",
+            structuralQuality
+                ? `rejected video=${formatRatio(structuralQuality.videoRatio)} audio=${formatRatio(structuralQuality.audioRatio)}`
+                : "strict validation failed",
+            "warn",
+        );
     }
 
     await rm(structuralPath, { force: true });
     await rm(`${structuralPath.slice(0, -4)}.partial.mp4`, { force: true });
+    recoveryLog(normalizedMediaId, "salvage", "FFmpeg salvage started");
     return await attemptSalvage(
+        normalizedMediaId,
         mediaPath,
         recoveryDirectory,
         recoveredPath,
@@ -156,13 +180,22 @@ async function attemptStructuralRepair(mediaId, mediaPath, structuralPath) {
         STRUCTURAL_TIMEOUT_MS,
     );
 
-    if (result.timedOut) return false;
+    if (result.timedOut) {
+        recoveryLog(mediaId, "structural", "native repair timed out", "warn");
+        return false;
+    }
     if (result.code === 0) {
         await verifyRegularFile(structuralPath, "native structural-repair output");
         return true;
     }
 
     if (result.code === 4 || result.code === 5) {
+        recoveryLog(
+            mediaId,
+            "structural",
+            `native repair unavailable (${formatExit(result)})`,
+            "warn",
+        );
         return false;
     }
 
@@ -172,6 +205,7 @@ async function attemptStructuralRepair(mediaId, mediaPath, structuralPath) {
 }
 
 async function attemptSalvage(
+    mediaId,
     sourcePath,
     recoveryDirectory,
     recoveredPath,
@@ -182,7 +216,18 @@ async function attemptSalvage(
         sourceProbe.frameCount ||
         Math.max(1, Math.round(sourceProbe.duration * sourceProbe.frameRate));
     const videoRatio = clampRatio(recoverableFrames / expectedFrames);
+    recoveryLog(
+        mediaId,
+        "analysis",
+        `decoded=${recoverableFrames} expected=${expectedFrames} video=${formatRatio(videoRatio)}`,
+    );
     if (videoRatio < MIN_VIDEO_RECOVERY_RATIO) {
+        recoveryLog(
+            mediaId,
+            "analysis",
+            `video below ${formatRatio(MIN_VIDEO_RECOVERY_RATIO)} threshold`,
+            "warn",
+        );
         return failedRecovery(
             "recovery_video_below_threshold",
             videoRatio,
@@ -197,6 +242,7 @@ async function attemptSalvage(
         sourceProbe.duration,
     );
     if (!videoCompleted) {
+        recoveryLog(mediaId, "video", "salvage encode failed", "warn");
         return failedRecovery("recovery_video_salvage_failed", videoRatio, null);
     }
 
@@ -206,6 +252,7 @@ async function attemptSalvage(
         audioPath = path.posix.join(recoveryDirectory, "audio.m4a");
         const audioCompleted = await salvageAudio(sourcePath, audioPath);
         if (!audioCompleted) {
+            recoveryLog(mediaId, "audio", "salvage encode failed", "warn");
             return failedRecovery(
                 "recovery_audio_salvage_failed",
                 videoRatio,
@@ -217,7 +264,18 @@ async function attemptSalvage(
         audioRatio = audioProbe
             ? clampRatio(audioProbe.duration / sourceProbe.duration)
             : 0;
+        recoveryLog(
+            mediaId,
+            "audio",
+            `recovered=${formatRatio(audioRatio)}`,
+        );
         if (audioRatio < MIN_AUDIO_RECOVERY_RATIO) {
+            recoveryLog(
+                mediaId,
+                "audio",
+                `audio below ${formatRatio(MIN_AUDIO_RECOVERY_RATIO)} threshold`,
+                "warn",
+            );
             return failedRecovery(
                 "recovery_audio_below_threshold",
                 videoRatio,
@@ -233,6 +291,7 @@ async function attemptSalvage(
         sourceProbe.duration,
     );
     if (!muxCompleted) {
+        recoveryLog(mediaId, "mux", "final recovered-media mux failed", "warn");
         return failedRecovery(
             "recovery_final_mux_failed",
             videoRatio,
@@ -240,6 +299,7 @@ async function attemptSalvage(
         );
     }
     if (!(await strictlyValidateMedia(recoveredPath, sourceProbe))) {
+        recoveryLog(mediaId, "validation", "strict decode failed", "warn");
         return failedRecovery(
             "recovery_strict_validation_failed",
             videoRatio,
@@ -247,6 +307,11 @@ async function attemptSalvage(
         );
     }
 
+    recoveryLog(
+        mediaId,
+        "salvage",
+        `accepted video=${formatRatio(videoRatio)} audio=${formatRatio(audioRatio)}`,
+    );
     return {
         succeed: true,
         method: "salvage",
@@ -278,6 +343,8 @@ async function countRecoverableVideoFrames(sourcePath) {
             "-map",
             "0:v:0",
             "-an",
+            "-max_error_rate",
+            "1",
             "-fps_mode",
             "passthrough",
             "-progress",
@@ -291,7 +358,16 @@ async function countRecoverableVideoFrames(sourcePath) {
     );
     assertDidNotTimeOut(result, "recoverable-frame analysis");
 
-    return readLastProgressFrame(result.stdout);
+    const frameCount = readLastProgressFrame(result.stdout);
+    if (result.code !== 0) {
+        const details = result.stderr.trim().slice(-1024);
+        throw new MediaRecoveryOperationalError(
+            `Recoverable-frame analysis exited with ${formatExit(result)}` +
+                `${details ? `: ${details}` : ""}`,
+        );
+    }
+
+    return frameCount;
 }
 
 async function salvageVideo(sourcePath, destinationPath, duration) {
@@ -766,7 +842,7 @@ function parseFrameCount(value) {
 }
 
 function readLastProgressFrame(stdout) {
-    const frameMatches = [...stdout.matchAll(/^frame=(\d+)$/gm)];
+    const frameMatches = [...stdout.matchAll(/^frame=\s*(\d+)\s*$/gm)];
     const frameCount =
         frameMatches.length > 0
             ? Number.parseInt(frameMatches.at(-1)[1], 10)
@@ -789,6 +865,19 @@ function assertDidNotTimeOut(result, label) {
 
 function formatExit(result) {
     return result.signal ? `signal ${result.signal}` : `code ${result.code}`;
+}
+
+function formatRatio(ratio) {
+    return ratio === null ? "n/a" : ratio.toFixed(3);
+}
+
+function recoveryLog(mediaId, stage, message, level = "info") {
+    const formatted = `[mediaRecovery][${mediaId}][${stage}] ${message}`;
+    if (level === "warn") {
+        console.warn(formatted);
+        return;
+    }
+    console.info(formatted);
 }
 
 function readPositiveInteger(name, fallback) {
