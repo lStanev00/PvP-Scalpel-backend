@@ -3,6 +3,45 @@ import User from "./User.js";
 import Char from "./Chars.js";
 import GameBrackets from "./GameBrackets.js";
 
+const mediaRecoverySchema = new Schema(
+    {
+        attempted: {
+            type: Boolean,
+            required: true,
+        },
+        succeeded: {
+            type: Boolean,
+            required: true,
+        },
+        method: {
+            type: String,
+            enum: ["structural", "salvage", null],
+            default: null,
+        },
+        reason: {
+            type: String,
+            required: true,
+        },
+        videoRatio: {
+            type: Number,
+            min: 0,
+            max: 1,
+            default: null,
+        },
+        audioRatio: {
+            type: Number,
+            min: 0,
+            max: 1,
+            default: null,
+        },
+    },
+    {
+        timestamps: false,
+        _id: false,
+        versionKey: false,
+    },
+);
+
 const manifestSchema = new Schema(
     {
         mediaParts: {
@@ -35,6 +74,10 @@ const manifestSchema = new Schema(
         },
         playlist: {
             type: String,
+            default: null,
+        },
+        recovery: {
+            type: mediaRecoverySchema,
             default: null,
         },
     },
