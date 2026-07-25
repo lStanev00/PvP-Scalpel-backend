@@ -6,6 +6,7 @@ export const CDNAUTH =
     process.env.JWT_CDN_PUBLIC ||
     "2x5ZLnz88q3YdSL0N8yWxEZ_T53xQ6_VzXpdEX-i2x5ZLnz88q3PVP_PUBLICC468JFD4H6SG85ADFS65489HG7F6453B1";
 const CDN_DELETE_TIMEOUT_MS = 60 * 1000;
+const CDN_PRESIGN_TIMEOUT_MS = 60 * 1000;
 
 export async function retriveCDNLink(keyId) {
     const response = await fetch(`${CDNURI}/presign/download`, {
@@ -20,6 +21,67 @@ export async function retriveCDNLink(keyId) {
     });
 
     return await response.json();
+}
+
+/**
+ * @typedef {Object} DownloadPresignParams
+ * @property {string} keyId Object key/path in the source bucket.
+ * @property {string} bucket Storage bucket containing the object.
+ */
+
+/**
+ * Creates a presigned object-download URL through the private storage REST service.
+ *
+ * The caller must treat the returned URL as a secret and must not log it.
+ *
+ * @param {DownloadPresignParams} params
+ * @returns {Promise<{downloadUrl: string, expiresIn: number}>}
+ */
+export async function downloadPresignLink(params = {}) {
+    const { keyId, bucket } = params;
+    if (typeof keyId !== "string" || keyId.length === 0) {
+        throw new TypeError("downloadPresignLink requires a keyId");
+    }
+    if (typeof bucket !== "string" || bucket.length === 0) {
+        throw new TypeError("downloadPresignLink requires a bucket");
+    }
+
+    const response = await fetch(`${CDNURI}/presign/download`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${CDNAUTH}`,
+        },
+        body: JSON.stringify({
+            keyId,
+            bucket,
+        }),
+        signal: AbortSignal.timeout(CDN_PRESIGN_TIMEOUT_MS),
+    });
+
+    let data;
+    try {
+        data = await response.json();
+    } catch (error) {
+        throw new Error(`Storage download signing returned invalid JSON with HTTP ${response.status}`, {
+            cause: error,
+        });
+    }
+
+    if (!response.ok) {
+        throw new Error(
+            `Storage download signing failed with HTTP ${response.status}: ${data?.error || "unknown error"}`,
+        );
+    }
+    if (
+        typeof data?.downloadUrl !== "string" ||
+        data.downloadUrl.length === 0 ||
+        !Number.isFinite(data?.expiresIn)
+    ) {
+        throw new Error("Storage download signing returned an invalid result");
+    }
+
+    return data;
 }
 
 /**

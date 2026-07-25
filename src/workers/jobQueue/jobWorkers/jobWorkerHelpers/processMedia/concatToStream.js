@@ -1,12 +1,33 @@
 import { spawn } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
-import { access, mkdir, readdir, rm, unlink, writeFile } from "node:fs/promises";
+import {
+    access,
+    lstat,
+    mkdir,
+    readdir,
+    realpath,
+    rm,
+} from "node:fs/promises";
 import path from "node:path";
 
-const BUCKET_ROOT = "/mnt/s3-bucket";
-const QUARANTINE_ROOT = path.posix.join(BUCKET_ROOT, "quarantine-uploads");
 const WORK_ROOT = "/mnt/work";
 const STDERR_TAIL_LIMIT = 8 * 1024;
+const INVALID_MEDIA_STREAM_PATTERN =
+    /(?:invalid data found when processing input|invalid nal unit size|error splitting the input into nal units|corrupt decoded frame|error submitting packet to decoder|could not find codec parameters)/i;
+const FFMPEG_TIMEOUT_MS = readPositiveInteger(
+    process.env.MEDIA_FFMPEG_TIMEOUT_MS,
+    60 * 60 * 1000,
+);
+
+/**
+ * Indicates that FFmpeg rejected the uploaded media stream itself.
+ */
+export class InvalidMediaStreamError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "InvalidMediaStreamError";
+    }
+}
 
 /**
  * @typedef {Object} HLSOutput
@@ -16,44 +37,36 @@ const STDERR_TAIL_LIMIT = 8 * 1024;
  */
 
 /**
- * Concatenates ordered, independently playable MP4 parts and transcodes them into
- * one H.264/AAC HLS VOD rendition under `/tmp`.
+ * Transcodes one complete reconstructed MP4 into a bitrate-limited H.264/AAC
+ * HLS VOD rendition under the media job's private work directory.
  *
- * Every input must use a compatible stream layout and recording configuration so
- * FFmpeg's concat demuxer can read the files as one sequence. This helper only
- * creates local output; uploading files and updating media metadata are left to
- * the caller.
+ * This helper only creates local output; uploading files and updating media
+ * metadata are left to the caller.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string[]} mediaParts Ordered bucket-relative paths in the exact form
- * `videos/<mediaId>/part_<index>`.
+ * @param {string} mediaPath Complete staged file in the exact form
+ * `/mnt/work/<mediaId>/source/media.mp4`.
  * @returns {Promise<HLSOutput>} Paths to the generated playlist and segments.
- * @throws {TypeError} When `mediaId` or `mediaParts` is invalid.
+ * @throws {TypeError} When `mediaId` or `mediaPath` is invalid.
  * @throws {Error} When an input is unreadable, FFmpeg fails, or valid HLS output
  * is not produced.
  */
-export default async function concatToStream(mediaId, mediaParts) {
+export default async function concatToStream(mediaId, mediaPath) {
     const normalizedMediaId = normalizeMediaId(mediaId);
     const workDirectory = path.posix.join(WORK_ROOT, normalizedMediaId); // local volume + id
     const outputDirectory = path.posix.join(workDirectory, "hls");
-    const concatListPath = path.posix.join(workDirectory, "parts.ffconcat");
     const playlistPath = path.posix.join(outputDirectory, "index.m3u8");
 
     try {
-        const inputPaths = resolveMediaParts(normalizedMediaId, mediaParts);
-        await verifyInputsReadable(inputPaths);
+        const inputPath = resolveMediaPath(normalizedMediaId, mediaPath);
+        await verifyInputReadable(inputPath);
 
-        await rm(workDirectory, { recursive: true, force: true });
+        await rm(outputDirectory, { recursive: true, force: true });
         await mkdir(outputDirectory, { recursive: true });
-        await writeFile(concatListPath, buildConcatList(inputPaths), {
-            encoding: "utf8",
-            flag: "wx",
-        });
 
-        await runFFmpeg(buildFFmpegArgs(concatListPath, outputDirectory, playlistPath));
+        await runFFmpeg(buildFFmpegArgs(inputPath, outputDirectory, playlistPath));
 
         const segmentPaths = await verifyHLSOutput(outputDirectory, playlistPath);
-        await unlink(concatListPath);
 
         return {
             outputDirectory,
@@ -74,53 +87,50 @@ function normalizeMediaId(mediaId) {
     return mediaId.toLowerCase();
 }
 
-function resolveMediaParts(mediaId, mediaParts) {
-    if (!Array.isArray(mediaParts) || mediaParts.length === 0) {
-        throw new TypeError("concatToStream requires at least one ordered media part");
+function resolveMediaPath(mediaId, mediaPath) {
+    const expectedPath = path.posix.join(
+        WORK_ROOT,
+        mediaId,
+        "source",
+        "media.mp4",
+    );
+    if (mediaPath !== expectedPath) {
+        throw new TypeError(
+            `Invalid complete media path; expected "${expectedPath}"`,
+        );
     }
 
-    const resolvedParts = [];
-    for (let index = 0; index < mediaParts.length; index++) {
-        const expectedPath = `videos/${mediaId}/part_${index}`;
-        if (mediaParts[index] !== expectedPath) {
-            throw new TypeError(
-                `Invalid media part at index ${index}; expected "${expectedPath}"`,
-            );
+    return expectedPath;
+}
+
+async function verifyInputReadable(inputPath) {
+    try {
+        const [inputStats, resolvedPath] = await Promise.all([
+            lstat(inputPath),
+            realpath(inputPath),
+            access(inputPath, fsConstants.R_OK),
+        ]);
+        if (
+            !inputStats.isFile() ||
+            inputStats.isSymbolicLink() ||
+            resolvedPath !== inputPath
+        ) {
+            throw new Error("input is not a regular non-symlink file");
         }
-
-        resolvedParts.push(path.posix.join(QUARANTINE_ROOT, expectedPath));
-    }
-
-    return resolvedParts;
-}
-
-async function verifyInputsReadable(inputPaths) {
-    for (const inputPath of inputPaths) {
-        try {
-            await access(inputPath, fsConstants.R_OK);
-        } catch (error) {
-            throw new Error(`Media part is not readable: ${inputPath}`, { cause: error });
-        }
+    } catch (error) {
+        throw new Error(`Complete media upload is not readable: ${inputPath}`, {
+            cause: error,
+        });
     }
 }
 
-function buildConcatList(inputPaths) {
-    return `ffconcat version 1.0\n${inputPaths
-        .map((inputPath) => `file '${inputPath}'`)
-        .join("\n")}\n`;
-}
-
-function buildFFmpegArgs(concatListPath, outputDirectory, playlistPath) {
+function buildFFmpegArgs(inputPath, outputDirectory, playlistPath) {
     return [
         "-hide_banner",
         "-nostdin",
         "-y",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
         "-i",
-        concatListPath,
+        inputPath,
         "-map",
         "0:v:0",
         "-map",
@@ -133,12 +143,20 @@ function buildFFmpegArgs(concatListPath, outputDirectory, playlistPath) {
         "23",
         "-pix_fmt",
         "yuv420p",
+        "-vf",
+        "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+        "-maxrate",
+        "4000k",
+        "-bufsize",
+        "8000k",
         "-force_key_frames",
         "expr:gte(t,n_forced*6)",
         "-sc_threshold",
         "0",
         "-c:a",
         "aac",
+        "-af",
+        "aresample=async=1000:first_pts=0",
         "-b:a",
         "128k",
         "-ac",
@@ -162,6 +180,7 @@ function buildFFmpegArgs(concatListPath, outputDirectory, playlistPath) {
 function runFFmpeg(args) {
     return new Promise((resolve, reject) => {
         let ffmpeg;
+        let timedOut = false;
         try {
             ffmpeg = spawn("ffmpeg", args, {
                 stdio: ["ignore", "ignore", "pipe"],
@@ -171,6 +190,10 @@ function runFFmpeg(args) {
             return;
         }
 
+        const timeout = setTimeout(() => {
+            timedOut = true;
+            ffmpeg.kill("SIGKILL");
+        }, FFMPEG_TIMEOUT_MS);
         let stderrTail = "";
 
         ffmpeg.stderr.setEncoding("utf8");
@@ -179,10 +202,16 @@ function runFFmpeg(args) {
         });
 
         ffmpeg.once("error", (error) => {
+            clearTimeout(timeout);
             reject(new Error(`Failed to start FFmpeg: ${error.message}`, { cause: error }));
         });
 
         ffmpeg.once("close", (code, signal) => {
+            clearTimeout(timeout);
+            if (timedOut) {
+                reject(new Error(`FFmpeg HLS conversion exceeded ${FFMPEG_TIMEOUT_MS}ms`));
+                return;
+            }
             if (code === 0) {
                 resolve();
                 return;
@@ -190,14 +219,28 @@ function runFFmpeg(args) {
 
             const exitReason = signal ? `signal ${signal}` : `code ${code}`;
             const details = stderrTail.trim();
+            const message =
+                `FFmpeg HLS conversion exited with ${exitReason}` +
+                `${details ? `: ${details}` : ""}`;
+
             reject(
-                new Error(
-                    `FFmpeg HLS conversion exited with ${exitReason}` +
-                        `${details ? `: ${details}` : ""}`,
-                ),
+                INVALID_MEDIA_STREAM_PATTERN.test(details)
+                    ? new InvalidMediaStreamError(message)
+                    : new Error(message),
             );
         });
     });
+}
+
+function readPositiveInteger(value, fallback) {
+    if (typeof value === "undefined" || value === "") return fallback;
+
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+        throw new TypeError("MEDIA_FFMPEG_TIMEOUT_MS must be a positive safe integer");
+    }
+
+    return parsed;
 }
 
 async function verifyHLSOutput(outputDirectory, playlistPath) {

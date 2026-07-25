@@ -2,22 +2,31 @@ import { uploadPresignLink } from "../../../caching/CDNCache/CDN/cdn.config.js";
 import { jsonMessage, jsonResponse } from "../../../helpers/resposeHelpers.js";
 import MediaMeta from "../../../Models/MediaMeta.js";
 
+const QUARANTINE_BUCKET = "quarantine-uploads";
+const MAXIMUM_MEDIA_PARTS = 100;
+const MAXIMUM_MEDIA_PART_BYTES = 90 * 1024 * 1024;
+const MAXIMUM_MEDIA_BYTES = 10 * 1024 * 1024 * 1024;
+
 /**
- * @typedef {Object} MediaManifestInput
- * @property {string[]} [meidaParts]
- * @property {string | null} [thumbnail]
+ * @typedef {Object} MediaPartInput
+ * @property {number} index
+ * @property {number} start Inclusive byte offset in the original file.
+ * @property {number} end Exclusive byte offset in the original file.
+ * @property {number} size
+ * @property {string} sha256 Lowercase SHA-256 digest of the exact part bytes.
+ */
+
+/**
+ * @typedef {Object} MediaFileInput
+ * @property {string} originalName
+ * @property {string} mimeType
+ * @property {number} totalBytes
  */
 
 /**
  * @typedef {Object} CreateMediaBody
- * @property {"video"} type
- * @property {boolean} [isPrivate]
- * @property {string} title
- * @property {string} [description]
- * @property {string[]} [characters]
- * @property {number} [bracket]
- * @property {MediaManifestInput} manifest
- * @property {unknown[]} fileData
+ * @property {MediaFileInput} file
+ * @property {MediaPartInput[]} fileData
  */
 
 /**
@@ -35,52 +44,162 @@ import MediaMeta from "../../../Models/MediaMeta.js";
  */
 
 /**
+ * Initializes one integrity-checked multipart media upload.
+ *
  * @param {CreateMediaRequest} req
  * @param {import("express").Response} res
  */
 export async function createMediaPOST(req, res) {
-    const {
-        fileData,
-    } = req.body ?? {};
+    let media;
 
     try {
-        if (!fileData) {
-            return jsonMessage(
-                res,
-                400,
-                "There's not provided data for the file key should be `fileData`",
-            );
-        } else if (!Array.isArray(fileData) || fileData.length === 0) return jsonMessage(res, 500, "1");
+        const uploadManifest = validateUploadManifest(req.body);
 
-        const media = await MediaMeta.create({
-            type : "video",
+        media = await MediaMeta.create({
+            type: "video",
             state: "initializing",
             author: req.user._id,
-            manifest : {
-                chunksNumber: fileData.length
-            }
-            // characters : characters ? characters : [],
+            manifest: {
+                chunksNumber: uploadManifest.parts.length,
+                totalBytes: uploadManifest.totalBytes,
+                chunkSizes: uploadManifest.parts.map((part) => part.size),
+                chunkSha256: uploadManifest.parts.map((part) => part.sha256),
+                originalName: uploadManifest.originalName,
+                mimeType: uploadManifest.mimeType,
+            },
         });
 
-        const uploadURLS = [];
-        for (const [index] of fileData.entries()) {
-            const quarantineBocket = "quarantine-uploads";
-            const keyId = `videos/${media._id}/part_${index}`;
+        const uploads = [];
+        for (const part of uploadManifest.parts) {
+            const keyId = `videos/${media.id}/part_${part.index}`;
+            const signingResult = await uploadPresignLink({
+                bucket: QUARANTINE_BUCKET,
+                keyId,
+                mimeType: "application/octet-stream",
+            });
 
-            const url = await uploadPresignLink({bucket: quarantineBocket, keyId});
-            if(url.uploadUrl) uploadURLS.push(url.uploadUrl);
+            if (!signingResult || typeof signingResult.uploadUrl !== "string") {
+                throw new Error(`Storage did not sign media part ${part.index}`);
+            }
 
+            uploads.push({
+                index: part.index,
+                keyId,
+                uploadUrl: signingResult.uploadUrl,
+            });
         }
-        return jsonResponse(res, 201, {mediaObj: media.toObject(), urls: uploadURLS});
 
+        if (uploads.length !== uploadManifest.parts.length) {
+            throw new Error("Storage returned an incomplete media upload target set");
+        }
+
+        return jsonResponse(res, 201, {
+            mediaObj: media.toObject(),
+            uploads,
+        });
     } catch (error) {
-        if (error?.name === "ValidationError" || error?.name === "CastError") {
+        if (media) {
+            await MediaMeta.deleteOne({ _id: media._id }).catch((cleanupError) => {
+                console.warn(
+                    `[createMediaPOST] failed to remove incomplete media ${media.id}: ${cleanupError.message}`,
+                );
+            });
+        }
+
+        if (
+            error instanceof TypeError ||
+            error?.name === "ValidationError" ||
+            error?.name === "CastError"
+        ) {
             return jsonMessage(res, 400, error.message);
         }
 
-        console.error(error);
-        return jsonMessage(res, 500, "Internal server error");
+        console.error("[createMediaPOST] failed to initialize upload", error);
+        return jsonMessage(res, 500, "Failed to initialize media upload");
     }
+}
+
+function validateUploadManifest(body) {
+    const file = body?.file;
+    const parts = body?.fileData;
+
+    if (!file || typeof file !== "object") {
+        throw new TypeError("Media upload requires file metadata");
+    }
+    if (
+        !Array.isArray(parts) ||
+        parts.length === 0 ||
+        parts.length > MAXIMUM_MEDIA_PARTS
+    ) {
+        throw new TypeError(
+            `Media upload requires between 1 and ${MAXIMUM_MEDIA_PARTS} parts`,
+        );
+    }
+    if (
+        !Number.isSafeInteger(file.totalBytes) ||
+        file.totalBytes <= 0 ||
+        file.totalBytes > MAXIMUM_MEDIA_BYTES
+    ) {
+        throw new TypeError("Media totalBytes is invalid");
+    }
+    if (
+        typeof file.originalName !== "string" ||
+        file.originalName.length === 0 ||
+        file.originalName.length > 255
+    ) {
+        throw new TypeError("Media originalName is invalid");
+    }
+    if (
+        typeof file.mimeType !== "string" ||
+        !file.mimeType.startsWith("video/") ||
+        file.mimeType.length > 127
+    ) {
+        throw new TypeError("Media mimeType must be a video MIME type");
+    }
+
+    let expectedStart = 0;
+    const validatedParts = parts.map((part, index) => {
+        if (!part || typeof part !== "object" || part.index !== index) {
+            throw new TypeError(`Media part ${index} has an invalid index`);
+        }
+        if (
+            !Number.isSafeInteger(part.start) ||
+            !Number.isSafeInteger(part.end) ||
+            !Number.isSafeInteger(part.size) ||
+            part.start !== expectedStart ||
+            part.end <= part.start ||
+            part.size !== part.end - part.start ||
+            part.size > MAXIMUM_MEDIA_PART_BYTES
+        ) {
+            throw new TypeError(`Media part ${index} has invalid byte boundaries`);
+        }
+        if (
+            typeof part.sha256 !== "string" ||
+            !/^[a-f\d]{64}$/.test(part.sha256)
+        ) {
+            throw new TypeError(`Media part ${index} has an invalid SHA-256 digest`);
+        }
+
+        expectedStart = part.end;
+        return {
+            index,
+            start: part.start,
+            end: part.end,
+            size: part.size,
+            sha256: part.sha256,
+        };
+    });
+
+    if (expectedStart !== file.totalBytes) {
+        throw new TypeError("Media parts do not cover the complete original file");
+    }
+
+    return {
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        totalBytes: file.totalBytes,
+        parts: validatedParts,
+    };
 }
 
 export function requireAdmin(req, res, next) {
