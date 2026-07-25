@@ -51,7 +51,10 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
     const source = await validateSourceFiles(normalizedMediaId, concatResult, thumbnailPath);
     const publicPrefix = path.posix.join(PUBLIC_VIDEO_ROOT, normalizedMediaId);
     const playlistKey = path.posix.join(publicPrefix, "hls", "index.m3u8");
-    const publicThumbnailKey = path.posix.join(publicPrefix, "thumbnail");
+    const publicThumbnailKey = path.posix.join(
+        publicPrefix,
+        `thumbnail${thumbnailExtension(source.thumbnailMime)}`,
+    );
     const uploadedKeys = [];
 
     for (const segmentPath of source.segmentPaths) {
@@ -103,7 +106,7 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
  * @param {string[]} mediaParts Ordered quarantine part keys.
- * @param {string} thumbnailKey Quarantine thumbnail key.
+ * @param {string|null|undefined} thumbnailKey Optional quarantine thumbnail key.
  * @param {string} mediaState Current persisted media state.
  * @returns {Promise<QuarantineCleanupResult>} Per-key cleanup result.
  */
@@ -169,11 +172,17 @@ function validateQuarantineKeys(mediaId, mediaParts, thumbnailKey) {
     }
 
     const expectedThumbnailKey = path.posix.join(PUBLIC_VIDEO_ROOT, mediaId, "thumbnail");
-    if (thumbnailKey !== expectedThumbnailKey) {
+    if (
+        thumbnailKey !== null &&
+        typeof thumbnailKey !== "undefined" &&
+        thumbnailKey !== expectedThumbnailKey
+    ) {
         throw new TypeError(`Unexpected quarantine thumbnail key: ${thumbnailKey}`);
     }
 
-    return [...mediaParts, thumbnailKey];
+    return thumbnailKey === expectedThumbnailKey
+        ? [...mediaParts, thumbnailKey]
+        : [...mediaParts];
 }
 
 async function validateSourceFiles(mediaId, concatResult, thumbnailPath) {
@@ -287,6 +296,19 @@ async function detectThumbnailMime(thumbnailPath) {
         throw new TypeError(`Unsupported thumbnail MIME signature: ${thumbnailPath}`);
     } finally {
         await file.close();
+    }
+}
+
+function thumbnailExtension(mimeType) {
+    switch (mimeType) {
+        case "image/jpeg":
+            return ".jpg";
+        case "image/png":
+            return ".png";
+        case "image/webp":
+            return ".webp";
+        default:
+            throw new TypeError(`Unsupported public thumbnail MIME type: ${mimeType}`);
     }
 }
 
