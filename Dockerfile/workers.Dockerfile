@@ -1,6 +1,7 @@
 FROM node:22-alpine
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    STORAGE_LOCAL_ENDPOINT=http://minio:4010
 
 WORKDIR /app
 
@@ -28,8 +29,10 @@ COPY --chown=node:node src ./src
 COPY --chown=node:node docker/worker-entrypoint.sh /usr/local/bin/worker-entrypoint.sh
 
 RUN chmod +x /usr/local/bin/worker-entrypoint.sh \
-    && mkdir -p /run/clamav /var/lib/clamav /var/log/clamav \
-    && chmod 777 /run/clamav
+    && mkdir -p /run/clamav /var/lib/clamav /var/log/clamav /mnt/work \
+    && chown -R clamav:clamav /run/clamav /var/lib/clamav /var/log/clamav \
+    && chown node:node /mnt/work \
+    && chmod 755 /run/clamav
 
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/worker-entrypoint.sh"]
 

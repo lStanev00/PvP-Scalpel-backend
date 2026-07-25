@@ -4,18 +4,19 @@ set -e
 CLAMD_CONF="/etc/clamav/clamd.conf"
 FRESHCLAM_CONF="/etc/clamav/freshclam.conf"
 CLAMD_SOCKET="/run/clamav/clamd.sock"
-BUCKET_ROOT="${BUCKET_ROOT:-/mnt/s3-bucket}"
-BUCKET_GROUP_GID="${BUCKET_GROUP_GID:-982}"
+WORK_GROUP_GID="${WORK_GROUP_GID:-${BUCKET_GROUP_GID:-982}}"
 
 echo "Preparing ClamAV config..."
 
 mkdir -p /run/clamav /var/lib/clamav /var/log/clamav
-chmod 777 /run/clamav
+chown -R clamav:clamav /run/clamav /var/lib/clamav /var/log/clamav
+chmod 755 /run/clamav
 
 cat > "$CLAMD_CONF" <<EOF
 LogTime yes
 Foreground false
 DatabaseDirectory /var/lib/clamav
+User clamav
 LocalSocket $CLAMD_SOCKET
 LocalSocketMode 666
 FixStaleSocket yes
@@ -29,6 +30,7 @@ EOF
 
 cat > "$FRESHCLAM_CONF" <<EOF
 DatabaseDirectory /var/lib/clamav
+DatabaseOwner clamav
 UpdateLogFile /var/log/clamav/freshclam.log
 LogTime yes
 DatabaseMirror database.clamav.net
@@ -60,13 +62,5 @@ echo "Testing ffmpeg..."
 ffmpeg -version | head -n 1
 ffprobe -version | head -n 1
 
-if [ -d "$BUCKET_ROOT" ]; then
-    echo "Checking bucket read access for node:$BUCKET_GROUP_GID..."
-    if ! su-exec node:"$BUCKET_GROUP_GID" sh -c 'test -r "$1" && test -x "$1"' sh "$BUCKET_ROOT"; then
-        echo "Worker cannot read bucket mount at $BUCKET_ROOT as node:$BUCKET_GROUP_GID"
-        exit 1
-    fi
-fi
-
 echo "Starting Node worker..."
-exec su-exec node:"$BUCKET_GROUP_GID" "$@"
+exec su-exec node:"$WORK_GROUP_GID" "$@"

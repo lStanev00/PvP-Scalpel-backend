@@ -1,23 +1,26 @@
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
-import { open } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { lstat, open, realpath } from "node:fs/promises";
 import path from "node:path";
 
-const BUCKET_ROOT = "/mnt/s3-bucket";
+const WORK_ROOT = "/mnt/work";
 
-function resolveBucketPath(filePath) {
+function resolveWorkPath(filePath) {
     if (typeof filePath !== "string") {
-        throw new Error("bucket path has to be a string");
+        throw new Error("local media path has to be a string");
     }
 
-    if (filePath === BUCKET_ROOT || filePath.startsWith(`${BUCKET_ROOT}/`)) {
-        return filePath;
-    }
+    const normalizedPath = path.posix.normalize(filePath);
 
-    const normalizedPath = path.posix.normalize(`${BUCKET_ROOT}/${filePath.replace(/^\/+/, "")}`);
-
-    if (normalizedPath !== BUCKET_ROOT && !normalizedPath.startsWith(`${BUCKET_ROOT}/`)) {
-        throw new Error(`bucket path escapes ${BUCKET_ROOT}: ${filePath}`);
+    if (
+        normalizedPath !== filePath ||
+        !normalizedPath.startsWith(`${WORK_ROOT}/`) ||
+        !/^\/mnt\/work\/[a-f\d]{24}\/source(?:\/(?:part_\d+|media\.mp4|thumbnail))?$/.test(
+            normalizedPath,
+        )
+    ) {
+        throw new Error(`Unsafe local media path: ${filePath}`);
     }
 
     return normalizedPath;
@@ -31,28 +34,39 @@ function resolveBucketPath(filePath) {
  */
 
 /**
- * Scans a folder inside the mounted MinIO bucket volume with the running ClamAV daemon.
+ * Scans a locally staged media folder with the running ClamAV daemon.
  *
- * The provided path is appended to `/mnt/s3-bucket`, so pass bucket-relative paths
- * such as `"/quarantine-uploads"` rather than an absolute host path. The scan uses
- * `clamdscan`, which expects `clamd` to already be running in the worker container.
+ * The scan accepts only `/mnt/work/<mediaId>/source`, which contains regular files
+ * downloaded through the storage API. It never scans MinIO's backing volume.
  *
  * ClamAV exit codes are handled as:
  * 0: clean scan
  * 1: infected files found
  * 2 or other: scan/runtime error
  *
- * @param {string} path Folder path relative to `/mnt/s3-bucket`.
- * @returns {Promise<ClamAVScanResult|void>} Scan result, or void when `path` is not a string.
+ * @param {string} path Absolute local source directory.
+ * @returns {Promise<ClamAVScanResult>} Scan result.
  * @throws {Error} When clamdscan fails for a reason other than infected files.
  */
 export async function scanFolder(path) {
     const execFileAsync = promisify(execFile);
     if (typeof path !== "string") {
-        return console.warn("path has to be a string at scanFolder");
+        throw new TypeError("scanFolder requires a local source directory");
     }
 
-    const folderPath = resolveBucketPath(path);
+    const folderPath = resolveWorkPath(path);
+    const [folderStats, resolvedFolderPath] = await Promise.all([
+        lstat(folderPath),
+        realpath(folderPath),
+    ]);
+    if (
+        !folderStats.isDirectory() ||
+        folderStats.isSymbolicLink() ||
+        resolvedFolderPath !== folderPath
+    ) {
+        throw new Error(`ClamAV source must be a regular local directory: ${folderPath}`);
+    }
+
     try {
         const { stdout } = await execFileAsync(
             "clamdscan",
@@ -101,7 +115,7 @@ export async function scanFolder(path) {
  * - `video/webm` when the EBML header is present.
  * - `video/ogg` when the Ogg page header is present.
  *
- * @param {string} filePath Absolute path or bucket-relative path to a readable file inside the worker container.
+ * @param {string} filePath Absolute path to a staged local media part.
  * @returns {Promise<"video/mp4" | "video/webm" | "video/ogg" | "application/octet-stream">}
  * Detected MIME type, or `application/octet-stream` when the signature is not recognized.
  * @throws {Error} When `filePath` is invalid, cannot be opened, or cannot be read.
@@ -121,7 +135,19 @@ export async function detectMimeFromFile(filePath) {
             test: (buf) => buf.subarray(0, 4).toString("ascii") === "OggS",
         },
     ];
-    const file = await open(resolveBucketPath(filePath), "r");
+    const localPath = resolveWorkPath(filePath);
+    const [fileStats, resolvedPath] = await Promise.all([
+        lstat(localPath),
+        realpath(localPath),
+    ]);
+    if (!fileStats.isFile() || fileStats.isSymbolicLink() || resolvedPath !== localPath) {
+        throw new Error(`MIME source must be a regular local file: ${localPath}`);
+    }
+
+    const file = await open(
+        localPath,
+        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
 
     try {
         const buffer = Buffer.alloc(4100);

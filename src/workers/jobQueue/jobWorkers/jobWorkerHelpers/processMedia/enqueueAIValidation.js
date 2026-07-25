@@ -1,8 +1,14 @@
 import { spawn } from "node:child_process";
+import { lstat, realpath } from "node:fs/promises";
+import path from "node:path";
 
 const FRAME_BATCH_SIZE = 8;
 const OLLAMA_TIMEOUT_MS = 10 * 60 * 1000;
 const STDERR_TAIL_LIMIT = 8 * 1024;
+const FFMPEG_TIMEOUT_MS = readPositiveInteger(
+    process.env.MEDIA_FFMPEG_TIMEOUT_MS,
+    60 * 60 * 1000,
+);
 
 /**
  * @typedef {Object} ModerationFrameNote
@@ -40,9 +46,24 @@ export default async function enqueueAIValidation(path) {
     if (typeof path !== "string" || path.trim().length === 0) {
         throw new TypeError("AI video validation requires a non-empty video path");
     }
-    path = "/mnt/s3-bucket" + path;
+    path = path.trim();
+    const normalizedPath = pathModuleSafeNormalize(path);
+    const [fileStats, resolvedPath] = await Promise.all([
+        lstat(normalizedPath),
+        realpath(normalizedPath),
+    ]);
+    if (
+        !fileStats.isFile() ||
+        fileStats.isSymbolicLink() ||
+        resolvedPath !== normalizedPath
+    ) {
+        throw new TypeError(`AI video source must be a regular local file: ${normalizedPath}`);
+    }
+    path = normalizedPath;
 
     const ffmpeg = spawn("ffmpeg", [
+        "-hide_banner",
+        "-nostdin",
         "-i",
         path,
 
@@ -63,6 +84,11 @@ export default async function enqueueAIValidation(path) {
     ]);
 
     let stderrTail = "";
+    let timedOut = false;
+    const ffmpegTimeout = setTimeout(() => {
+        timedOut = true;
+        ffmpeg.kill("SIGKILL");
+    }, FFMPEG_TIMEOUT_MS);
     ffmpeg.stderr.setEncoding("utf8");
     ffmpeg.stderr.on("data", (data) => {
         stderrTail = `${stderrTail}${data}`.slice(-STDERR_TAIL_LIMIT);
@@ -70,10 +96,16 @@ export default async function enqueueAIValidation(path) {
 
     const completion = new Promise((resolve, reject) => {
         ffmpeg.once("error", (error) => {
+            clearTimeout(ffmpegTimeout);
             reject(new Error(`Failed to start FFmpeg: ${error.message}`, { cause: error }));
         });
 
         ffmpeg.once("close", (code, signal) => {
+            clearTimeout(ffmpegTimeout);
+            if (timedOut) {
+                reject(new Error(`AI frame extraction exceeded ${FFMPEG_TIMEOUT_MS}ms`));
+                return;
+            }
             if (code === 0) {
                 resolve();
                 return;
@@ -142,6 +174,29 @@ export default async function enqueueAIValidation(path) {
         await stopFFmpeg(ffmpeg, completion);
         throw error;
     }
+}
+
+function pathModuleSafeNormalize(filePath) {
+    const normalizedPath = path.posix.normalize(filePath);
+    if (
+        normalizedPath !== filePath ||
+        !/^\/mnt\/work\/[a-f\d]{24}\/source\/media\.mp4$/.test(normalizedPath)
+    ) {
+        throw new TypeError(`Unsafe AI video source path: ${filePath}`);
+    }
+
+    return normalizedPath;
+}
+
+function readPositiveInteger(value, fallback) {
+    if (typeof value === "undefined" || value === "") return fallback;
+
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+        throw new TypeError("MEDIA_FFMPEG_TIMEOUT_MS must be a positive safe integer");
+    }
+
+    return parsed;
 }
 
 function extractCompleteJpegs(remainder, chunk) {

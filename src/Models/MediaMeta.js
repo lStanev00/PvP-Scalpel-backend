@@ -12,6 +12,23 @@ const manifestSchema = new Schema(
         chunksNumber: {
             type: Number,
         },
+        totalBytes: {
+            type: Number,
+        },
+        chunkSizes: {
+            type: [Number],
+            default: [],
+        },
+        chunkSha256: {
+            type: [String],
+            default: [],
+        },
+        originalName: {
+            type: String,
+        },
+        mimeType: {
+            type: String,
+        },
         thumbnail: {
             type: String,
             default: null,
@@ -102,9 +119,25 @@ async function cacheSavedMedia(doc) {
     }
 }
 
-async function cacheMediaFromQuery(query) {
+async function cacheMediaFromQuery(query, result) {
     try {
-        const docs = await query.model.find(query.getQuery());
+        if (result && typeof result.toObject === "function") {
+            await cacheSavedMedia(result);
+            return;
+        }
+
+        const filter = query.getQuery();
+        const filteredId = filter?._id;
+        const normalizedFilteredId =
+            typeof filteredId === "string"
+                ? filteredId
+                : filteredId?.toString?.();
+        if (/^[a-f\d]{24}$/i.test(normalizedFilteredId || "")) {
+            await cacheSavedMedia(await query.model.findById(normalizedFilteredId));
+            return;
+        }
+
+        const docs = await query.model.find(filter);
 
         for (const doc of docs) {
             await cacheSavedMedia(doc);
@@ -126,8 +159,8 @@ for (const operation of [
     "replaceOne",
     "updateMany",
 ]) {
-    MediaMetaSchema.post(operation, async function () {
-        await cacheMediaFromQuery(this);
+    MediaMetaSchema.post(operation, async function (result) {
+        await cacheMediaFromQuery(this, result);
     });
 }
 
