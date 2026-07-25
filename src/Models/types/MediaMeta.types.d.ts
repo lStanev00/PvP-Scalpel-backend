@@ -1,5 +1,14 @@
 import type { HydratedDocument, Types } from "mongoose";
 
+export interface MediaRecoveryData {
+    attempted: boolean;
+    succeeded: boolean;
+    method: "structural" | "salvage" | null;
+    reason: string;
+    videoRatio: number | null;
+    audioRatio: number | null;
+}
+
 export interface MediaManifestData {
     mediaParts: string[];
     chunksNumber?: number;
@@ -10,6 +19,7 @@ export interface MediaManifestData {
     mimeType?: string;
     thumbnail: string | null;
     playlist?: string | null;
+    recovery?: MediaRecoveryData | null;
 }
 
 export interface MediaMetaData {

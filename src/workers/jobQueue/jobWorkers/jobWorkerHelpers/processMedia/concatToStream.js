@@ -13,7 +13,7 @@ import path from "node:path";
 const WORK_ROOT = "/mnt/work";
 const STDERR_TAIL_LIMIT = 8 * 1024;
 const INVALID_MEDIA_STREAM_PATTERN =
-    /(?:invalid data found when processing input|invalid nal unit size|error splitting the input into nal units|corrupt decoded frame|error submitting packet to decoder|could not find codec parameters)/i;
+    /(?:invalid data found when processing input|invalid nal unit(?: size)?|error splitting the input into nal units|corrupt decoded frame|error submitting packet to decoder|error while decoding stream|decode_slice_header error|packet corrupt|channel element \d+\.\d+ is not allocated|input buffer exhausted before end element found|could not find codec parameters)/i;
 const FFMPEG_TIMEOUT_MS = readPositiveInteger(
     process.env.MEDIA_FFMPEG_TIMEOUT_MS,
     60 * 60 * 1000,
@@ -44,8 +44,8 @@ export class InvalidMediaStreamError extends Error {
  * metadata are left to the caller.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string} mediaPath Complete staged file in the exact form
- * `/mnt/work/<mediaId>/source/media.mp4`.
+ * @param {string} mediaPath Complete staged file or strictly validated recovery
+ * output beneath this media job's isolated work directory.
  * @returns {Promise<HLSOutput>} Paths to the generated playlist and segments.
  * @throws {TypeError} When `mediaId` or `mediaPath` is invalid.
  * @throws {Error} When an input is unreadable, FFmpeg fails, or valid HLS output
@@ -57,26 +57,21 @@ export default async function concatToStream(mediaId, mediaPath) {
     const outputDirectory = path.posix.join(workDirectory, "hls");
     const playlistPath = path.posix.join(outputDirectory, "index.m3u8");
 
-    try {
-        const inputPath = resolveMediaPath(normalizedMediaId, mediaPath);
-        await verifyInputReadable(inputPath);
+    const inputPath = resolveMediaPath(normalizedMediaId, mediaPath);
+    await verifyInputReadable(inputPath);
 
-        await rm(outputDirectory, { recursive: true, force: true });
-        await mkdir(outputDirectory, { recursive: true });
+    await rm(outputDirectory, { recursive: true, force: true });
+    await mkdir(outputDirectory, { recursive: true });
 
-        await runFFmpeg(buildFFmpegArgs(inputPath, outputDirectory, playlistPath));
+    await runFFmpeg(buildFFmpegArgs(inputPath, outputDirectory, playlistPath));
 
-        const segmentPaths = await verifyHLSOutput(outputDirectory, playlistPath);
+    const segmentPaths = await verifyHLSOutput(outputDirectory, playlistPath);
 
-        return {
-            outputDirectory,
-            playlistPath,
-            segmentPaths,
-        };
-    } catch (error) {
-        await rm(workDirectory, { recursive: true, force: true }).catch(() => {});
-        throw error;
-    }
+    return {
+        outputDirectory,
+        playlistPath,
+        segmentPaths,
+    };
 }
 
 function normalizeMediaId(mediaId) {
@@ -88,19 +83,35 @@ function normalizeMediaId(mediaId) {
 }
 
 function resolveMediaPath(mediaId, mediaPath) {
-    const expectedPath = path.posix.join(
+    const sourcePath = path.posix.join(
         WORK_ROOT,
         mediaId,
         "source",
         "media.mp4",
     );
-    if (mediaPath !== expectedPath) {
+    const recoveredPath = path.posix.join(
+        WORK_ROOT,
+        mediaId,
+        "recovery",
+        "recovered.mp4",
+    );
+    const structuralPath = path.posix.join(
+        WORK_ROOT,
+        mediaId,
+        "recovery",
+        "structural.mp4",
+    );
+    if (
+        mediaPath !== sourcePath &&
+        mediaPath !== recoveredPath &&
+        mediaPath !== structuralPath
+    ) {
         throw new TypeError(
-            `Invalid complete media path; expected "${expectedPath}"`,
+            "Invalid complete media path for this isolated media job",
         );
     }
 
-    return expectedPath;
+    return mediaPath;
 }
 
 async function verifyInputReadable(inputPath) {
