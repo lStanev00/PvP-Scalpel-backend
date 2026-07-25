@@ -25,7 +25,7 @@ export async function cacheMedia(mongooseDoc) {
     if (result === null) {
         return false;
     }
-    console.info(`media with id ${mediaDoc._id} just has been cached`);
+    // console.info(`media with id ${mediaDoc._id} just has been cached`);
 
     return true;
 }
