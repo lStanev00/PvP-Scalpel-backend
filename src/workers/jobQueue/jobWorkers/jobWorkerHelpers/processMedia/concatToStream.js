@@ -12,10 +12,22 @@ import path from "node:path";
 
 const WORK_ROOT = "/mnt/work";
 const STDERR_TAIL_LIMIT = 8 * 1024;
+const INVALID_MEDIA_STREAM_PATTERN =
+    /(?:invalid data found when processing input|invalid nal unit size|error splitting the input into nal units|corrupt decoded frame|error submitting packet to decoder|could not find codec parameters)/i;
 const FFMPEG_TIMEOUT_MS = readPositiveInteger(
     process.env.MEDIA_FFMPEG_TIMEOUT_MS,
     60 * 60 * 1000,
 );
+
+/**
+ * Indicates that FFmpeg rejected the uploaded media stream itself.
+ */
+export class InvalidMediaStreamError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "InvalidMediaStreamError";
+    }
+}
 
 /**
  * @typedef {Object} HLSOutput
@@ -207,11 +219,14 @@ function runFFmpeg(args) {
 
             const exitReason = signal ? `signal ${signal}` : `code ${code}`;
             const details = stderrTail.trim();
+            const message =
+                `FFmpeg HLS conversion exited with ${exitReason}` +
+                `${details ? `: ${details}` : ""}`;
+
             reject(
-                new Error(
-                    `FFmpeg HLS conversion exited with ${exitReason}` +
-                        `${details ? `: ${details}` : ""}`,
-                ),
+                INVALID_MEDIA_STREAM_PATTERN.test(details)
+                    ? new InvalidMediaStreamError(message)
+                    : new Error(message),
             );
         });
     });
