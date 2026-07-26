@@ -3209,11 +3209,11 @@ mod tests {
         );
         frame.set_rate(AUDIO_RATE);
         for plane in 0..frame.planes() {
-            frame.data_mut(plane).fill(0);
+            frame.plane_mut::<f32>(plane).fill(0.0);
         }
         assert!(audio_samples_are_finite(&frame, 2));
 
-        frame.data_mut(1)[4..8].copy_from_slice(&f32::NAN.to_ne_bytes());
+        frame.plane_mut::<f32>(1)[1] = f32::NAN;
         assert!(!audio_samples_are_finite(&frame, 2));
     }
 
@@ -3225,10 +3225,10 @@ mod tests {
             ffmpeg::ChannelLayout::STEREO,
         );
         frame.set_rate(AUDIO_RATE);
-        frame.data_mut(0).fill(0);
+        frame.plane_mut::<(f64, f64)>(0).fill((0.0, 0.0));
         assert!(audio_samples_are_finite(&frame, 2));
 
-        frame.data_mut(0)[8..16].copy_from_slice(&f64::INFINITY.to_ne_bytes());
+        frame.plane_mut::<(f64, f64)>(0)[0].1 = f64::INFINITY;
         assert!(!audio_samples_are_finite(&frame, 2));
     }
 
