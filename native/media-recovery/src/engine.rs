@@ -781,6 +781,50 @@ fn ensure_audio_frame_allocated(
     }
 }
 
+fn zero_audio_frame(
+    frame: &mut ffmpeg::frame::Audio,
+    context: &'static str,
+) -> Result<(), OperationalError> {
+    ensure_audio_frame_allocated(frame, context)?;
+    let channels = usize::from(frame.channels());
+    let sample_width = frame.format().bytes();
+    if channels == 0 || sample_width == 0 {
+        return Err(OperationalError::new(context));
+    }
+
+    let planar = frame.format().is_planar();
+    let plane_count = if planar { channels } else { 1 };
+    let components_per_plane = if planar {
+        frame.samples()
+    } else {
+        frame
+            .samples()
+            .checked_mul(channels)
+            .ok_or_else(|| OperationalError::new(context))?
+    };
+    let required_bytes = components_per_plane
+        .checked_mul(sample_width)
+        .ok_or_else(|| OperationalError::new(context))?;
+
+    unsafe {
+        let raw = frame.as_mut_ptr();
+        let line_size =
+            usize::try_from((*raw).linesize[0]).map_err(|_| OperationalError::new(context))?;
+        let extended_data = (*raw).extended_data;
+        if line_size < required_bytes || extended_data.is_null() {
+            return Err(OperationalError::new(context));
+        }
+        for plane in 0..plane_count {
+            let data = *extended_data.add(plane);
+            if data.is_null() {
+                return Err(OperationalError::new(context));
+            }
+            std::ptr::write_bytes(data, 0, line_size);
+        }
+    }
+    Ok(())
+}
+
 fn frame_decode_error_flags<T>(frame: &T) -> i32
 where
     T: std::ops::Deref<Target = ffmpeg::Frame>,
@@ -2655,6 +2699,9 @@ impl AudioRebuilder {
                 "audio resampler exceeded its bounded output frame",
             )));
         }
+        if !audio_samples_are_finite(&converted, 2) {
+            return Ok(());
+        }
 
         let slices = self
             .edit_map
@@ -2779,6 +2826,11 @@ impl AudioRebuilder {
             muxer.write_audio_frame(&frame)?;
             self.emitted_samples = self.emitted_samples.saturating_add(remaining as u64);
         }
+        self.inserted_silence_samples = self
+            .inserted_silence_samples
+            .saturating_add(self.fifo.replaced_non_finite_samples);
+        self.inserted_silence_ms =
+            self.inserted_silence_samples.saturating_mul(1_000) / u64::from(AUDIO_RATE);
         Ok(())
     }
 
@@ -2816,8 +2868,10 @@ impl AudioRebuilder {
                 let slices = self.edit_map.retained_slices(source_start, count);
                 self.resampler_source_cursor =
                     Some(source_start.saturating_add(i64::try_from(count).unwrap_or(i64::MAX)));
-                for slice in slices {
-                    self.write_edited_slice(&converted, slice, muxer)?;
+                if audio_samples_are_finite(&converted, 2) {
+                    for slice in slices {
+                        self.write_edited_slice(&converted, slice, muxer)?;
+                    }
                 }
             }
             if remaining.is_none() || count == 0 {
@@ -2838,6 +2892,7 @@ struct AudioFifo {
     format: format::Sample,
     layout: ffmpeg::ChannelLayout,
     channels: usize,
+    replaced_non_finite_samples: u64,
 }
 
 impl AudioFifo {
@@ -2866,6 +2921,7 @@ impl AudioFifo {
             format,
             layout,
             channels,
+            replaced_non_finite_samples: 0,
         })
     }
 
@@ -2882,9 +2938,7 @@ impl AudioFifo {
         let mut frame = ffmpeg::frame::Audio::new(self.format, samples, self.layout);
         ensure_audio_frame_allocated(&frame, "failed to allocate an audio silence frame")?;
         frame.set_rate(AUDIO_RATE);
-        for plane in 0..frame.planes() {
-            frame.data_mut(plane).fill(0);
-        }
+        zero_audio_frame(&mut frame, "failed to zero an audio silence frame")?;
         self.write_frame(&frame, 0, samples)
     }
 
@@ -2994,9 +3048,7 @@ impl AudioFifo {
         frame.set_pts(Some(i64::try_from(pts).map_err(|_| {
             OperationalError::new("audio frame timestamp cannot be represented")
         })?));
-        for plane in 0..frame.planes() {
-            frame.data_mut(plane).fill(0);
-        }
+        zero_audio_frame(&mut frame, "failed to zero an audio encoder frame")?;
         let sample_count_i32 = i32::try_from(samples)
             .map_err(|_| OperationalError::new("audio FIFO read count cannot be represented"))?;
         let read = unsafe {
@@ -3010,6 +3062,15 @@ impl AudioFifo {
             return Err(OperationalError::new(
                 "audio FIFO returned an incomplete frame",
             ));
+        }
+        if !audio_samples_are_finite(&frame, self.channels) {
+            zero_audio_frame(
+                &mut frame,
+                "failed to replace non-finite reconstructed audio",
+            )?;
+            self.replaced_non_finite_samples = self
+                .replaced_non_finite_samples
+                .saturating_add(samples as u64);
         }
         Ok(frame)
     }
@@ -3215,6 +3276,25 @@ mod tests {
 
         frame.plane_mut::<f32>(1)[1] = f32::NAN;
         assert!(!audio_samples_are_finite(&frame, 2));
+    }
+
+    #[test]
+    fn zeroes_every_planar_audio_plane() {
+        let mut frame = ffmpeg::frame::Audio::new(
+            format::Sample::F32(format::sample::Type::Planar),
+            8,
+            ffmpeg::ChannelLayout::STEREO,
+        );
+        frame.set_rate(AUDIO_RATE);
+        frame.plane_mut::<f32>(0).fill(1.0);
+        frame.plane_mut::<f32>(1).fill(f32::NAN);
+
+        zero_audio_frame(&mut frame, "test frame must be allocated").unwrap();
+
+        for plane in 0..frame.planes() {
+            assert!(frame.plane::<f32>(plane).iter().all(|sample| *sample == 0.0));
+        }
+        assert!(audio_samples_are_finite(&frame, 2));
     }
 
     #[test]
