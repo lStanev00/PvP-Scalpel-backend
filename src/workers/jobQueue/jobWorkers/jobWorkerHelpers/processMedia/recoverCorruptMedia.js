@@ -1,48 +1,45 @@
 import { spawn } from "node:child_process";
-import { lstat, mkdir, realpath, rename, rm, stat } from "node:fs/promises";
+import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 
 const WORK_ROOT = "/mnt/work";
+const RECOVERY_RESULT_VERSION = 1;
 const NATIVE_RECOVERY_BINARY =
     process.env.MEDIA_RECOVERY_BINARY || "/usr/local/bin/media-recovery";
+const RECOVERY_TIMEOUT_MS = readPositiveInteger(
+    "MEDIA_RECOVERY_TIMEOUT_MS",
+    60 * 60 * 1000,
+);
+const STDOUT_LIMIT = 256 * 1024;
+const STDERR_TAIL_LIMIT = 16 * 1024;
+const NATIVE_STAGE_LOG_LIMIT = 32;
+const NATIVE_STAGE_LINE_LIMIT = 1_024;
+const MESSAGE_LIMIT = 2_048;
+const NATIVE_STAGE_PATTERN =
+    /^\[media-recovery\]\[[a-f\d]{24}\]\[[a-z][a-z\d_-]{0,31}\] .+$/;
 const MEDIA_TOOL_ENV = Object.freeze({
     PATH: process.env.PATH || "/usr/local/bin:/usr/bin:/bin",
     LANG: "C",
     LC_ALL: "C",
 });
-const STDERR_TAIL_LIMIT = 8 * 1024;
-const STDOUT_LIMIT = 1024 * 1024;
-const MAX_RECOVERY_PIXELS = 33_177_600;
-const STRUCTURAL_TIMEOUT_MS = readPositiveInteger(
-    "MEDIA_RECOVERY_STRUCTURAL_TIMEOUT_MS",
-    15 * 60 * 1000,
-);
-const SALVAGE_TIMEOUT_MS = readPositiveInteger(
-    "MEDIA_RECOVERY_SALVAGE_TIMEOUT_MS",
-    60 * 60 * 1000,
-);
-const VALIDATION_TIMEOUT_MS = readPositiveInteger(
-    "MEDIA_RECOVERY_VALIDATION_TIMEOUT_MS",
-    60 * 60 * 1000,
-);
-const MIN_VIDEO_RECOVERY_RATIO = readRatio(
-    "MEDIA_RECOVERY_MIN_VIDEO_RATIO",
-    0.85,
-);
-const MIN_AUDIO_RECOVERY_RATIO = readRatio(
-    "MEDIA_RECOVERY_MIN_AUDIO_RATIO",
-    0.75,
-);
-const MIN_OUTPUT_DURATION_RATIO = readRatio(
-    "MEDIA_RECOVERY_MIN_DURATION_RATIO",
-    0.98,
-);
-const SALVAGE_FPS = readBoundedNumber(
-    "MEDIA_RECOVERY_FPS",
-    30,
-    15,
-    60,
-);
+const RECOVERY_METHODS = new Set([
+    "structural",
+    "frame_reconstruction",
+]);
+const RECOVERY_STAT_FIELDS = Object.freeze([
+    "sourceDurationMs",
+    "outputDurationMs",
+    "expectedVideoFrames",
+    "decodedVideoFrames",
+    "goodVideoFrames",
+    "outputVideoFrames",
+    "duplicatedVideoFrames",
+    "corruptVideoFrames",
+    "trimmedLeadingMs",
+    "trimmedTrailingMs",
+    "longestDuplicatedRunMs",
+    "insertedAudioSilenceMs",
+]);
 
 /**
  * Indicates that the recovery service itself failed, rather than the uploaded
@@ -56,27 +53,49 @@ export class MediaRecoveryOperationalError extends Error {
 }
 
 /**
- * @typedef {Object} MediaRecoveryResult
- * @property {boolean} succeed Whether a strictly valid recovered file was produced.
- * @property {"structural"|"salvage"|null} method Successful recovery method.
- * @property {string|null} mediaPath Strictly validated recovered file path.
- * @property {string} reason Machine-readable result reason.
- * @property {number|null} videoRatio Estimated recoverable source-video ratio.
- * @property {number|null} audioRatio Estimated recoverable source-audio ratio.
+ * @typedef {Object} MediaRecoveryStats
+ * @property {number} sourceDurationMs
+ * @property {number} outputDurationMs
+ * @property {number} expectedVideoFrames
+ * @property {number} decodedVideoFrames
+ * @property {number} goodVideoFrames
+ * @property {number} outputVideoFrames
+ * @property {number} duplicatedVideoFrames
+ * @property {number} corruptVideoFrames
+ * @property {number} trimmedLeadingMs
+ * @property {number} trimmedTrailingMs
+ * @property {number} longestDuplicatedRunMs
+ * @property {number} insertedAudioSilenceMs
+ * @property {boolean} strictValidationPassed
+ * @property {number|null} videoCorruptionPercent
+ * @property {number|null} audioInsertedSilencePercent
  */
 
 /**
- * Tries a fast native MP4 structural remux, strictly decodes its result, then
- * falls back to tolerant FFmpeg decoding and normalized re-encoding.
+ * @typedef {Object} MediaRecoveryResult
+ * @property {number} version Native result-contract version.
+ * @property {string} engineVersion Native recovery-engine version.
+ * @property {boolean} succeed Whether a strictly valid recovered file was produced.
+ * @property {"structural"|"frame_reconstruction"|null} method Successful recovery method.
+ * @property {string|null} mediaPath Strictly validated recovered file path.
+ * @property {string} reason Machine-readable result reason.
+ * @property {number|null} videoRatio Informational recovered-video ratio.
+ * @property {number|null} audioRatio Informational recovered-audio ratio.
+ * @property {MediaRecoveryStats} stats Versioned recovery statistics.
+ */
+
+/**
+ * Runs the native frame-recovery engine and validates its JSON contract.
  *
- * Uploaded bytes are never executed and are only passed as input to isolated
- * native media tools using argument arrays without a shell.
+ * Recovery percentages are diagnostics only. This adapter never rejects a
+ * strictly validated native result because of duplicated-video or inserted-
+ * silence percentages.
  *
  * @param {string} mediaId Twenty-four character media ID.
  * @param {string} mediaPath Exact isolated `/mnt/work/<id>/source/media.mp4` path.
- * @returns {Promise<MediaRecoveryResult>} Recovery result or a quality-based failure.
- * @throws {MediaRecoveryOperationalError} When a required native tool, timeout,
- * filesystem operation, or command contract fails.
+ * @returns {Promise<MediaRecoveryResult>} Completed native recovery decision.
+ * @throws {MediaRecoveryOperationalError} When the native process, filesystem,
+ * timeout, or JSON contract fails.
  */
 export default async function recoverCorruptMedia(mediaId, mediaPath) {
     const normalizedMediaId = normalizeMediaId(mediaId);
@@ -86,610 +105,54 @@ export default async function recoverCorruptMedia(mediaId, mediaPath) {
         "source",
         "media.mp4",
     );
-    const recoveryDirectory = path.posix.join(workDirectory, "recovery");
-    const structuralPath = path.posix.join(
-        recoveryDirectory,
-        "structural.mp4",
+    const recoveredPath = path.posix.join(
+        workDirectory,
+        "recovery",
+        "recovered.mp4",
     );
-    const recoveredPath = path.posix.join(recoveryDirectory, "recovered.mp4");
 
     if (mediaPath !== expectedSourcePath) {
-        throw new TypeError("Recovery requires the exact isolated source-media path");
+        throw new TypeError(
+            "Recovery requires the exact isolated source-media path",
+        );
     }
 
     await verifyRegularFile(mediaPath, "recovery source");
-    await rm(recoveryDirectory, { recursive: true, force: true });
-    await mkdir(recoveryDirectory, { recursive: false, mode: 0o700 });
-    await verifyDirectory(recoveryDirectory);
 
-    recoveryLog(normalizedMediaId, "probe", "inspecting corrupt source");
-    const sourceProbe = await probeMedia(mediaPath);
-    if (!sourceProbe) {
-        recoveryLog(
-            normalizedMediaId,
-            "probe",
-            "source metadata is unreadable",
-            "warn",
-        );
-        return failedRecovery("recovery_source_unprobeable");
-    }
-
-    recoveryLog(normalizedMediaId, "structural", "native repair started");
-    const structuralCompleted = await attemptStructuralRepair(
+    const processResult = await runNativeRecovery([
+        "recover",
         normalizedMediaId,
-        mediaPath,
-        structuralPath,
-    );
-    if (structuralCompleted) {
-        const structuralValidation = await strictlyValidateMedia(
-            structuralPath,
-            sourceProbe,
-        );
-        const structuralQuality = structuralValidation
-            ? assessStructuralQuality(sourceProbe, structuralValidation)
-            : null;
-        if (
-            structuralQuality &&
-            structuralQuality.videoRatio >= MIN_VIDEO_RECOVERY_RATIO &&
-            (
-                structuralQuality.audioRatio === null ||
-                structuralQuality.audioRatio >= MIN_AUDIO_RECOVERY_RATIO
-            )
-        ) {
-            recoveryLog(
-                normalizedMediaId,
-                "structural",
-                `accepted video=${formatRatio(structuralQuality.videoRatio)} audio=${formatRatio(structuralQuality.audioRatio)}`,
-            );
-            return {
-                succeed: true,
-                method: "structural",
-                mediaPath: structuralPath,
-                reason: "structural_repair_succeeded",
-                videoRatio: structuralQuality.videoRatio,
-                audioRatio: structuralQuality.audioRatio,
-            };
-        }
-
-        recoveryLog(
-            normalizedMediaId,
-            "structural",
-            structuralQuality
-                ? `rejected video=${formatRatio(structuralQuality.videoRatio)} audio=${formatRatio(structuralQuality.audioRatio)}`
-                : "strict validation failed",
-            "warn",
-        );
-    }
-
-    await rm(structuralPath, { force: true });
-    await rm(`${structuralPath.slice(0, -4)}.partial.mp4`, { force: true });
-    recoveryLog(normalizedMediaId, "salvage", "FFmpeg salvage started");
-    return await attemptSalvage(
-        normalizedMediaId,
-        mediaPath,
-        recoveryDirectory,
+        expectedSourcePath,
         recoveredPath,
-        sourceProbe,
-    );
-}
-
-async function attemptStructuralRepair(mediaId, mediaPath, structuralPath) {
-    const result = await runProcess(
-        NATIVE_RECOVERY_BINARY,
-        ["repair", mediaId, mediaPath, structuralPath],
-        STRUCTURAL_TIMEOUT_MS,
-    );
-
-    if (result.timedOut) {
-        recoveryLog(mediaId, "structural", "native repair timed out", "warn");
-        return false;
-    }
-    if (result.code === 0) {
-        await verifyRegularFile(structuralPath, "native structural-repair output");
-        return true;
-    }
-
-    if (result.code === 4 || result.code === 5) {
-        recoveryLog(
-            mediaId,
-            "structural",
-            `native repair unavailable (${formatExit(result)})`,
-            "warn",
-        );
-        return false;
-    }
-
-    throw new MediaRecoveryOperationalError(
-        `Native structural repair failed with ${formatExit(result)}`,
-    );
-}
-
-async function attemptSalvage(
-    mediaId,
-    sourcePath,
-    recoveryDirectory,
-    recoveredPath,
-    sourceProbe,
-) {
-    const recoverableFrames = await countRecoverableVideoFrames(sourcePath);
-    const expectedFrames =
-        sourceProbe.frameCount ||
-        Math.max(1, Math.round(sourceProbe.duration * sourceProbe.frameRate));
-    const videoRatio = clampRatio(recoverableFrames / expectedFrames);
-    recoveryLog(
-        mediaId,
-        "analysis",
-        `decoded=${recoverableFrames} expected=${expectedFrames} video=${formatRatio(videoRatio)}`,
-    );
-    if (videoRatio < MIN_VIDEO_RECOVERY_RATIO) {
-        recoveryLog(
-            mediaId,
-            "analysis",
-            `video below ${formatRatio(MIN_VIDEO_RECOVERY_RATIO)} threshold`,
-            "warn",
-        );
-        return failedRecovery(
-            "recovery_video_below_threshold",
-            videoRatio,
-            null,
-        );
-    }
-
-    const videoPath = path.posix.join(recoveryDirectory, "video.mp4");
-    const videoCompleted = await salvageVideo(
-        sourcePath,
-        videoPath,
-        sourceProbe.duration,
-    );
-    if (!videoCompleted) {
-        recoveryLog(mediaId, "video", "salvage encode failed", "warn");
-        return failedRecovery("recovery_video_salvage_failed", videoRatio, null);
-    }
-
-    let audioPath = null;
-    let audioRatio = null;
-    if (sourceProbe.hasAudio) {
-        audioPath = path.posix.join(recoveryDirectory, "audio.m4a");
-        const audioCompleted = await salvageAudio(sourcePath, audioPath);
-        if (!audioCompleted) {
-            recoveryLog(mediaId, "audio", "salvage encode failed", "warn");
-            return failedRecovery(
-                "recovery_audio_salvage_failed",
-                videoRatio,
-                0,
-            );
-        }
-
-        const audioProbe = await probeMedia(audioPath, { requireVideo: false });
-        audioRatio = audioProbe
-            ? clampRatio(audioProbe.duration / sourceProbe.duration)
-            : 0;
-        recoveryLog(
-            mediaId,
-            "audio",
-            `recovered=${formatRatio(audioRatio)}`,
-        );
-        if (audioRatio < MIN_AUDIO_RECOVERY_RATIO) {
-            recoveryLog(
-                mediaId,
-                "audio",
-                `audio below ${formatRatio(MIN_AUDIO_RECOVERY_RATIO)} threshold`,
-                "warn",
-            );
-            return failedRecovery(
-                "recovery_audio_below_threshold",
-                videoRatio,
-                audioRatio,
-            );
-        }
-    }
-
-    const muxCompleted = await createRecoveredMedia(
-        videoPath,
-        audioPath,
-        recoveredPath,
-        sourceProbe.duration,
-    );
-    if (!muxCompleted) {
-        recoveryLog(mediaId, "mux", "final recovered-media mux failed", "warn");
-        return failedRecovery(
-            "recovery_final_mux_failed",
-            videoRatio,
-            audioRatio,
-        );
-    }
-    if (!(await strictlyValidateMedia(recoveredPath, sourceProbe))) {
-        recoveryLog(mediaId, "validation", "strict decode failed", "warn");
-        return failedRecovery(
-            "recovery_strict_validation_failed",
-            videoRatio,
-            audioRatio,
-        );
-    }
-
-    recoveryLog(
-        mediaId,
-        "salvage",
-        `accepted video=${formatRatio(videoRatio)} audio=${formatRatio(audioRatio)}`,
-    );
-    return {
-        succeed: true,
-        method: "salvage",
-        mediaPath: recoveredPath,
-        reason: "ffmpeg_salvage_succeeded",
-        videoRatio,
-        audioRatio,
-    };
-}
-
-async function countRecoverableVideoFrames(sourcePath) {
-    const result = await runProcess(
-        "ffmpeg",
-        [
-            "-hide_banner",
-            "-nostdin",
-            "-protocol_whitelist",
-            "file,pipe",
-            "-fflags",
-            "+discardcorrupt+genpts",
-            "-err_detect",
-            "ignore_err",
-            "-max_pixels",
-            String(MAX_RECOVERY_PIXELS),
-            "-flags:v",
-            "+drop_changed",
-            "-i",
-            sourcePath,
-            "-map",
-            "0:v:0",
-            "-an",
-            "-max_error_rate",
-            "1",
-            "-fps_mode",
-            "passthrough",
-            "-progress",
-            "pipe:1",
-            "-nostats",
-            "-f",
-            "null",
-            "-",
-        ],
-        SALVAGE_TIMEOUT_MS,
-    );
-    assertDidNotTimeOut(result, "recoverable-frame analysis");
-
-    const frameCount = readLastProgressFrame(result.stdout);
-    if (result.code !== 0) {
-        const details = result.stderr.trim().slice(-1024);
+    ]);
+    if (processResult.timedOut) {
         throw new MediaRecoveryOperationalError(
-            `Recoverable-frame analysis exited with ${formatExit(result)}` +
-                `${details ? `: ${details}` : ""}`,
+            "Native media recovery exceeded its configured timeout",
         );
     }
-
-    return frameCount;
-}
-
-async function salvageVideo(sourcePath, destinationPath, duration) {
-    const partialPath = `${destinationPath}.partial.mp4`;
-    const durationText = duration.toFixed(3);
-    const videoFilter = [
-        "setpts=PTS-STARTPTS",
-        "scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
-        `fps=${SALVAGE_FPS}`,
-        `tpad=stop_mode=clone:stop_duration=${durationText}`,
-        `trim=duration=${durationText}`,
-    ].join(",");
-
-    return await runFFmpegOutput(
-        [
-            "-hide_banner",
-            "-nostdin",
-            "-y",
-            "-protocol_whitelist",
-            "file,pipe",
-            "-fflags",
-            "+discardcorrupt+genpts",
-            "-err_detect",
-            "ignore_err",
-            "-max_pixels",
-            String(MAX_RECOVERY_PIXELS),
-            "-flags:v",
-            "+drop_changed",
-            "-i",
-            sourcePath,
-            "-map",
-            "0:v:0",
-            "-an",
-            "-vf",
-            videoFilter,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "18",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            "-f",
-            "mp4",
-            partialPath,
-        ],
-        partialPath,
-        destinationPath,
-        "video salvage",
-    );
-}
-
-async function salvageAudio(sourcePath, destinationPath) {
-    const partialPath = `${destinationPath}.partial.m4a`;
-    return await runFFmpegOutput(
-        [
-            "-hide_banner",
-            "-nostdin",
-            "-y",
-            "-protocol_whitelist",
-            "file,pipe",
-            "-fflags",
-            "+discardcorrupt+genpts",
-            "-err_detect",
-            "ignore_err",
-            "-flags:a",
-            "+drop_changed",
-            "-i",
-            sourcePath,
-            "-map",
-            "0:a:0",
-            "-vn",
-            "-af",
-            "aresample=async=1000:first_pts=0",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-ar",
-            "48000",
-            "-ac",
-            "2",
-            "-movflags",
-            "+faststart",
-            "-f",
-            "mp4",
-            partialPath,
-        ],
-        partialPath,
-        destinationPath,
-        "audio salvage",
-    );
-}
-
-async function createRecoveredMedia(
-    videoPath,
-    audioPath,
-    destinationPath,
-    duration,
-) {
-    const partialPath = `${destinationPath}.partial.mp4`;
-    const argumentsList = [
-        "-hide_banner",
-        "-nostdin",
-        "-y",
-        "-protocol_whitelist",
-        "file,pipe",
-        "-i",
-        videoPath,
-    ];
-    if (audioPath) {
-        argumentsList.push("-i", audioPath);
-    }
-    argumentsList.push("-map", "0:v:0");
-    if (audioPath) {
-        argumentsList.push(
-            "-map",
-            "1:a:0",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-af",
-            "apad",
-        );
-    }
-    argumentsList.push(
-        "-c:v",
-        "copy",
-        "-t",
-        duration.toFixed(3),
-        "-avoid_negative_ts",
-        "make_zero",
-        "-movflags",
-        "+faststart",
-        "-f",
-        "mp4",
-        partialPath,
-    );
-
-    return await runFFmpegOutput(
-        argumentsList,
-        partialPath,
-        destinationPath,
-        "recovered-media mux",
-    );
-}
-
-async function runFFmpegOutput(
-    argumentsList,
-    partialPath,
-    destinationPath,
-    label,
-) {
-    await rm(partialPath, { force: true });
-    await rm(destinationPath, { force: true });
-    const result = await runProcess("ffmpeg", argumentsList, SALVAGE_TIMEOUT_MS);
-    assertDidNotTimeOut(result, label);
-    if (result.code !== 0) {
-        await rm(partialPath, { force: true }).catch(() => {});
-        return false;
-    }
-
-    try {
-        await verifyRegularFile(partialPath, `${label} output`);
-        const outputStats = await stat(partialPath);
-        if (outputStats.size < 1_024) {
-            await rm(partialPath, { force: true });
-            return false;
-        }
-        await rename(partialPath, destinationPath);
-        await verifyRegularFile(destinationPath, `${label} output`);
-        return true;
-    } catch (error) {
-        await rm(partialPath, { force: true }).catch(() => {});
+    if (processResult.code !== 0) {
+        const diagnostics = boundedDiagnostics(processResult.stderr);
         throw new MediaRecoveryOperationalError(
-            `Failed to commit ${label} output: ${error.message}`,
-            { cause: error },
+            `Native media recovery exited with ${formatExit(processResult)}` +
+                `${diagnostics ? `: ${diagnostics}` : ""}`,
         );
     }
-}
-
-async function strictlyValidateMedia(mediaPath, sourceProbe) {
-    const decodeResult = await runProcess(
-        "ffmpeg",
-        [
-            "-hide_banner",
-            "-nostdin",
-            "-v",
-            "error",
-            "-xerror",
-            "-max_pixels",
-            String(MAX_RECOVERY_PIXELS),
-            "-protocol_whitelist",
-            "file,pipe",
-            "-i",
-            mediaPath,
-            "-map",
-            "0:v:0",
-            "-map",
-            "0:a:0?",
-            "-progress",
-            "pipe:1",
-            "-nostats",
-            "-f",
-            "null",
-            "-",
-        ],
-        VALIDATION_TIMEOUT_MS,
-    );
-    assertDidNotTimeOut(decodeResult, "strict recovery validation");
-    if (decodeResult.code !== 0) return null;
-
-    const recoveredProbe = await probeMedia(mediaPath);
-    if (!recoveredProbe) return null;
-    const durationRatio = recoveredProbe.duration / sourceProbe.duration;
-    if (
-        durationRatio < MIN_OUTPUT_DURATION_RATIO ||
-        durationRatio > 1 / MIN_OUTPUT_DURATION_RATIO
-    ) {
-        return null;
-    }
-    if (sourceProbe.hasAudio && !recoveredProbe.hasAudio) return null;
-
-    return {
-        decodedFrames: readLastProgressFrame(decodeResult.stdout),
-        probe: recoveredProbe,
-    };
-}
-
-async function probeMedia(mediaPath, options = {}) {
-    const result = await runProcess(
-        "ffprobe",
-        [
-            "-v",
-            "error",
-            "-protocol_whitelist",
-            "file,pipe",
-            "-count_packets",
-            "-show_entries",
-            "format=duration:stream=index,codec_type,avg_frame_rate,nb_frames,nb_read_packets",
-            "-of",
-            "json",
-            mediaPath,
-        ],
-        VALIDATION_TIMEOUT_MS,
-    );
-    assertDidNotTimeOut(result, "media probing");
-    if (result.code !== 0) return null;
-
-    let probe;
-    try {
-        probe = JSON.parse(result.stdout);
-    } catch (error) {
-        throw new MediaRecoveryOperationalError(
-            "FFprobe returned malformed recovery metadata",
-            { cause: error },
-        );
-    }
-
-    const duration = Number.parseFloat(probe?.format?.duration);
-    const streams = Array.isArray(probe?.streams) ? probe.streams : [];
-    const videoStream = streams.find((stream) => stream?.codec_type === "video");
-    const audioStream = streams.find((stream) => stream?.codec_type === "audio");
-    const hasAudio = Boolean(audioStream);
-    if (
-        !Number.isFinite(duration) ||
-        duration <= 0 ||
-        (options.requireVideo !== false && !videoStream)
-    ) {
-        return null;
+    const recovery = parseRecoveryResult(processResult.stdout);
+    if (recovery.succeed) {
+        await verifyRegularFile(recoveredPath, "native recovery output");
     }
 
     return {
-        duration,
-        hasAudio,
-        frameRate: parseFrameRate(videoStream?.avg_frame_rate),
-        frameCount: parseFrameCount(videoStream?.nb_frames),
-        videoPacketCount: parseFrameCount(videoStream?.nb_read_packets),
-        audioPacketCount: parseFrameCount(audioStream?.nb_read_packets),
+        ...recovery,
+        mediaPath: recovery.succeed ? recoveredPath : null,
     };
 }
 
-function assessStructuralQuality(sourceProbe, validation) {
-    const expectedFrames =
-        sourceProbe.frameCount ||
-        sourceProbe.videoPacketCount ||
-        Math.max(1, Math.round(sourceProbe.duration * sourceProbe.frameRate));
-    const frameRatio = clampRatio(validation.decodedFrames / expectedFrames);
-    const videoPacketRatio =
-        sourceProbe.videoPacketCount && validation.probe.videoPacketCount
-            ? clampRatio(
-                validation.probe.videoPacketCount /
-                    sourceProbe.videoPacketCount,
-            )
-            : 1;
-    const audioRatio =
-        sourceProbe.hasAudio &&
-        sourceProbe.audioPacketCount &&
-        validation.probe.audioPacketCount
-            ? clampRatio(
-                validation.probe.audioPacketCount /
-                    sourceProbe.audioPacketCount,
-            )
-            : sourceProbe.hasAudio
-                ? 1
-                : null;
-
-    return {
-        videoRatio: Math.min(frameRatio, videoPacketRatio),
-        audioRatio,
-    };
-}
-
-function runProcess(command, argumentsList, timeoutMs) {
+function runNativeRecovery(argumentsList) {
     return new Promise((resolve, reject) => {
         let child;
         try {
-            child = spawn(command, argumentsList, {
+            child = spawn(NATIVE_RECOVERY_BINARY, argumentsList, {
                 env: MEDIA_TOOL_ENV,
                 shell: false,
                 stdio: ["ignore", "pipe", "pipe"],
@@ -697,7 +160,7 @@ function runProcess(command, argumentsList, timeoutMs) {
         } catch (error) {
             reject(
                 new MediaRecoveryOperationalError(
-                    `Failed to start required media tool ${command}`,
+                    "Failed to start the native media-recovery engine",
                     { cause: error },
                 ),
             );
@@ -709,10 +172,12 @@ function runProcess(command, argumentsList, timeoutMs) {
         let outputExceeded = false;
         let stdout = "";
         let stderr = "";
+        let stderrLineBuffer = "";
+        const stageLogs = [];
         const timeout = setTimeout(() => {
             timedOut = true;
             child.kill("SIGKILL");
-        }, timeoutMs);
+        }, RECOVERY_TIMEOUT_MS);
 
         child.stdout.setEncoding("utf8");
         child.stdout.on("data", (chunk) => {
@@ -726,6 +191,15 @@ function runProcess(command, argumentsList, timeoutMs) {
         child.stderr.setEncoding("utf8");
         child.stderr.on("data", (chunk) => {
             stderr = `${stderr}${chunk}`.slice(-STDERR_TAIL_LIMIT);
+            stderrLineBuffer += chunk;
+            const lines = stderrLineBuffer.split(/\r?\n/);
+            stderrLineBuffer = lines.pop() || "";
+            for (const line of lines) {
+                collectNativeStageLog(stageLogs, line);
+            }
+            if (stderrLineBuffer.length > NATIVE_STAGE_LINE_LIMIT) {
+                stderrLineBuffer = "";
+            }
         });
 
         child.once("error", (error) => {
@@ -734,7 +208,7 @@ function runProcess(command, argumentsList, timeoutMs) {
             clearTimeout(timeout);
             reject(
                 new MediaRecoveryOperationalError(
-                    `Failed to run required media tool ${command}`,
+                    "Failed to run the native media-recovery engine",
                     { cause: error },
                 ),
             );
@@ -743,10 +217,11 @@ function runProcess(command, argumentsList, timeoutMs) {
             if (settled) return;
             settled = true;
             clearTimeout(timeout);
+            collectNativeStageLog(stageLogs, stderrLineBuffer);
             if (outputExceeded) {
                 reject(
                     new MediaRecoveryOperationalError(
-                        `${command} exceeded the recovery output limit`,
+                        "Native media recovery exceeded its output limit",
                     ),
                 );
                 return;
@@ -760,6 +235,153 @@ function runProcess(command, argumentsList, timeoutMs) {
             });
         });
     });
+}
+
+function collectNativeStageLog(stageLogs, line) {
+    if (
+        stageLogs.length >= NATIVE_STAGE_LOG_LIMIT ||
+        typeof line !== "string" ||
+        line.length > NATIVE_STAGE_LINE_LIMIT ||
+        !NATIVE_STAGE_PATTERN.test(line)
+    ) {
+        return;
+    }
+    stageLogs.push(line);
+    console.info(line);
+}
+
+function parseRecoveryResult(stdout) {
+    let rawResult;
+    try {
+        rawResult = JSON.parse(stdout.trim());
+    } catch (error) {
+        throw new MediaRecoveryOperationalError(
+            "Native media recovery returned malformed JSON",
+            { cause: error },
+        );
+    }
+
+    if (!isPlainObject(rawResult)) {
+        throw invalidContract("result must be an object");
+    }
+    if (rawResult.version !== RECOVERY_RESULT_VERSION) {
+        throw invalidContract(
+            `unsupported result version ${String(rawResult.version)}`,
+        );
+    }
+    if (
+        typeof rawResult.engineVersion !== "string" ||
+        rawResult.engineVersion.length === 0 ||
+        rawResult.engineVersion.length > 64
+    ) {
+        throw invalidContract("engineVersion must be a bounded string");
+    }
+    if (typeof rawResult.succeed !== "boolean") {
+        throw invalidContract("succeed must be a boolean");
+    }
+    if (
+        rawResult.method !== null &&
+        !RECOVERY_METHODS.has(rawResult.method)
+    ) {
+        throw invalidContract("method is unsupported");
+    }
+    if (
+        (rawResult.succeed && !RECOVERY_METHODS.has(rawResult.method)) ||
+        (!rawResult.succeed && rawResult.method !== null)
+    ) {
+        throw invalidContract("method does not match the recovery outcome");
+    }
+    if (
+        typeof rawResult.reason !== "string" ||
+        rawResult.reason.length === 0 ||
+        rawResult.reason.length > 128
+    ) {
+        throw invalidContract("reason must be a bounded string");
+    }
+
+    const videoRatio = readOptionalRatio(rawResult.videoRatio, "videoRatio");
+    const audioRatio = readOptionalRatio(rawResult.audioRatio, "audioRatio");
+    const stats = parseRecoveryStats(rawResult.stats);
+    const reconstructedFrameTotal =
+        stats.goodVideoFrames + stats.duplicatedVideoFrames;
+    if (
+        rawResult.succeed &&
+        (
+            stats.outputDurationMs <= 0 ||
+            stats.outputVideoFrames <= 0 ||
+            stats.goodVideoFrames > stats.decodedVideoFrames ||
+            !Number.isSafeInteger(reconstructedFrameTotal) ||
+            reconstructedFrameTotal !== stats.outputVideoFrames ||
+            stats.strictValidationPassed !== true
+        )
+    ) {
+        throw invalidContract(
+            "successful recovery requires consistent decoded output and strict validation",
+        );
+    }
+
+    return {
+        version: rawResult.version,
+        engineVersion: rawResult.engineVersion,
+        succeed: rawResult.succeed,
+        method: rawResult.method,
+        reason: rawResult.reason,
+        videoRatio,
+        audioRatio,
+        stats,
+    };
+}
+
+function parseRecoveryStats(rawStats) {
+    if (!isPlainObject(rawStats)) {
+        throw invalidContract("stats must be an object");
+    }
+
+    const stats = {};
+    for (const field of RECOVERY_STAT_FIELDS) {
+        const value = rawStats[field];
+        if (!Number.isSafeInteger(value) || value < 0) {
+            throw invalidContract(`stats.${field} must be a non-negative integer`);
+        }
+        stats[field] = value;
+    }
+    if (typeof rawStats.strictValidationPassed !== "boolean") {
+        throw invalidContract("stats.strictValidationPassed must be a boolean");
+    }
+    if (stats.duplicatedVideoFrames > stats.outputVideoFrames) {
+        throw invalidContract(
+            "stats.duplicatedVideoFrames cannot exceed outputVideoFrames",
+        );
+    }
+    if (stats.insertedAudioSilenceMs > stats.outputDurationMs) {
+        throw invalidContract(
+            "stats.insertedAudioSilenceMs cannot exceed outputDurationMs",
+        );
+    }
+    stats.strictValidationPassed = rawStats.strictValidationPassed;
+    stats.videoCorruptionPercent = calculatePercent(
+        stats.duplicatedVideoFrames,
+        stats.outputVideoFrames,
+    );
+    stats.audioInsertedSilencePercent = calculatePercent(
+        stats.insertedAudioSilenceMs,
+        stats.outputDurationMs,
+    );
+    return stats;
+}
+
+function readOptionalRatio(value, fieldName) {
+    if (value === null) return null;
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw invalidContract(`${fieldName} must be null or between 0 and 1`);
+    }
+    return value;
+}
+
+function calculatePercent(part, total) {
+    if (total <= 0) return null;
+    const percentage = (part / total) * 100;
+    return Number.isFinite(percentage) ? percentage : null;
 }
 
 async function verifyRegularFile(filePath, label) {
@@ -783,101 +405,38 @@ async function verifyRegularFile(filePath, label) {
     }
 }
 
-async function verifyDirectory(directoryPath) {
-    try {
-        const [directoryStats, resolvedPath] = await Promise.all([
-            lstat(directoryPath),
-            realpath(directoryPath),
-        ]);
-        if (
-            !directoryStats.isDirectory() ||
-            directoryStats.isSymbolicLink() ||
-            resolvedPath !== directoryPath
-        ) {
-            throw new Error("path is not a regular canonical directory");
-        }
-    } catch (error) {
-        throw new MediaRecoveryOperationalError(
-            "Recovery directory is not safe",
-            { cause: error },
-        );
-    }
-}
-
-function failedRecovery(reason, videoRatio = null, audioRatio = null) {
-    return {
-        succeed: false,
-        method: null,
-        mediaPath: null,
-        reason,
-        videoRatio,
-        audioRatio,
-    };
-}
-
 function normalizeMediaId(mediaId) {
     if (typeof mediaId !== "string" || !/^[a-f\d]{24}$/i.test(mediaId)) {
-        throw new TypeError("Media recovery requires a valid 24-character media ID");
+        throw new TypeError(
+            "Media recovery requires a valid 24-character media ID",
+        );
     }
     return mediaId.toLowerCase();
 }
 
-function parseFrameRate(value) {
-    if (typeof value !== "string") return SALVAGE_FPS;
-    const [numeratorText, denominatorText] = value.split("/");
-    const numerator = Number(numeratorText);
-    const denominator = Number(denominatorText);
-    const frameRate = numerator / denominator;
-    if (!Number.isFinite(frameRate) || frameRate < 1 || frameRate > 240) {
-        return SALVAGE_FPS;
-    }
-    return frameRate;
+function isPlainObject(value) {
+    return (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+    );
 }
 
-function parseFrameCount(value) {
-    const frameCount = Number.parseInt(value, 10);
-    return Number.isSafeInteger(frameCount) && frameCount > 0
-        ? frameCount
-        : null;
+function invalidContract(message) {
+    return new MediaRecoveryOperationalError(
+        `Native media recovery contract is invalid: ${message}`,
+    );
 }
 
-function readLastProgressFrame(stdout) {
-    const frameMatches = [...stdout.matchAll(/^frame=\s*(\d+)\s*$/gm)];
-    const frameCount =
-        frameMatches.length > 0
-            ? Number.parseInt(frameMatches.at(-1)[1], 10)
-            : 0;
-    return Number.isSafeInteger(frameCount) ? frameCount : 0;
-}
-
-function clampRatio(value) {
-    if (!Number.isFinite(value) || value <= 0) return 0;
-    return Math.min(1, value);
-}
-
-function assertDidNotTimeOut(result, label) {
-    if (result.timedOut) {
-        throw new MediaRecoveryOperationalError(
-            `${label} exceeded its configured timeout`,
-        );
-    }
+function boundedDiagnostics(stderr) {
+    return stderr
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(-MESSAGE_LIMIT);
 }
 
 function formatExit(result) {
     return result.signal ? `signal ${result.signal}` : `code ${result.code}`;
-}
-
-function formatRatio(ratio) {
-    return ratio === null ? "n/a" : ratio.toFixed(3);
-}
-
-function recoveryLog(mediaId, stage, message, level = "info") {
-    const formatted = `[mediaRecovery][${mediaId}][${stage}] ${message}`;
-    if (level === "warn") {
-        console.warn(formatted);
-        return;
-    }
-    console.info(formatted);
 }
 
 function readPositiveInteger(name, fallback) {
@@ -886,32 +445,6 @@ function readPositiveInteger(name, fallback) {
     const parsed = Number(value);
     if (!Number.isSafeInteger(parsed) || parsed <= 0) {
         throw new TypeError(`${name} must be a positive safe integer`);
-    }
-    return parsed;
-}
-
-function readRatio(name, fallback) {
-    const value = process.env[name];
-    if (typeof value === "undefined" || value === "") return fallback;
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 1) {
-        throw new TypeError(`${name} must be greater than 0 and at most 1`);
-    }
-    return parsed;
-}
-
-function readBoundedNumber(name, fallback, minimum, maximum) {
-    const value = process.env[name];
-    if (typeof value === "undefined" || value === "") return fallback;
-    const parsed = Number(value);
-    if (
-        !Number.isFinite(parsed) ||
-        parsed < minimum ||
-        parsed > maximum
-    ) {
-        throw new TypeError(
-            `${name} must be between ${minimum} and ${maximum}`,
-        );
     }
     return parsed;
 }
