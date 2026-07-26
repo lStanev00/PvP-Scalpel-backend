@@ -26,6 +26,7 @@ const MAX_SOURCE_AUDIO_FRAME_SAMPLES: usize = 262_144;
 const MAX_RESAMPLED_AUDIO_FRAME_SAMPLES: usize = 2_000_000;
 const MAX_AUDIO_FIFO_SAMPLES: usize = 2_000_000;
 const AUDIO_SILENCE_CHUNK_SAMPLES: u64 = 4_096;
+const MAX_AUDIO_FORMAT_CHANGES: u32 = 16;
 const MAX_FRAME_RATE: f64 = 60.0;
 const FALLBACK_FRAME_RATE: i32 = 30;
 const MAX_WIDTH: u32 = 1_280;
@@ -989,6 +990,16 @@ fn reconstruct(paths: &RecoveryPaths) -> Result<Outcome, OperationalError> {
             return Err(error);
         }
     };
+    if encoded.audio_format_changes > 0 || encoded.skipped_audio_format_frames > 0 {
+        stage_log(
+            &paths.media_id,
+            "audio",
+            &format!(
+                "resampler_changes={} skipped_format_frames={}",
+                encoded.audio_format_changes, encoded.skipped_audio_format_frames,
+            ),
+        );
+    }
     validate_output_file(&paths.partial_output).map_err(OperationalError::new)?;
 
     let strict = match strict_validate(&paths.partial_output) {
@@ -1690,6 +1701,8 @@ fn milliseconds_to_samples_ceil(milliseconds: u64) -> u64 {
 
 struct EncodedRecovery {
     stats: Stats,
+    audio_format_changes: u32,
+    skipped_audio_format_frames: u64,
 }
 
 fn encode_reconstruction(
@@ -1806,7 +1819,15 @@ fn encode_reconstruction(
     stats.inserted_audio_silence_ms = audio_rebuilder
         .as_ref()
         .map_or(0, |rebuilder| rebuilder.inserted_silence_ms);
-    Ok(EncodedRecovery { stats })
+    Ok(EncodedRecovery {
+        stats,
+        audio_format_changes: audio_rebuilder
+            .as_ref()
+            .map_or(0, |rebuilder| rebuilder.format_changes),
+        skipped_audio_format_frames: audio_rebuilder
+            .as_ref()
+            .map_or(0, |rebuilder| rebuilder.skipped_format_change_frames),
+    })
 }
 
 struct NativeMuxer {
@@ -2511,6 +2532,8 @@ struct AudioRebuilder {
     inserted_silence_ms: u64,
     last_timestamp: Option<i64>,
     resampler_source_cursor: Option<i64>,
+    format_changes: u32,
+    skipped_format_change_frames: u64,
 }
 
 impl AudioRebuilder {
@@ -2539,6 +2562,8 @@ impl AudioRebuilder {
             inserted_silence_ms: 0,
             last_timestamp: None,
             resampler_source_cursor: None,
+            format_changes: 0,
+            skipped_format_change_frames: 0,
         })
     }
 
@@ -2600,9 +2625,15 @@ impl AudioRebuilder {
             .resampler_input
             .is_some_and(|current| current != definition)
         {
-            return Err(PipelineFailure::Operational(OperationalError::new(
-                "audio format changed during recovery",
-            )));
+            if self.format_changes >= MAX_AUDIO_FORMAT_CHANGES {
+                self.skipped_format_change_frames =
+                    self.skipped_format_change_frames.saturating_add(1);
+                return Ok(());
+            }
+            self.flush_resampler(muxer)?;
+            self.resampler = None;
+            self.resampler_input = None;
+            self.format_changes = self.format_changes.saturating_add(1);
         }
         if self.resampler.is_none() {
             self.resampler = Some(
