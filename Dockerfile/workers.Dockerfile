@@ -1,5 +1,7 @@
 FROM rust:1.97.1-alpine3.24 AS media-recovery-builder
 
+ENV RUSTFLAGS="-C target-feature=-crt-static"
+
 WORKDIR /build/media-recovery
 
 RUN apk add --no-cache \
