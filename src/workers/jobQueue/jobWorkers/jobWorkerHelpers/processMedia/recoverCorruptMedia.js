@@ -455,7 +455,15 @@ function invalidContract(message) {
 }
 
 function boundedDiagnostics(stderr) {
-    return stderr
+    const lines = String(stderr).split(/\r?\n/);
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+        const line = lines[index].trim();
+        if (line.startsWith("media-recovery:")) {
+            return line.replace(/\s+/g, " ").slice(0, MESSAGE_LIMIT);
+        }
+    }
+
+    return String(stderr)
         .replace(/\s+/g, " ")
         .trim()
         .slice(-MESSAGE_LIMIT);
