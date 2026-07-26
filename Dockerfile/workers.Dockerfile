@@ -1,8 +1,14 @@
 FROM rust:1.97.1-alpine3.24 AS media-recovery-builder
 
+ENV RUSTFLAGS="-C target-feature=-crt-static"
+
 WORKDIR /build/media-recovery
 
-RUN apk add --no-cache build-base
+RUN apk add --no-cache \
+        build-base \
+        clang-dev \
+        ffmpeg-dev \
+        pkgconf
 
 COPY native/media-recovery/Cargo.toml native/media-recovery/Cargo.lock ./
 COPY native/media-recovery/src ./src
@@ -10,7 +16,7 @@ COPY native/media-recovery/src ./src
 RUN cargo test --locked \
     && cargo build --release --locked
 
-FROM node:22-alpine
+FROM node:22-alpine3.24
 
 ENV NODE_ENV=production \
     STORAGE_LOCAL_ENDPOINT=http://minio:4010
