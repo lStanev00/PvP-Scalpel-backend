@@ -3,7 +3,7 @@ import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 
 const WORK_ROOT = "/mnt/work";
-const RECOVERY_RESULT_VERSION = 1;
+const RECOVERY_RESULT_VERSION = 2;
 const NATIVE_RECOVERY_BINARY =
     process.env.MEDIA_RECOVERY_BINARY || "/usr/local/bin/media-recovery";
 const RECOVERY_TIMEOUT_MS = readPositiveInteger(
@@ -35,9 +35,12 @@ const RECOVERY_STAT_FIELDS = Object.freeze([
     "outputVideoFrames",
     "duplicatedVideoFrames",
     "corruptVideoFrames",
+    "removedVideoFrames",
+    "removedTimelineMs",
     "trimmedLeadingMs",
     "trimmedTrailingMs",
     "longestDuplicatedRunMs",
+    "longestRemovedRunMs",
     "insertedAudioSilenceMs",
 ]);
 
@@ -62,9 +65,12 @@ export class MediaRecoveryOperationalError extends Error {
  * @property {number} outputVideoFrames
  * @property {number} duplicatedVideoFrames
  * @property {number} corruptVideoFrames
+ * @property {number} removedVideoFrames
+ * @property {number} removedTimelineMs
  * @property {number} trimmedLeadingMs
  * @property {number} trimmedTrailingMs
  * @property {number} longestDuplicatedRunMs
+ * @property {number} longestRemovedRunMs
  * @property {number} insertedAudioSilenceMs
  * @property {boolean} strictValidationPassed
  * @property {number|null} videoCorruptionPercent
@@ -88,7 +94,7 @@ export class MediaRecoveryOperationalError extends Error {
  * Runs the native frame-recovery engine and validates its JSON contract.
  *
  * Recovery percentages are diagnostics only. This adapter never rejects a
- * strictly validated native result because of duplicated-video or inserted-
+ * strictly validated native result because of removed-video or inserted-
  * silence percentages.
  *
  * @param {string} mediaId Twenty-four character media ID.
@@ -302,16 +308,19 @@ function parseRecoveryResult(stdout) {
     const videoRatio = readOptionalRatio(rawResult.videoRatio, "videoRatio");
     const audioRatio = readOptionalRatio(rawResult.audioRatio, "audioRatio");
     const stats = parseRecoveryStats(rawResult.stats);
-    const reconstructedFrameTotal =
-        stats.goodVideoFrames + stats.duplicatedVideoFrames;
     if (
         rawResult.succeed &&
         (
             stats.outputDurationMs <= 0 ||
             stats.outputVideoFrames <= 0 ||
             stats.goodVideoFrames > stats.decodedVideoFrames ||
-            !Number.isSafeInteger(reconstructedFrameTotal) ||
-            reconstructedFrameTotal !== stats.outputVideoFrames ||
+            stats.goodVideoFrames !== stats.outputVideoFrames ||
+            stats.duplicatedVideoFrames !== 0 ||
+            stats.longestDuplicatedRunMs !== 0 ||
+            (
+                rawResult.method === "frame_reconstruction" &&
+                stats.removedVideoFrames !== stats.corruptVideoFrames
+            ) ||
             stats.strictValidationPassed !== true
         )
     ) {
@@ -353,6 +362,21 @@ function parseRecoveryStats(rawStats) {
             "stats.duplicatedVideoFrames cannot exceed outputVideoFrames",
         );
     }
+    if (stats.removedVideoFrames > stats.corruptVideoFrames) {
+        throw invalidContract(
+            "stats.removedVideoFrames cannot exceed corruptVideoFrames",
+        );
+    }
+    if (stats.removedTimelineMs > stats.sourceDurationMs) {
+        throw invalidContract(
+            "stats.removedTimelineMs cannot exceed sourceDurationMs",
+        );
+    }
+    if (stats.longestRemovedRunMs > stats.removedTimelineMs) {
+        throw invalidContract(
+            "stats.longestRemovedRunMs cannot exceed removedTimelineMs",
+        );
+    }
     if (stats.insertedAudioSilenceMs > stats.outputDurationMs) {
         throw invalidContract(
             "stats.insertedAudioSilenceMs cannot exceed outputDurationMs",
@@ -360,8 +384,8 @@ function parseRecoveryStats(rawStats) {
     }
     stats.strictValidationPassed = rawStats.strictValidationPassed;
     stats.videoCorruptionPercent = calculatePercent(
-        stats.duplicatedVideoFrames,
-        stats.outputVideoFrames,
+        stats.corruptVideoFrames,
+        stats.expectedVideoFrames,
     );
     stats.audioInsertedSilencePercent = calculatePercent(
         stats.insertedAudioSilenceMs,
@@ -381,7 +405,9 @@ function readOptionalRatio(value, fieldName) {
 function calculatePercent(part, total) {
     if (total <= 0) return null;
     const percentage = (part / total) * 100;
-    return Number.isFinite(percentage) ? percentage : null;
+    return Number.isFinite(percentage)
+        ? Math.min(100, percentage)
+        : null;
 }
 
 async function verifyRegularFile(filePath, label) {

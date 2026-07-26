@@ -327,6 +327,7 @@ export default async function processMedia(job) {
                 `[processMedia][${mediaId}][recovery] completed ` +
                     `video corruption=${formatRecoveryPercent(recoveryStats?.videoCorruptionPercent)} ` +
                     `audio inserted-silence=${formatRecoveryPercent(recoveryStats?.audioInsertedSilencePercent)} ` +
+                    `${formatRecoveryCuts(recoveryStats)} ` +
                     formatRecoveryQualityTarget(recoveryStats),
             );
         }
@@ -495,7 +496,8 @@ async function runRecoveryAttempt(
             `audio=${formatRecoveryRatio(recovery.audioRatio)}`;
         const corruptionSummary =
             `video corruption=${formatRecoveryPercent(recovery.stats?.videoCorruptionPercent)} ` +
-            `audio inserted-silence=${formatRecoveryPercent(recovery.stats?.audioInsertedSilencePercent)}`;
+            `audio inserted-silence=${formatRecoveryPercent(recovery.stats?.audioInsertedSilencePercent)} ` +
+            formatRecoveryCuts(recovery.stats);
         console.warn(
             `[processMedia][${mediaId}][recovery] attempt=${attempts} unsuccessful ` +
                 `reason=${recovery.reason} ${ratioSummary} ${corruptionSummary}; ` +
@@ -512,6 +514,7 @@ async function runRecoveryAttempt(
             `audio=${formatRecoveryRatio(recovery.audioRatio)} ` +
             `video corruption=${formatRecoveryPercent(recovery.stats?.videoCorruptionPercent)} ` +
             `audio inserted-silence=${formatRecoveryPercent(recovery.stats?.audioInsertedSilencePercent)} ` +
+            `${formatRecoveryCuts(recovery.stats)} ` +
             formatRecoveryQualityTarget(recovery.stats),
     );
     return {
@@ -536,7 +539,8 @@ async function markRecoveryExportFailure(mediaAudit, mediaId, error) {
     console.error(
         `[processMedia][${mediaId}][recovery] recovered input failed HLS export ` +
             `video corruption=${formatRecoveryPercent(recoveryStats?.videoCorruptionPercent)} ` +
-            `audio inserted-silence=${formatRecoveryPercent(recoveryStats?.audioInsertedSilencePercent)}: ` +
+            `audio inserted-silence=${formatRecoveryPercent(recoveryStats?.audioInsertedSilencePercent)} ` +
+            `${formatRecoveryCuts(recoveryStats)}: ` +
             truncateRecoveryMessage(message),
     );
 }
@@ -628,6 +632,24 @@ function formatRecoveryPercent(percentage) {
     return Number.isFinite(percentage)
         ? `${percentage.toFixed(3)}%`
         : "n/a";
+}
+
+function formatRecoveryCuts(stats) {
+    const outputRatio =
+        Number.isFinite(stats?.outputDurationMs) &&
+        Number.isFinite(stats?.sourceDurationMs) &&
+        stats.sourceDurationMs > 0
+            ? (stats.outputDurationMs / stats.sourceDurationMs).toFixed(3)
+            : "n/a";
+    return (
+        `removed=${Number.isSafeInteger(stats?.removedVideoFrames) ? stats.removedVideoFrames : "n/a"} ` +
+        `removed-timeline=${Number.isSafeInteger(stats?.removedTimelineMs) ? `${stats.removedTimelineMs}ms` : "n/a"} ` +
+        `longest-cut=${Number.isSafeInteger(stats?.longestRemovedRunMs) ? `${stats.longestRemovedRunMs}ms` : "n/a"} ` +
+        `leading-trim=${Number.isSafeInteger(stats?.trimmedLeadingMs) ? `${stats.trimmedLeadingMs}ms` : "n/a"} ` +
+        `trailing-trim=${Number.isSafeInteger(stats?.trimmedTrailingMs) ? `${stats.trimmedTrailingMs}ms` : "n/a"} ` +
+        `inserted-silence=${Number.isSafeInteger(stats?.insertedAudioSilenceMs) ? `${stats.insertedAudioSilenceMs}ms` : "n/a"} ` +
+        `output/source=${outputRatio}`
+    );
 }
 
 function formatRecoveryQualityTarget(stats) {

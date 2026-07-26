@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub const RECOVERY_RESULT_VERSION: u32 = 1;
+pub const RECOVERY_RESULT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -27,12 +27,18 @@ pub struct RecoveryStats {
     pub duplicated_video_frames: u64,
     #[serde(rename = "corruptVideoFrames")]
     pub corrupt_video_frames: u64,
+    #[serde(rename = "removedVideoFrames")]
+    pub removed_video_frames: u64,
+    #[serde(rename = "removedTimelineMs")]
+    pub removed_timeline_ms: u64,
     #[serde(rename = "trimmedLeadingMs")]
     pub trimmed_leading_ms: u64,
     #[serde(rename = "trimmedTrailingMs")]
     pub trimmed_trailing_ms: u64,
     #[serde(rename = "longestDuplicatedRunMs")]
     pub longest_duplicated_run_ms: u64,
+    #[serde(rename = "longestRemovedRunMs")]
+    pub longest_removed_run_ms: u64,
     #[serde(rename = "insertedAudioSilenceMs")]
     pub inserted_audio_silence_ms: u64,
     #[serde(rename = "strictValidationPassed")]
@@ -40,7 +46,7 @@ pub struct RecoveryStats {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RecoveryResultV1 {
+pub struct RecoveryResultV2 {
     pub version: u32,
     #[serde(rename = "engineVersion")]
     pub engine_version: String,
@@ -54,7 +60,7 @@ pub struct RecoveryResultV1 {
     pub stats: RecoveryStats,
 }
 
-impl RecoveryResultV1 {
+impl RecoveryResultV2 {
     pub fn success(
         engine_version: impl Into<String>,
         method: RecoveryMethod,
@@ -100,8 +106,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn serializes_the_version_one_javascript_contract() {
-        let result = RecoveryResultV1::success(
+    fn serializes_the_version_two_javascript_contract() {
+        let result = RecoveryResultV2::success(
             "0.2.0",
             RecoveryMethod::FrameReconstruction,
             "frame_reconstruction_succeeded",
@@ -113,19 +119,22 @@ mod tests {
                 expected_video_frames: 30,
                 decoded_video_frames: 29,
                 good_video_frames: 27,
-                output_video_frames: 28,
-                duplicated_video_frames: 1,
+                output_video_frames: 27,
+                duplicated_video_frames: 0,
                 corrupt_video_frames: 2,
+                removed_video_frames: 2,
+                removed_timeline_ms: 67,
                 trimmed_leading_ms: 50,
                 trimmed_trailing_ms: 50,
-                longest_duplicated_run_ms: 34,
+                longest_duplicated_run_ms: 0,
+                longest_removed_run_ms: 67,
                 inserted_audio_silence_ms: 0,
                 strict_validation_passed: true,
             },
         );
 
         let value = serde_json::to_value(result).unwrap();
-        assert_eq!(value["version"], 1);
+        assert_eq!(value["version"], 2);
         assert_eq!(value["engineVersion"], "0.2.0");
         assert_eq!(value["succeed"], true);
         assert_eq!(value["method"], "frame_reconstruction");
@@ -137,9 +146,9 @@ mod tests {
 
     #[test]
     fn rejected_result_has_a_null_method() {
-        let result = RecoveryResultV1::rejected(
+        let result = RecoveryResultV2::rejected(
             "0.2.0",
-            "internal_gap_too_long",
+            "recovery_no_trustworthy_video_frame",
             Some(0.2),
             Some(1.0),
             RecoveryStats::default(),
