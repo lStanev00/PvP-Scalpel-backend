@@ -9,9 +9,12 @@ export interface MediaRecoveryStatsData {
     outputVideoFrames: number;
     duplicatedVideoFrames: number;
     corruptVideoFrames: number;
+    removedVideoFrames: number;
+    removedTimelineMs: number;
     trimmedLeadingMs: number;
     trimmedTrailingMs: number;
     longestDuplicatedRunMs: number;
+    longestRemovedRunMs: number;
     insertedAudioSilenceMs: number;
     strictValidationPassed: boolean;
     videoCorruptionPercent: number | null;

@@ -42,6 +42,16 @@ const mediaRecoveryStatsSchema = new Schema(
             min: 0,
             default: 0,
         },
+        removedVideoFrames: {
+            type: Number,
+            min: 0,
+            default: 0,
+        },
+        removedTimelineMs: {
+            type: Number,
+            min: 0,
+            default: 0,
+        },
         trimmedLeadingMs: {
             type: Number,
             min: 0,
@@ -53,6 +63,11 @@ const mediaRecoveryStatsSchema = new Schema(
             default: 0,
         },
         longestDuplicatedRunMs: {
+            type: Number,
+            min: 0,
+            default: 0,
+        },
+        longestRemovedRunMs: {
             type: Number,
             min: 0,
             default: 0,

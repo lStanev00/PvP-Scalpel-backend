@@ -4,7 +4,7 @@ mod guard;
 mod mp4;
 mod timeline;
 
-use contract::{RecoveryMethod, RecoveryResultV1, RecoveryStats};
+use contract::{RecoveryMethod, RecoveryResultV2, RecoveryStats};
 use engine::{Capabilities, Method, OperationalError, Outcome};
 use std::env;
 use std::path::Path;
@@ -57,14 +57,17 @@ fn print_outcome(outcome: Outcome) -> Result<(), CommandError> {
         output_video_frames: outcome.stats.output_video_frames,
         duplicated_video_frames: outcome.stats.duplicated_video_frames,
         corrupt_video_frames: outcome.stats.corrupt_video_frames,
+        removed_video_frames: outcome.stats.removed_video_frames,
+        removed_timeline_ms: outcome.stats.removed_timeline_ms,
         trimmed_leading_ms: outcome.stats.trimmed_leading_ms,
         trimmed_trailing_ms: outcome.stats.trimmed_trailing_ms,
         longest_duplicated_run_ms: outcome.stats.longest_duplicated_run_ms,
+        longest_removed_run_ms: outcome.stats.longest_removed_run_ms,
         inserted_audio_silence_ms: outcome.stats.inserted_audio_silence_ms,
         strict_validation_passed: outcome.stats.strict_validation_passed,
     };
     let result = if outcome.succeed {
-        RecoveryResultV1::success(
+        RecoveryResultV2::success(
             engine::engine_version(),
             map_method(
                 outcome
@@ -77,7 +80,7 @@ fn print_outcome(outcome: Outcome) -> Result<(), CommandError> {
             stats,
         )
     } else {
-        RecoveryResultV1::rejected(
+        RecoveryResultV2::rejected(
             engine::engine_version(),
             outcome.reason,
             outcome.video_ratio,

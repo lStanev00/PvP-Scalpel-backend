@@ -1,6 +1,8 @@
 use crate::guard::{remove_file_if_present, validate_output_file, RecoveryPaths};
 use crate::mp4;
-use crate::timeline::{FrameObservation, TimelineAction, TimelineSummary, TimelineTracker};
+use crate::timeline::{
+    EditMap, FrameObservation, TimelineAction, TimelineSummary, TimelineTracker,
+};
 use ffmpeg::codec::{self, decoder, encoder};
 use ffmpeg::format;
 use ffmpeg::media;
@@ -14,9 +16,7 @@ use std::path::Path;
 
 const ENGINE_VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAX_SOURCE_PIXELS: u64 = 33_177_600;
-const MAX_INTERNAL_GAP_MS: u64 = 250;
-const MAX_EDGE_TRIM_MS: u64 = 1_000;
-const MIN_DURATION_RATIO: f64 = 0.98;
+const MIN_STRUCTURAL_DURATION_RATIO: f64 = 0.98;
 const AUDIO_RATE: u32 = 48_000;
 const AUDIO_BIT_RATE: usize = 192_000;
 const MIN_SOURCE_AUDIO_RATE: u32 = 8_000;
@@ -25,6 +25,7 @@ const MAX_SOURCE_AUDIO_CHANNELS: u32 = 32;
 const MAX_SOURCE_AUDIO_FRAME_SAMPLES: usize = 262_144;
 const MAX_RESAMPLED_AUDIO_FRAME_SAMPLES: usize = 2_000_000;
 const MAX_AUDIO_FIFO_SAMPLES: usize = 2_000_000;
+const AUDIO_SILENCE_CHUNK_SAMPLES: u64 = 4_096;
 const MAX_FRAME_RATE: f64 = 60.0;
 const FALLBACK_FRAME_RATE: i32 = 30;
 const MAX_WIDTH: u32 = 1_280;
@@ -46,9 +47,12 @@ pub struct Stats {
     pub output_video_frames: u64,
     pub duplicated_video_frames: u64,
     pub corrupt_video_frames: u64,
+    pub removed_video_frames: u64,
+    pub removed_timeline_ms: u64,
     pub trimmed_leading_ms: u64,
     pub trimmed_trailing_ms: u64,
     pub longest_duplicated_run_ms: u64,
+    pub longest_removed_run_ms: u64,
     pub inserted_audio_silence_ms: u64,
     pub strict_validation_passed: bool,
 }
@@ -241,7 +245,8 @@ fn attempt_structural(paths: &RecoveryPaths) -> Result<Option<Outcome>, Operatio
 
     if source_duration_ms == 0
         || strict.duration_ms == 0
-        || ratio(strict.duration_ms, source_duration_ms).unwrap_or(0.0) < MIN_DURATION_RATIO
+        || ratio(strict.duration_ms, source_duration_ms).unwrap_or(0.0)
+            < MIN_STRUCTURAL_DURATION_RATIO
     {
         remove_file_if_present(&paths.partial_output).map_err(OperationalError::new)?;
         return Ok(None);
@@ -765,6 +770,19 @@ fn expected_frames(duration_ms: u64, frame_rate: Rational) -> u64 {
     frames.round().max(1.0) as u64
 }
 
+fn frame_slots_between(delta_ms: i64, frame_rate: Rational) -> u64 {
+    if delta_ms <= 0 || frame_rate.numerator() <= 0 || frame_rate.denominator() <= 0 {
+        return 0;
+    }
+    let numerator = u128::try_from(delta_ms)
+        .unwrap_or(u128::MAX)
+        .saturating_mul(u128::try_from(frame_rate.numerator()).unwrap_or(u128::MAX));
+    let denominator = 1_000_u128
+        .saturating_mul(u128::try_from(frame_rate.denominator()).unwrap_or(u128::MAX))
+        .max(1);
+    u64::try_from(numerator.saturating_add(denominator / 2) / denominator).unwrap_or(u64::MAX)
+}
+
 fn ratio(numerator: u64, denominator: u64) -> Option<f64> {
     (denominator > 0).then(|| (numerator as f64 / denominator as f64).clamp(0.0, 1.0))
 }
@@ -793,10 +811,13 @@ struct VideoSource {
     index: usize,
     time_base: Rational,
     parameters: codec::Parameters,
+    start_time_ms: i64,
+    duration_ms: u64,
     width: u32,
     height: u32,
     frame_rate: Rational,
     frame_duration_ms: u64,
+    expected_frames: u64,
 }
 
 struct AudioSource {
@@ -814,6 +835,7 @@ struct Source {
 struct VideoAnalysis {
     source: Source,
     summary: TimelineSummary,
+    edit_map: EditMap,
     stats: Stats,
     first_timestamp_ms: i64,
 }
@@ -842,11 +864,13 @@ fn reconstruct(paths: &RecoveryPaths) -> Result<Outcome, OperationalError> {
         &paths.media_id,
         "reconstruction",
         &format!(
-            "analysis accepted decoded={} good={} corrupt={} duplicated={}",
+            "analysis accepted decoded={} good={} corrupt={} removed={} removed_ms={} longest_cut_ms={}",
             analysis.stats.decoded_video_frames,
             analysis.stats.good_video_frames,
             analysis.stats.corrupt_video_frames,
-            analysis.stats.duplicated_video_frames
+            analysis.stats.removed_video_frames,
+            analysis.stats.removed_timeline_ms,
+            analysis.stats.longest_removed_run_ms,
         ),
     );
 
@@ -895,14 +919,9 @@ fn reconstruct(paths: &RecoveryPaths) -> Result<Outcome, OperationalError> {
             stats,
         ));
     }
-    if strict.duration_ms == 0
-        || ratio(strict.duration_ms, stats.source_duration_ms).unwrap_or(0.0) < MIN_DURATION_RATIO
-    {
+    if strict.duration_ms == 0 {
         remove_file_if_present(&paths.partial_output).map_err(OperationalError::new)?;
-        return Ok(Outcome::rejected(
-            "recovery_duration_below_threshold",
-            stats,
-        ));
+        return Ok(Outcome::rejected("recovery_output_has_no_duration", stats));
     }
 
     let video_duration_ms =
@@ -927,10 +946,25 @@ fn reconstruct(paths: &RecoveryPaths) -> Result<Outcome, OperationalError> {
         .audio_duration_ms
         .and_then(|duration| ratio(duration, stats.source_duration_ms));
     let video_ratio = ratio(strict.duration_ms, stats.source_duration_ms);
+    let corruption_percent = if stats.expected_video_frames == 0 {
+        0.0
+    } else {
+        (stats.corrupt_video_frames as f64 / stats.expected_video_frames as f64) * 100.0
+    };
     stage_log(
         &paths.media_id,
         "validation",
-        "strict reconstructed-media decode passed",
+        &format!(
+            "strict decode passed removed_frames={} removed_ms={} longest_cut_ms={} leading_trim_ms={} trailing_trim_ms={} inserted_silence_ms={} output_source_ratio={:.3} corruption={:.3}%",
+            stats.removed_video_frames,
+            stats.removed_timeline_ms,
+            stats.longest_removed_run_ms,
+            stats.trimmed_leading_ms,
+            stats.trimmed_trailing_ms,
+            stats.inserted_audio_silence_ms,
+            video_ratio.unwrap_or(0.0),
+            corruption_percent,
+        ),
     );
     Ok(Outcome::success(
         Method::FrameReconstruction,
@@ -992,14 +1026,19 @@ fn inspect_source(path: &Path) -> Result<Source, PipelineFailure> {
     }
     let frame_rate = source_rate.reduce();
     let frame_duration_ms = (1_000.0 / f64::from(frame_rate)).round().max(1.0) as u64;
+    let source_expected_frames = expected_frames(duration_ms, frame_rate);
+    let start_time_ms = stream_start_ms(video_stream.start_time(), video_stream.time_base());
     let video = VideoSource {
         index: video_stream.index(),
         time_base: video_stream.time_base(),
         parameters: video_stream.parameters(),
+        start_time_ms,
+        duration_ms,
         width,
         height,
         frame_rate,
         frame_duration_ms,
+        expected_frames: source_expected_frames,
     };
     decoder.flush();
 
@@ -1023,7 +1062,7 @@ fn analyze_video(path: &Path) -> Result<VideoAnalysis, PipelineFailure> {
     let mut input = open_local_input(path)?;
     let mut decoder =
         tolerant_video_decoder(source.video.parameters.clone(), source.video.time_base)?;
-    let mut tracker = TimelineTracker::new(MAX_INTERNAL_GAP_MS);
+    let mut tracker = TimelineTracker::new();
     let mut input_index = 0_u64;
     let mut actual_decoded_frames = 0_u64;
     let mut last_trustworthy_timestamp_ms = None;
@@ -1047,14 +1086,11 @@ fn analyze_video(path: &Path) -> Result<VideoAnalysis, PipelineFailure> {
             if let Err(error) = observe_damaged(
                 &mut tracker,
                 &mut input_index,
-                packet
-                    .pts()
-                    .map(|pts| timestamp_to_ms(pts, source.video.time_base))
-                    .unwrap_or_else(|| {
-                        last_trustworthy_timestamp_ms
-                            .unwrap_or(0_i64)
-                            .saturating_add(source.video.frame_duration_ms as i64)
-                    }),
+                next_damage_timestamp(
+                    last_trustworthy_timestamp_ms,
+                    consecutive_damage_ms,
+                    source.video.frame_duration_ms,
+                ),
                 source.video.frame_duration_ms,
                 &mut consecutive_damage_ms,
             ) {
@@ -1072,14 +1108,11 @@ fn analyze_video(path: &Path) -> Result<VideoAnalysis, PipelineFailure> {
                 if let Err(error) = observe_damaged(
                     &mut tracker,
                     &mut input_index,
-                    packet
-                        .pts()
-                        .map(|pts| timestamp_to_ms(pts, source.video.time_base))
-                        .unwrap_or_else(|| {
-                            last_trustworthy_timestamp_ms
-                                .unwrap_or(0_i64)
-                                .saturating_add(source.video.frame_duration_ms as i64)
-                        }),
+                    next_damage_timestamp(
+                        last_trustworthy_timestamp_ms,
+                        consecutive_damage_ms,
+                        source.video.frame_duration_ms,
+                    ),
                     source.video.frame_duration_ms,
                     &mut consecutive_damage_ms,
                 ) {
@@ -1134,7 +1167,16 @@ fn analyze_video(path: &Path) -> Result<VideoAnalysis, PipelineFailure> {
         ));
     }
 
-    let summary = tracker.finish();
+    append_unobserved_trailing_damage(
+        &mut tracker,
+        &mut input_index,
+        last_trustworthy_timestamp_ms,
+        consecutive_damage_ms,
+        &source.video,
+        source.duration_ms,
+    )?;
+    let timeline = tracker.finish(source.duration_ms, source.video.expected_frames);
+    let summary = timeline.summary;
     let first_timestamp_ms = summary.first_accepted_timestamp_ms.ok_or_else(|| {
         PipelineFailure::Rejected(
             "recovery_no_trustworthy_video_frame".into(),
@@ -1154,49 +1196,28 @@ fn analyze_video(path: &Path) -> Result<VideoAnalysis, PipelineFailure> {
     }
 
     let output_duration_ms = frames_to_ms(summary.output_frames, source.video.frame_rate);
-    let estimated_end_ms = first_timestamp_ms.saturating_add(output_duration_ms as i64);
-    let unobserved_trailing_ms = source
-        .duration_ms
-        .saturating_sub(estimated_end_ms.max(0) as u64);
-    let trimmed_trailing_ms = summary.trimmed_trailing_ms.max(unobserved_trailing_ms);
-    let trimmed_leading_ms = summary.trimmed_leading_ms;
     let stats = Stats {
         source_duration_ms: source.duration_ms,
         output_duration_ms,
-        expected_video_frames: expected_frames(source.duration_ms, source.video.frame_rate),
+        expected_video_frames: source.video.expected_frames,
         decoded_video_frames: actual_decoded_frames,
         good_video_frames: summary.good_frames,
         output_video_frames: summary.output_frames,
         duplicated_video_frames: summary.duplicated_frames,
         corrupt_video_frames: summary.corrupt_frames,
-        trimmed_leading_ms,
-        trimmed_trailing_ms,
+        removed_video_frames: summary.removed_frames,
+        removed_timeline_ms: summary.removed_timeline_ms,
+        trimmed_leading_ms: summary.trimmed_leading_ms,
+        trimmed_trailing_ms: summary.trimmed_trailing_ms,
         longest_duplicated_run_ms: summary.longest_duplicated_run_ms,
+        longest_removed_run_ms: summary.longest_removed_run_ms,
         ..Stats::default()
     };
-
-    if trimmed_leading_ms > MAX_EDGE_TRIM_MS {
-        return Err(PipelineFailure::Rejected(
-            "recovery_leading_trim_exceeded".into(),
-            Box::new(stats),
-        ));
-    }
-    if trimmed_trailing_ms > MAX_EDGE_TRIM_MS {
-        return Err(PipelineFailure::Rejected(
-            "recovery_trailing_trim_exceeded".into(),
-            Box::new(stats),
-        ));
-    }
-    if ratio(output_duration_ms, source.duration_ms).unwrap_or(0.0) < MIN_DURATION_RATIO {
-        return Err(PipelineFailure::Rejected(
-            "recovery_duration_below_threshold".into(),
-            Box::new(stats),
-        ));
-    }
 
     Ok(VideoAnalysis {
         source,
         summary,
+        edit_map: timeline.edit_map,
         stats,
         first_timestamp_ms,
     })
@@ -1228,6 +1249,7 @@ fn enrich_analysis_rejection(
             output_video_frames: summary.output_frames,
             duplicated_video_frames: summary.duplicated_frames,
             corrupt_video_frames: summary.corrupt_frames,
+            removed_video_frames: summary.corrupt_frames,
             trimmed_leading_ms: summary.trimmed_leading_ms,
             trimmed_trailing_ms: summary.trimmed_trailing_ms.max(
                 source
@@ -1256,15 +1278,25 @@ fn drain_analysis_frames(
                 *actual_decoded_frames = actual_decoded_frames.saturating_add(1);
                 let timestamp_ms = frame
                     .timestamp()
-                    .map(|timestamp| timestamp_to_ms(timestamp, source.time_base))
+                    .map(|timestamp| {
+                        timestamp_to_ms(timestamp, source.time_base)
+                            .saturating_sub(source.start_time_ms)
+                    })
                     .unwrap_or_else(|| {
-                        last_trustworthy_timestamp_ms
-                            .unwrap_or(0_i64)
-                            .saturating_add(source.frame_duration_ms as i64)
+                        next_damage_timestamp(
+                            *last_trustworthy_timestamp_ms,
+                            *consecutive_damage_ms,
+                            source.frame_duration_ms,
+                        )
                     });
-                let timestamp_valid =
-                    last_trustworthy_timestamp_ms.is_none_or(|last| timestamp_ms > last);
-                let clean = valid_video_frame(&frame) && timestamp_valid;
+                let timestamp_valid = timestamp_is_trustworthy(
+                    timestamp_ms,
+                    *last_trustworthy_timestamp_ms,
+                    source.duration_ms,
+                );
+                let clean = valid_video_frame(&frame)
+                    && timestamp_valid
+                    && *input_index < source.expected_frames;
                 if clean {
                     infer_missing_observations(
                         tracker,
@@ -1272,6 +1304,9 @@ fn drain_analysis_frames(
                         *last_trustworthy_timestamp_ms,
                         timestamp_ms,
                         source.frame_duration_ms,
+                        source.frame_rate,
+                        source.expected_frames,
+                        source.duration_ms,
                         consecutive_damage_ms,
                     )?;
                 }
@@ -1284,10 +1319,18 @@ fn drain_analysis_frames(
                         frame.is_key(),
                     )
                 } else {
+                    let damage_timestamp_ms = next_damage_timestamp(
+                        *last_trustworthy_timestamp_ms,
+                        *consecutive_damage_ms,
+                        source.frame_duration_ms,
+                    );
                     *consecutive_damage_ms =
                         consecutive_damage_ms.saturating_add(source.frame_duration_ms);
-                    ensure_bounded_pending_damage(*consecutive_damage_ms)?;
-                    FrameObservation::damaged(*input_index, timestamp_ms, source.frame_duration_ms)
+                    FrameObservation::damaged(
+                        *input_index,
+                        damage_timestamp_ms,
+                        source.frame_duration_ms,
+                    )
                 };
                 tracker.observe(observation).map_err(timeline_rejection)?;
                 *last_trustworthy_timestamp_ms = retain_trustworthy_timestamp(
@@ -1299,9 +1342,11 @@ fn drain_analysis_frames(
             }
             Err(error) if is_again_or_eof(error) => return Ok(()),
             Err(_) => {
-                let timestamp_ms = last_trustworthy_timestamp_ms
-                    .unwrap_or(0_i64)
-                    .saturating_add(source.frame_duration_ms as i64);
+                let timestamp_ms = next_damage_timestamp(
+                    *last_trustworthy_timestamp_ms,
+                    *consecutive_damage_ms,
+                    source.frame_duration_ms,
+                );
                 observe_damaged(
                     tracker,
                     input_index,
@@ -1323,7 +1368,6 @@ fn observe_damaged(
     consecutive_damage_ms: &mut u64,
 ) -> Result<(), PipelineFailure> {
     *consecutive_damage_ms = consecutive_damage_ms.saturating_add(duration_ms);
-    ensure_bounded_pending_damage(*consecutive_damage_ms)?;
     tracker
         .observe(FrameObservation::damaged(
             *input_index,
@@ -1331,7 +1375,6 @@ fn observe_damaged(
             duration_ms,
         ))
         .map_err(timeline_rejection)?;
-    ensure_bounded_pending_damage(tracker.pending_duration_ms())?;
     *input_index = input_index.saturating_add(1);
     Ok(())
 }
@@ -1342,6 +1385,9 @@ fn infer_missing_observations(
     previous_timestamp_ms: Option<i64>,
     current_timestamp_ms: i64,
     frame_duration_ms: u64,
+    frame_rate: Rational,
+    maximum_frames: u64,
+    maximum_timeline_ms: u64,
     consecutive_damage_ms: &mut u64,
 ) -> Result<(), PipelineFailure> {
     let Some(previous_timestamp_ms) = previous_timestamp_ms else {
@@ -1351,53 +1397,77 @@ fn infer_missing_observations(
     if delta_ms <= 0 {
         return Ok(());
     }
-    let nominal_slots = u64::try_from(delta_ms)
-        .unwrap_or(u64::MAX)
-        .saturating_add(frame_duration_ms / 2)
-        / frame_duration_ms.max(1);
+    let nominal_slots = frame_slots_between(delta_ms, frame_rate);
     let missing_slots = nominal_slots.saturating_sub(1);
     let already_observed = *consecutive_damage_ms / frame_duration_ms.max(1);
-    let additional = missing_slots.saturating_sub(already_observed);
-    for slot in 0..additional {
+    let requested_additional = missing_slots.saturating_sub(already_observed);
+    let additional =
+        requested_additional.min(maximum_frames.saturating_sub(input_index.saturating_add(1)));
+    if additional > 0 {
+        let total_gap_duration_ms = u64::try_from(delta_ms)
+            .unwrap_or(u64::MAX)
+            .min(maximum_timeline_ms)
+            .saturating_sub(frame_duration_ms);
+        let mut additional_duration_ms =
+            total_gap_duration_ms.saturating_sub(*consecutive_damage_ms);
+        if additional < requested_additional {
+            additional_duration_ms =
+                additional_duration_ms.min(frames_to_ms(additional, frame_rate));
+        }
+        if additional_duration_ms == 0 {
+            return Ok(());
+        }
         let timestamp_ms = previous_timestamp_ms.saturating_add(
-            i64::try_from(
-                already_observed
-                    .saturating_add(slot)
-                    .saturating_add(1)
-                    .saturating_mul(frame_duration_ms),
-            )
-            .unwrap_or(i64::MAX),
+            i64::try_from(frame_duration_ms.saturating_add(*consecutive_damage_ms))
+                .unwrap_or(i64::MAX),
         );
-        observe_damaged(
-            tracker,
-            input_index,
-            timestamp_ms,
-            frame_duration_ms,
-            consecutive_damage_ms,
-        )?;
+        tracker
+            .observe_damaged_interval(
+                *input_index,
+                timestamp_ms,
+                additional_duration_ms,
+                additional,
+            )
+            .map_err(timeline_rejection)?;
+        *input_index = input_index.saturating_add(additional);
+        *consecutive_damage_ms = consecutive_damage_ms.saturating_add(additional_duration_ms);
     }
     Ok(())
 }
 
-fn ensure_bounded_pending_damage(duration_ms: u64) -> Result<(), PipelineFailure> {
-    if duration_ms > MAX_EDGE_TRIM_MS {
-        Err(PipelineFailure::Rejected(
-            "recovery_pending_corruption_exceeded".into(),
-            Box::default(),
-        ))
-    } else {
-        Ok(())
+fn append_unobserved_trailing_damage(
+    tracker: &mut TimelineTracker,
+    input_index: &mut u64,
+    last_trustworthy_timestamp_ms: Option<i64>,
+    consecutive_damage_ms: u64,
+    source: &VideoSource,
+    source_duration_ms: u64,
+) -> Result<(), PipelineFailure> {
+    let observed_end_ms = u64::try_from(last_trustworthy_timestamp_ms.unwrap_or(0).max(0))
+        .unwrap_or(0)
+        .saturating_add(source.frame_duration_ms)
+        .saturating_add(consecutive_damage_ms);
+    let remaining_ms = source_duration_ms.saturating_sub(observed_end_ms);
+    let remaining_frames = remaining_ms.saturating_add(source.frame_duration_ms.saturating_sub(1))
+        / source.frame_duration_ms.max(1);
+    let additional = remaining_frames.min(source.expected_frames.saturating_sub(*input_index));
+    if additional > 0 {
+        tracker
+            .observe_damaged_run(
+                *input_index,
+                i64::try_from(observed_end_ms).unwrap_or(i64::MAX),
+                source.frame_duration_ms,
+                additional,
+            )
+            .map_err(timeline_rejection)?;
+        *input_index = input_index.saturating_add(additional);
     }
+    Ok(())
 }
 
 fn timeline_rejection(error: crate::timeline::TimelineRejection) -> PipelineFailure {
     PipelineFailure::Rejected(
-        match error {
-            crate::timeline::TimelineRejection::InternalGapTooLong { .. } => {
-                "recovery_internal_gap_exceeded".into()
-            }
-            _ => format!("recovery_timeline_rejected: {error}"),
-        },
+        format!("recovery_timeline_rejected: {error}"),
         Box::default(),
     )
 }
@@ -1470,6 +1540,14 @@ fn timestamp_to_samples(timestamp: i64, time_base: Rational, rate: u32) -> i64 {
     })
 }
 
+fn stream_start_ms(timestamp: i64, time_base: Rational) -> i64 {
+    if timestamp == ffmpeg::sys::AV_NOPTS_VALUE {
+        0
+    } else {
+        timestamp_to_ms(timestamp, time_base)
+    }
+}
+
 fn retain_trustworthy_timestamp(
     previous: Option<i64>,
     candidate: i64,
@@ -1482,18 +1560,32 @@ fn retain_trustworthy_timestamp(
     }
 }
 
-fn aligned_audio_start_sample(
-    timestamp: i64,
-    time_base: Rational,
-    video_start_sample: i64,
-    resampler_delay_samples: u64,
-) -> Option<i64> {
-    let delay = i64::try_from(resampler_delay_samples).ok()?;
-    Some(
-        timestamp_to_samples(timestamp, time_base, AUDIO_RATE)
-            .saturating_sub(video_start_sample)
-            .saturating_sub(delay),
-    )
+fn timestamp_is_trustworthy(timestamp_ms: i64, previous: Option<i64>, duration_ms: u64) -> bool {
+    timestamp_ms >= 0
+        && u64::try_from(timestamp_ms).is_ok_and(|timestamp| timestamp < duration_ms)
+        && previous.is_none_or(|last| timestamp_ms > last)
+}
+
+fn next_damage_timestamp(
+    last_trustworthy_timestamp_ms: Option<i64>,
+    consecutive_damage_ms: u64,
+    frame_duration_ms: u64,
+) -> i64 {
+    let base = last_trustworthy_timestamp_ms.map_or(0_i64, |last| {
+        last.saturating_add(i64::try_from(frame_duration_ms).unwrap_or(i64::MAX))
+    });
+    base.saturating_add(i64::try_from(consecutive_damage_ms).unwrap_or(i64::MAX))
+}
+
+fn milliseconds_to_samples_floor(milliseconds: u64) -> u64 {
+    milliseconds.saturating_mul(u64::from(AUDIO_RATE)) / 1_000
+}
+
+fn milliseconds_to_samples_ceil(milliseconds: u64) -> u64 {
+    milliseconds
+        .saturating_mul(u64::from(AUDIO_RATE))
+        .saturating_add(999)
+        / 1_000
 }
 
 struct EncodedRecovery {
@@ -1544,9 +1636,11 @@ fn encode_reconstruction(
     let mut audio_rebuilder = match (analysis.source.audio.as_ref(), muxer.audio_format()) {
         (Some(source), Some(format)) => Some(AudioRebuilder::new(
             source.time_base,
+            analysis.source.video.start_time_ms,
             analysis.first_timestamp_ms,
             target_audio_samples,
             format,
+            &analysis.edit_map,
         )?),
         _ => None,
     };
@@ -1583,7 +1677,12 @@ fn encode_reconstruction(
         }
     }
 
-    video_rebuilder.finish(&mut video_decoder, &analysis.source.video, &mut muxer)?;
+    video_rebuilder.finish(
+        &mut video_decoder,
+        &analysis.source.video,
+        analysis.source.duration_ms,
+        &mut muxer,
+    )?;
     if let (Some(decoder), Some(rebuilder)) = (audio_decoder.as_mut(), audio_rebuilder.as_mut()) {
         rebuilder.finish(decoder, &mut muxer)?;
     }
@@ -1595,7 +1694,8 @@ fn encode_reconstruction(
         ))
     })?;
     if rebuilt_summary.output_frames != analysis.summary.output_frames
-        || rebuilt_summary.duplicated_frames != analysis.summary.duplicated_frames
+        || rebuilt_summary.removed_frames != analysis.summary.removed_frames
+        || video_rebuilder.edit_map.as_ref() != Some(&analysis.edit_map)
     {
         return Err(PipelineFailure::Operational(OperationalError::new(
             "video decode changed between analysis and reconstruction passes",
@@ -1879,27 +1979,27 @@ struct VideoRebuilder {
     last_trustworthy_timestamp_ms: Option<i64>,
     consecutive_damage_ms: u64,
     scaler: Option<scaling::Context>,
-    last_good_frame: Option<ffmpeg::frame::Video>,
     target_width: u32,
     target_height: u32,
     output_index: u64,
     summary: Option<TimelineSummary>,
+    edit_map: Option<EditMap>,
     frame_duration_ms: u64,
 }
 
 impl VideoRebuilder {
     fn new(frame_duration_ms: u64, target_width: u32, target_height: u32) -> Self {
         Self {
-            tracker: Some(TimelineTracker::new(MAX_INTERNAL_GAP_MS)),
+            tracker: Some(TimelineTracker::new()),
             input_index: 0,
             last_trustworthy_timestamp_ms: None,
             consecutive_damage_ms: 0,
             scaler: None,
-            last_good_frame: None,
             target_width,
             target_height,
             output_index: 0,
             summary: None,
+            edit_map: None,
             frame_duration_ms,
         }
     }
@@ -1912,20 +2012,12 @@ impl VideoRebuilder {
         muxer: &mut NativeMuxer,
     ) -> Result<(), PipelineFailure> {
         if packet.is_corrupt() {
-            let timestamp_ms = packet
-                .pts()
-                .map(|pts| timestamp_to_ms(pts, source.time_base))
-                .unwrap_or_else(|| self.synthetic_timestamp());
-            self.observe_damage(timestamp_ms)?;
+            self.observe_damage(self.synthetic_timestamp())?;
             return Ok(());
         }
         if let Err(error) = decoder.send_packet(packet) {
             if !is_again_or_eof(error) {
-                let timestamp_ms = packet
-                    .pts()
-                    .map(|pts| timestamp_to_ms(pts, source.time_base))
-                    .unwrap_or_else(|| self.synthetic_timestamp());
-                self.observe_damage(timestamp_ms)?;
+                self.observe_damage(self.synthetic_timestamp())?;
             }
         }
         self.drain_frames(decoder, source, muxer)
@@ -1943,14 +2035,21 @@ impl VideoRebuilder {
                 Ok(()) => {
                     let timestamp_ms = frame
                         .timestamp()
-                        .map(|timestamp| timestamp_to_ms(timestamp, source.time_base))
+                        .map(|timestamp| {
+                            timestamp_to_ms(timestamp, source.time_base)
+                                .saturating_sub(source.start_time_ms)
+                        })
                         .unwrap_or_else(|| self.synthetic_timestamp());
-                    let timestamp_valid = self
-                        .last_trustworthy_timestamp_ms
-                        .is_none_or(|last| timestamp_ms > last);
-                    let clean = valid_video_frame(&frame) && timestamp_valid;
+                    let timestamp_valid = timestamp_is_trustworthy(
+                        timestamp_ms,
+                        self.last_trustworthy_timestamp_ms,
+                        source.duration_ms,
+                    );
+                    let clean = valid_video_frame(&frame)
+                        && timestamp_valid
+                        && self.input_index < source.expected_frames;
                     if clean {
-                        self.infer_missing(timestamp_ms)?;
+                        self.infer_missing(timestamp_ms, source)?;
                         self.consecutive_damage_ms = 0;
                         let observation = FrameObservation::clean(
                             self.input_index,
@@ -1967,7 +2066,12 @@ impl VideoRebuilder {
                         self.apply_actions(actions, Some(&frame), muxer)?;
                         self.input_index = self.input_index.saturating_add(1);
                     } else {
-                        self.observe_damage(timestamp_ms)?;
+                        let damage_timestamp_ms = if timestamp_valid {
+                            timestamp_ms
+                        } else {
+                            self.synthetic_timestamp()
+                        };
+                        self.observe_damage(damage_timestamp_ms)?;
                     }
                     self.last_trustworthy_timestamp_ms = retain_trustworthy_timestamp(
                         self.last_trustworthy_timestamp_ms,
@@ -1989,7 +2093,6 @@ impl VideoRebuilder {
         self.consecutive_damage_ms = self
             .consecutive_damage_ms
             .saturating_add(self.frame_duration_ms);
-        ensure_bounded_pending_damage(self.consecutive_damage_ms)?;
         let actions = self
             .tracker
             .as_mut()
@@ -2000,12 +2103,6 @@ impl VideoRebuilder {
                 self.frame_duration_ms,
             ))
             .map_err(timeline_rejection)?;
-        ensure_bounded_pending_damage(
-            self.tracker
-                .as_ref()
-                .expect("active tracker")
-                .pending_duration_ms(),
-        )?;
         debug_assert!(actions.is_empty());
         self.input_index = self.input_index.saturating_add(1);
         Ok(())
@@ -2019,20 +2116,12 @@ impl VideoRebuilder {
     ) -> Result<(), PipelineFailure> {
         for action in actions {
             match action {
-                TimelineAction::DuplicateGap { frame_count, .. } => {
-                    let retained = self.last_good_frame.as_ref().ok_or_else(|| {
-                        PipelineFailure::Operational(OperationalError::new(
-                            "timeline requested duplication without a retained frame",
-                        ))
-                    })?;
-                    for _ in 0..frame_count {
-                        let mut duplicate = retained.clone();
-                        duplicate.set_pts(Some(self.output_index as i64));
-                        muxer.write_video_frame(&duplicate)?;
-                        self.output_index = self.output_index.saturating_add(1);
+                TimelineAction::Keep { output_index, .. } => {
+                    if output_index != self.output_index {
+                        return Err(PipelineFailure::Operational(OperationalError::new(
+                            "timeline output index diverged while cutting damaged frames",
+                        )));
                     }
-                }
-                TimelineAction::Keep { .. } => {
                     let source = current.ok_or_else(|| {
                         PipelineFailure::Operational(OperationalError::new(
                             "timeline requested a clean frame without decoded pixels",
@@ -2043,7 +2132,6 @@ impl VideoRebuilder {
                     encoded.set_pts(Some(self.output_index as i64));
                     muxer.write_video_frame(&encoded)?;
                     self.output_index = self.output_index.saturating_add(1);
-                    self.last_good_frame = Some(scaled);
                 }
             }
         }
@@ -2087,45 +2175,36 @@ impl VideoRebuilder {
     }
 
     fn synthetic_timestamp(&self) -> i64 {
-        self.last_trustworthy_timestamp_ms
-            .unwrap_or(0)
-            .saturating_add(self.frame_duration_ms as i64)
+        next_damage_timestamp(
+            self.last_trustworthy_timestamp_ms,
+            self.consecutive_damage_ms,
+            self.frame_duration_ms,
+        )
     }
 
-    fn infer_missing(&mut self, current_timestamp_ms: i64) -> Result<(), PipelineFailure> {
-        let Some(previous_timestamp_ms) = self.last_trustworthy_timestamp_ms else {
-            return Ok(());
-        };
-        let delta_ms = current_timestamp_ms.saturating_sub(previous_timestamp_ms);
-        if delta_ms <= 0 {
-            return Ok(());
-        }
-        let nominal_slots = u64::try_from(delta_ms)
-            .unwrap_or(u64::MAX)
-            .saturating_add(self.frame_duration_ms / 2)
-            / self.frame_duration_ms.max(1);
-        let missing_slots = nominal_slots.saturating_sub(1);
-        let already_observed = self.consecutive_damage_ms / self.frame_duration_ms.max(1);
-        let additional = missing_slots.saturating_sub(already_observed);
-        for slot in 0..additional {
-            let timestamp_ms = previous_timestamp_ms.saturating_add(
-                i64::try_from(
-                    already_observed
-                        .saturating_add(slot)
-                        .saturating_add(1)
-                        .saturating_mul(self.frame_duration_ms),
-                )
-                .unwrap_or(i64::MAX),
-            );
-            self.observe_damage(timestamp_ms)?;
-        }
-        Ok(())
+    fn infer_missing(
+        &mut self,
+        current_timestamp_ms: i64,
+        source: &VideoSource,
+    ) -> Result<(), PipelineFailure> {
+        infer_missing_observations(
+            self.tracker.as_mut().expect("active tracker"),
+            &mut self.input_index,
+            self.last_trustworthy_timestamp_ms,
+            current_timestamp_ms,
+            source.frame_duration_ms,
+            source.frame_rate,
+            source.expected_frames,
+            source.duration_ms,
+            &mut self.consecutive_damage_ms,
+        )
     }
 
     fn finish(
         &mut self,
         decoder: &mut decoder::Video,
         source: &VideoSource,
+        source_duration_ms: u64,
         muxer: &mut NativeMuxer,
     ) -> Result<(), PipelineFailure> {
         if let Err(error) = decoder.send_eof() {
@@ -2136,13 +2215,27 @@ impl VideoRebuilder {
             }
         }
         self.drain_frames(decoder, source, muxer)?;
-        let summary = self.tracker.take().expect("active tracker").finish();
+        append_unobserved_trailing_damage(
+            self.tracker.as_mut().expect("active tracker"),
+            &mut self.input_index,
+            self.last_trustworthy_timestamp_ms,
+            self.consecutive_damage_ms,
+            source,
+            source_duration_ms,
+        )?;
+        let timeline = self
+            .tracker
+            .take()
+            .expect("active tracker")
+            .finish(source_duration_ms, source.expected_frames);
+        let summary = timeline.summary;
         if summary.output_frames != self.output_index {
             return Err(PipelineFailure::Operational(OperationalError::new(
                 "timeline and encoder output frame counts diverged",
             )));
         }
         self.summary = Some(summary);
+        self.edit_map = Some(timeline.edit_map);
         Ok(())
     }
 }
@@ -2171,9 +2264,142 @@ fn tolerant_audio_decoder(
     Ok(decoder)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct AudioCut {
+    start_sample: i64,
+    end_sample: i64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct AudioSlice {
+    source_offset: usize,
+    sample_count: usize,
+    target_start: u64,
+}
+
+#[derive(Clone, Debug)]
+struct AudioEditMap {
+    origin_sample: i64,
+    cuts: Vec<AudioCut>,
+}
+
+impl AudioEditMap {
+    fn new(video_start_ms: i64, edit_map: &EditMap) -> Self {
+        let origin_sample = video_start_ms.max(0).saturating_mul(i64::from(AUDIO_RATE)) / 1_000;
+        let mut cuts = Vec::new();
+        for cut in edit_map.cuts() {
+            let start_sample =
+                i64::try_from(milliseconds_to_samples_floor(cut.start_ms)).unwrap_or(i64::MAX);
+            let end_sample =
+                i64::try_from(milliseconds_to_samples_ceil(cut.end_ms)).unwrap_or(i64::MAX);
+            let start_sample = start_sample.max(origin_sample);
+            if end_sample > start_sample {
+                cuts.push(AudioCut {
+                    start_sample,
+                    end_sample,
+                });
+            }
+        }
+        Self {
+            origin_sample,
+            cuts,
+        }
+    }
+
+    fn retained_slices(&self, source_start: i64, sample_count: usize) -> Vec<AudioSlice> {
+        if sample_count == 0 {
+            return Vec::new();
+        }
+        let source_end =
+            source_start.saturating_add(i64::try_from(sample_count).unwrap_or(i64::MAX));
+        let mut cursor = source_start.max(self.origin_sample);
+        if cursor >= source_end {
+            return Vec::new();
+        }
+
+        let mut slices = Vec::new();
+        for cut in &self.cuts {
+            if cut.end_sample <= cursor {
+                continue;
+            }
+            if cut.start_sample >= source_end {
+                break;
+            }
+            if cursor < cut.start_sample {
+                self.push_slice(
+                    source_start,
+                    cursor,
+                    cut.start_sample.min(source_end),
+                    &mut slices,
+                );
+            }
+            cursor = cursor.max(cut.end_sample);
+            if cursor >= source_end {
+                break;
+            }
+        }
+        if cursor < source_end {
+            self.push_slice(source_start, cursor, source_end, &mut slices);
+        }
+        slices
+    }
+
+    fn push_slice(
+        &self,
+        source_start: i64,
+        slice_start: i64,
+        slice_end: i64,
+        slices: &mut Vec<AudioSlice>,
+    ) {
+        if slice_end <= slice_start {
+            return;
+        }
+        let Some(target_start) = self.compacted_sample(slice_start) else {
+            return;
+        };
+        let Ok(source_offset) = usize::try_from(slice_start.saturating_sub(source_start)) else {
+            return;
+        };
+        let Ok(sample_count) = usize::try_from(slice_end.saturating_sub(slice_start)) else {
+            return;
+        };
+        if sample_count > 0 {
+            slices.push(AudioSlice {
+                source_offset,
+                sample_count,
+                target_start,
+            });
+        }
+    }
+
+    fn compacted_sample(&self, source_sample: i64) -> Option<u64> {
+        if source_sample < self.origin_sample {
+            return None;
+        }
+        let mut removed_before = 0_i64;
+        for cut in &self.cuts {
+            if source_sample < cut.start_sample {
+                break;
+            }
+            if source_sample < cut.end_sample {
+                return None;
+            }
+            removed_before =
+                removed_before.saturating_add(cut.end_sample.saturating_sub(cut.start_sample));
+        }
+        u64::try_from(
+            source_sample
+                .saturating_sub(self.origin_sample)
+                .saturating_sub(removed_before),
+        )
+        .ok()
+    }
+}
+
 struct AudioRebuilder {
     source_time_base: Rational,
-    video_start_sample: i64,
+    source_timeline_start_sample: i64,
+    edit_map: AudioEditMap,
     target_samples: u64,
     output_format: format::Sample,
     resampler: Option<resampling::Context>,
@@ -2184,18 +2410,24 @@ struct AudioRebuilder {
     inserted_silence_samples: u64,
     inserted_silence_ms: u64,
     last_timestamp: Option<i64>,
+    resampler_source_cursor: Option<i64>,
 }
 
 impl AudioRebuilder {
     fn new(
         source_time_base: Rational,
+        source_timeline_start_ms: i64,
         video_start_ms: i64,
         target_samples: u64,
         output_format: format::Sample,
+        edit_map: &EditMap,
     ) -> Result<Self, OperationalError> {
         Ok(Self {
             source_time_base,
-            video_start_sample: video_start_ms.saturating_mul(i64::from(AUDIO_RATE)) / 1_000,
+            source_timeline_start_sample: source_timeline_start_ms
+                .saturating_mul(i64::from(AUDIO_RATE))
+                / 1_000,
+            edit_map: AudioEditMap::new(video_start_ms, edit_map),
             target_samples,
             output_format,
             resampler: None,
@@ -2206,6 +2438,7 @@ impl AudioRebuilder {
             inserted_silence_samples: 0,
             inserted_silence_ms: 0,
             last_timestamp: None,
+            resampler_source_cursor: None,
         })
     }
 
@@ -2345,6 +2578,17 @@ impl AudioRebuilder {
                     "failed to resample recovered audio: {error}"
                 )))
             })?;
+        let delayed_samples = i64::try_from(delayed_samples).map_err(|_| {
+            PipelineFailure::Operational(OperationalError::new(
+                "audio resampler delay cannot be represented",
+            ))
+        })?;
+        let source_start = timestamp_to_samples(timestamp, self.source_time_base, AUDIO_RATE)
+            .saturating_sub(self.source_timeline_start_sample)
+            .saturating_sub(delayed_samples);
+        self.resampler_source_cursor = Some(
+            source_start.saturating_add(i64::try_from(converted.samples()).unwrap_or(i64::MAX)),
+        );
         if converted.samples() == 0 {
             return Ok(());
         }
@@ -2356,41 +2600,42 @@ impl AudioRebuilder {
             )));
         }
 
-        let relative_sample = aligned_audio_start_sample(
-            timestamp,
-            self.source_time_base,
-            self.video_start_sample,
-            delayed_samples,
-        )
-        .ok_or_else(|| {
-            PipelineFailure::Operational(OperationalError::new(
-                "audio resampler delay cannot be represented",
-            ))
-        })?;
-        let mut target_start = if relative_sample <= 0 {
-            0
-        } else {
-            u64::try_from(relative_sample).unwrap_or(u64::MAX)
-        };
-        let mut source_offset = if relative_sample < 0 {
-            u64::try_from(relative_sample.saturating_abs()).unwrap_or(u64::MAX)
-        } else {
-            0
-        };
+        let slices = self
+            .edit_map
+            .retained_slices(source_start, converted.samples());
+        for slice in slices {
+            self.write_edited_slice(&converted, slice, muxer)?;
+        }
+        Ok(())
+    }
+
+    fn write_edited_slice(
+        &mut self,
+        converted: &ffmpeg::frame::Audio,
+        slice: AudioSlice,
+        muxer: &mut NativeMuxer,
+    ) -> Result<(), PipelineFailure> {
+        let mut target_start = slice.target_start;
+        let mut source_offset = slice.source_offset as u64;
+        let mut count = slice.sample_count as u64;
         if target_start < self.next_sample {
-            source_offset = source_offset.saturating_add(self.next_sample - target_start);
+            let overlap = self.next_sample - target_start;
+            source_offset = source_offset.saturating_add(overlap);
+            count = count.saturating_sub(overlap);
             target_start = self.next_sample;
         }
         if target_start > self.next_sample {
             self.insert_silence(target_start - self.next_sample, muxer)?;
         }
-        let converted_samples = converted.samples() as u64;
-        if source_offset >= converted_samples || self.next_sample >= self.target_samples {
+        if count == 0
+            || source_offset >= converted.samples() as u64
+            || self.next_sample >= self.target_samples
+        {
             return Ok(());
         }
-        let available = converted_samples - source_offset;
+        let available = (converted.samples() as u64).saturating_sub(source_offset);
         let remaining = self.target_samples - self.next_sample;
-        let count = available.min(remaining);
+        count = count.min(available).min(remaining);
         let source_offset = usize::try_from(source_offset).map_err(|_| {
             PipelineFailure::Operational(OperationalError::new(
                 "resampled audio offset cannot be represented",
@@ -2413,33 +2658,22 @@ impl AudioRebuilder {
         requested_samples: u64,
         muxer: &mut NativeMuxer,
     ) -> Result<(), PipelineFailure> {
-        let count = requested_samples.min(self.target_samples.saturating_sub(self.next_sample));
-        let duration_ms = count.saturating_mul(1_000) / u64::from(AUDIO_RATE);
-        if duration_ms > MAX_INTERNAL_GAP_MS {
-            return Err(PipelineFailure::Rejected(
-                "recovery_audio_gap_exceeded".into(),
-                Box::new(Stats {
-                    inserted_audio_silence_ms: self.inserted_silence_ms.saturating_add(duration_ms),
-                    ..Stats::default()
-                }),
-            ));
+        let mut remaining =
+            requested_samples.min(self.target_samples.saturating_sub(self.next_sample));
+        while remaining > 0 {
+            let chunk = bounded_audio_silence_chunk(remaining);
+            self.fifo
+                .write_silence(chunk)
+                .map_err(PipelineFailure::Operational)?;
+            self.next_sample = self.next_sample.saturating_add(chunk as u64);
+            self.inserted_silence_samples =
+                self.inserted_silence_samples.saturating_add(chunk as u64);
+            remaining = remaining.saturating_sub(chunk as u64);
+            self.drain_full_frames(muxer)?;
         }
-        if count == 0 {
-            return Ok(());
-        }
-        let count = usize::try_from(count).map_err(|_| {
-            PipelineFailure::Operational(OperationalError::new(
-                "audio silence count cannot be represented",
-            ))
-        })?;
-        self.fifo
-            .write_silence(count)
-            .map_err(PipelineFailure::Operational)?;
-        self.next_sample = self.next_sample.saturating_add(count as u64);
-        self.inserted_silence_samples = self.inserted_silence_samples.saturating_add(count as u64);
         self.inserted_silence_ms =
             self.inserted_silence_samples.saturating_mul(1_000) / u64::from(AUDIO_RATE);
-        self.drain_full_frames(muxer)
+        Ok(())
     }
 
     fn drain_full_frames(&mut self, muxer: &mut NativeMuxer) -> Result<(), PipelineFailure> {
@@ -2515,19 +2749,20 @@ impl AudioRebuilder {
                         "failed to flush audio resampler: {error}"
                     )))
                 })?;
-            let count = (converted.samples() as u64)
-                .min(self.target_samples.saturating_sub(self.next_sample));
+            let count = converted.samples() as u64;
             if count > 0 {
                 let count = usize::try_from(count).map_err(|_| {
                     PipelineFailure::Operational(OperationalError::new(
                         "flushed audio count cannot be represented",
                     ))
                 })?;
-                self.fifo
-                    .write_frame(&converted, 0, count)
-                    .map_err(PipelineFailure::Operational)?;
-                self.next_sample = self.next_sample.saturating_add(count as u64);
-                self.drain_full_frames(muxer)?;
+                let source_start = self.resampler_source_cursor.unwrap_or(0);
+                let slices = self.edit_map.retained_slices(source_start, count);
+                self.resampler_source_cursor =
+                    Some(source_start.saturating_add(i64::try_from(count).unwrap_or(i64::MAX)));
+                for slice in slices {
+                    self.write_edited_slice(&converted, slice, muxer)?;
+                }
             }
             if remaining.is_none() || count == 0 {
                 break;
@@ -2535,6 +2770,11 @@ impl AudioRebuilder {
         }
         Ok(())
     }
+}
+
+fn bounded_audio_silence_chunk(remaining_samples: u64) -> usize {
+    usize::try_from(remaining_samples.min(AUDIO_SILENCE_CHUNK_SAMPLES))
+        .expect("the configured audio-silence chunk fits usize")
 }
 
 struct AudioFifo {
@@ -2767,13 +3007,140 @@ mod tests {
     }
 
     #[test]
-    fn aligns_resampled_audio_to_the_start_of_delayed_output() {
-        let timestamp = 1_024;
-        let rescaled_timestamp = timestamp_to_samples(timestamp, Rational(1, 44_100), AUDIO_RATE);
-        assert_eq!(rescaled_timestamp, 1_114);
+    fn audio_edit_map_splits_a_frame_crossing_a_cut() {
+        let edit_map = EditMap::new(
+            30,
+            1,
+            vec![crate::timeline::CutInterval {
+                start_ms: 10,
+                end_ms: 20,
+                frame_count: 1,
+            }],
+        );
+        let audio = AudioEditMap::new(0, &edit_map);
+
         assert_eq!(
-            aligned_audio_start_sample(timestamp, Rational(1, 44_100), 0, 18),
-            Some(1_096)
+            audio.retained_slices(0, 1_440),
+            vec![
+                AudioSlice {
+                    source_offset: 0,
+                    sample_count: 480,
+                    target_start: 0,
+                },
+                AudioSlice {
+                    source_offset: 960,
+                    sample_count: 480,
+                    target_start: 480,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn audio_edit_map_compacts_multiple_cuts() {
+        let edit_map = EditMap::new(
+            50,
+            2,
+            vec![
+                crate::timeline::CutInterval {
+                    start_ms: 10,
+                    end_ms: 20,
+                    frame_count: 1,
+                },
+                crate::timeline::CutInterval {
+                    start_ms: 30,
+                    end_ms: 40,
+                    frame_count: 1,
+                },
+            ],
+        );
+        let audio = AudioEditMap::new(0, &edit_map);
+
+        assert_eq!(
+            audio.retained_slices(0, 2_400),
+            vec![
+                AudioSlice {
+                    source_offset: 0,
+                    sample_count: 480,
+                    target_start: 0,
+                },
+                AudioSlice {
+                    source_offset: 960,
+                    sample_count: 480,
+                    target_start: 480,
+                },
+                AudioSlice {
+                    source_offset: 1_920,
+                    sample_count: 480,
+                    target_start: 960,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn audio_edit_map_trims_samples_before_the_first_video_frame() {
+        let edit_map = EditMap::new(
+            40,
+            1,
+            vec![crate::timeline::CutInterval {
+                start_ms: 0,
+                end_ms: 20,
+                frame_count: 1,
+            }],
+        );
+        let audio = AudioEditMap::new(20, &edit_map);
+
+        assert_eq!(
+            audio.retained_slices(0, 1_920),
+            vec![AudioSlice {
+                source_offset: 960,
+                sample_count: 960,
+                target_start: 0,
+            }]
+        );
+    }
+
+    #[test]
+    fn caps_a_malicious_inferred_gap_to_the_remaining_timeline() {
+        let mut tracker = TimelineTracker::new();
+        tracker
+            .observe(FrameObservation::clean(0, 0, 40, false))
+            .unwrap();
+        let mut input_index = 1;
+        let mut consecutive_damage_ms = 0;
+
+        let inference = infer_missing_observations(
+            &mut tracker,
+            &mut input_index,
+            Some(0),
+            i64::MAX,
+            40,
+            Rational(25, 1),
+            100,
+            4_000,
+            &mut consecutive_damage_ms,
+        );
+        assert!(inference.is_ok());
+
+        let result = tracker.finish(4_000, 100);
+        assert_eq!(input_index, 99);
+        assert_eq!(result.edit_map.cuts().len(), 1);
+        assert_eq!(result.summary.corrupt_frames, 98);
+        assert_eq!(result.summary.longest_removed_run_ms, 3_920);
+    }
+
+    #[test]
+    fn infers_multi_minute_gaps_with_the_rational_frame_rate() {
+        assert_eq!(frame_slots_between(300_300, Rational(30_000, 1_001)), 9_000,);
+    }
+
+    #[test]
+    fn writes_long_audio_silence_in_bounded_chunks() {
+        assert_eq!(bounded_audio_silence_chunk(1), 1);
+        assert_eq!(
+            bounded_audio_silence_chunk(AUDIO_SILENCE_CHUNK_SAMPLES * 100),
+            AUDIO_SILENCE_CHUNK_SAMPLES as usize,
         );
     }
 
