@@ -680,6 +680,62 @@ fn valid_audio_frame(frame: &ffmpeg::frame::Audio) -> bool {
         && frame.samples() <= MAX_SOURCE_AUDIO_FRAME_SAMPLES
         && (MIN_SOURCE_AUDIO_RATE..=MAX_SOURCE_AUDIO_RATE).contains(&frame.rate())
         && (1..=MAX_SOURCE_AUDIO_CHANNELS).contains(&channels)
+        && audio_samples_are_finite(frame, channels as usize)
+}
+
+fn audio_samples_are_finite(frame: &ffmpeg::frame::Audio, channels: usize) -> bool {
+    let (component_width, finite_component): (usize, fn(&[u8]) -> bool) = match frame.format() {
+        format::Sample::F32(_) => (std::mem::size_of::<f32>(), |bytes| {
+            f32::from_ne_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]).is_finite()
+        }),
+        format::Sample::F64(_) => (std::mem::size_of::<f64>(), |bytes| {
+            f64::from_ne_bytes([
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+            ])
+            .is_finite()
+        }),
+        _ => return true,
+    };
+    if channels == 0 {
+        return false;
+    }
+
+    let planar = frame.format().is_planar();
+    let plane_count = if planar { channels } else { 1 };
+    let components_per_plane = if planar {
+        frame.samples()
+    } else {
+        match frame.samples().checked_mul(channels) {
+            Some(components) => components,
+            None => return false,
+        }
+    };
+    let required_bytes = match components_per_plane.checked_mul(component_width) {
+        Some(bytes) => bytes,
+        None => return false,
+    };
+    if frame.planes() < plane_count {
+        return false;
+    }
+
+    unsafe {
+        let raw = frame.as_ptr();
+        let line_size = usize::try_from((*raw).linesize[0]).unwrap_or(0);
+        let extended_data = (*raw).extended_data;
+        if line_size < required_bytes || extended_data.is_null() {
+            return false;
+        }
+
+        (0..plane_count).all(|plane| {
+            let data = *extended_data.add(plane);
+            if data.is_null() {
+                return false;
+            }
+            std::slice::from_raw_parts(data, required_bytes)
+                .chunks_exact(component_width)
+                .all(finite_component)
+        })
+    }
 }
 
 fn validate_video_decoder_limits(
@@ -3142,6 +3198,38 @@ mod tests {
             bounded_audio_silence_chunk(AUDIO_SILENCE_CHUNK_SAMPLES * 100),
             AUDIO_SILENCE_CHUNK_SAMPLES as usize,
         );
+    }
+
+    #[test]
+    fn rejects_non_finite_planar_audio_samples() {
+        let mut frame = ffmpeg::frame::Audio::new(
+            format::Sample::F32(format::sample::Type::Planar),
+            8,
+            ffmpeg::ChannelLayout::STEREO,
+        );
+        frame.set_rate(AUDIO_RATE);
+        for plane in 0..frame.planes() {
+            frame.data_mut(plane).fill(0);
+        }
+        assert!(audio_samples_are_finite(&frame, 2));
+
+        frame.data_mut(1)[4..8].copy_from_slice(&f32::NAN.to_ne_bytes());
+        assert!(!audio_samples_are_finite(&frame, 2));
+    }
+
+    #[test]
+    fn rejects_non_finite_packed_audio_samples() {
+        let mut frame = ffmpeg::frame::Audio::new(
+            format::Sample::F64(format::sample::Type::Packed),
+            8,
+            ffmpeg::ChannelLayout::STEREO,
+        );
+        frame.set_rate(AUDIO_RATE);
+        frame.data_mut(0).fill(0);
+        assert!(audio_samples_are_finite(&frame, 2));
+
+        frame.data_mut(0)[8..16].copy_from_slice(&f64::INFINITY.to_ne_bytes());
+        assert!(!audio_samples_are_finite(&frame, 2));
     }
 
     #[test]
