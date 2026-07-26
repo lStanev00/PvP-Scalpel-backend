@@ -27,6 +27,7 @@ const MAX_RESAMPLED_AUDIO_FRAME_SAMPLES: usize = 2_000_000;
 const MAX_AUDIO_FIFO_SAMPLES: usize = 2_000_000;
 const AUDIO_SILENCE_CHUNK_SAMPLES: u64 = 4_096;
 const MAX_AUDIO_FORMAT_CHANGES: u32 = 16;
+const MAX_AUDIO_RESAMPLER_FAILURES: u32 = 16;
 const MAX_FRAME_RATE: f64 = 60.0;
 const FALLBACK_FRAME_RATE: i32 = 30;
 const MAX_WIDTH: u32 = 1_280;
@@ -904,6 +905,24 @@ fn is_recoverable_demux_end(error: ffmpeg::Error) -> bool {
     matches!(error, ffmpeg::Error::Eof | ffmpeg::Error::InvalidData)
 }
 
+fn is_recoverable_resampler_definition_error(error: ffmpeg::Error) -> bool {
+    matches!(
+        error,
+        ffmpeg::Error::InvalidData
+            | ffmpeg::Error::InputChanged
+            | ffmpeg::Error::OutputChanged
+            | ffmpeg::Error::Other {
+                errno: ffmpeg::error::EINVAL
+            }
+            | ffmpeg::Error::Other {
+                errno: ffmpeg::error::ENOSYS
+            }
+            | ffmpeg::Error::Other {
+                errno: ffmpeg::error::ENOTSUP
+            }
+    )
+}
+
 fn stage_log(media_id: &str, stage: &str, message: &str) {
     eprintln!("[media-recovery][{media_id}][{stage}] {message}");
 }
@@ -995,8 +1014,10 @@ fn reconstruct(paths: &RecoveryPaths) -> Result<Outcome, OperationalError> {
             &paths.media_id,
             "audio",
             &format!(
-                "resampler_changes={} skipped_format_frames={}",
-                encoded.audio_format_changes, encoded.skipped_audio_format_frames,
+                "resampler_changes={} init_failures={} skipped_format_frames={}",
+                encoded.audio_format_changes,
+                encoded.audio_resampler_failures,
+                encoded.skipped_audio_format_frames,
             ),
         );
     }
@@ -1702,6 +1723,7 @@ fn milliseconds_to_samples_ceil(milliseconds: u64) -> u64 {
 struct EncodedRecovery {
     stats: Stats,
     audio_format_changes: u32,
+    audio_resampler_failures: u32,
     skipped_audio_format_frames: u64,
 }
 
@@ -1824,6 +1846,9 @@ fn encode_reconstruction(
         audio_format_changes: audio_rebuilder
             .as_ref()
             .map_or(0, |rebuilder| rebuilder.format_changes),
+        audio_resampler_failures: audio_rebuilder
+            .as_ref()
+            .map_or(0, |rebuilder| rebuilder.resampler_init_failures),
         skipped_audio_format_frames: audio_rebuilder
             .as_ref()
             .map_or(0, |rebuilder| rebuilder.skipped_format_change_frames),
@@ -2533,6 +2558,8 @@ struct AudioRebuilder {
     last_timestamp: Option<i64>,
     resampler_source_cursor: Option<i64>,
     format_changes: u32,
+    rejected_resampler_input: Option<(format::Sample, ffmpeg::ChannelLayout, u32)>,
+    resampler_init_failures: u32,
     skipped_format_change_frames: u64,
 }
 
@@ -2563,6 +2590,8 @@ impl AudioRebuilder {
             last_timestamp: None,
             resampler_source_cursor: None,
             format_changes: 0,
+            rejected_resampler_input: None,
+            resampler_init_failures: 0,
             skipped_format_change_frames: 0,
         })
     }
@@ -2636,21 +2665,41 @@ impl AudioRebuilder {
             self.format_changes = self.format_changes.saturating_add(1);
         }
         if self.resampler.is_none() {
-            self.resampler = Some(
-                resampling::Context::get(
-                    frame.format(),
-                    layout,
-                    frame.rate(),
-                    self.output_format,
-                    ffmpeg::ChannelLayout::STEREO,
-                    AUDIO_RATE,
-                )
-                .map_err(|error| {
-                    PipelineFailure::Operational(OperationalError::new(format!(
-                        "failed to initialize audio resampler: {error}"
-                    )))
-                })?,
-            );
+            if self
+                .rejected_resampler_input
+                .is_some_and(|rejected| rejected == definition)
+                || self.resampler_init_failures >= MAX_AUDIO_RESAMPLER_FAILURES
+            {
+                self.skipped_format_change_frames =
+                    self.skipped_format_change_frames.saturating_add(1);
+                return Ok(());
+            }
+            match resampling::Context::get(
+                frame.format(),
+                layout,
+                frame.rate(),
+                self.output_format,
+                ffmpeg::ChannelLayout::STEREO,
+                AUDIO_RATE,
+            ) {
+                Ok(resampler) => {
+                    self.resampler = Some(resampler);
+                    self.rejected_resampler_input = None;
+                }
+                Err(error) if is_recoverable_resampler_definition_error(error) => {
+                    self.rejected_resampler_input = Some(definition);
+                    self.resampler_init_failures =
+                        self.resampler_init_failures.saturating_add(1);
+                    self.skipped_format_change_frames =
+                        self.skipped_format_change_frames.saturating_add(1);
+                    return Ok(());
+                }
+                Err(error) => {
+                    return Err(PipelineFailure::Operational(OperationalError::new(
+                        format!("failed to initialize audio resampler: {error}"),
+                    )));
+                }
+            }
             self.resampler_input = Some(definition);
         }
 
@@ -3360,6 +3409,23 @@ mod tests {
         assert!(is_recoverable_demux_end(ffmpeg::Error::Eof));
         assert!(is_recoverable_demux_end(ffmpeg::Error::InvalidData));
         assert!(!is_recoverable_demux_end(ffmpeg::Error::Unknown));
+    }
+
+    #[test]
+    fn distinguishes_bad_resampler_definitions_from_operational_failures() {
+        assert!(is_recoverable_resampler_definition_error(
+            ffmpeg::Error::InvalidData
+        ));
+        assert!(is_recoverable_resampler_definition_error(
+            ffmpeg::Error::Other {
+                errno: ffmpeg::error::EINVAL,
+            }
+        ));
+        assert!(!is_recoverable_resampler_definition_error(
+            ffmpeg::Error::Other {
+                errno: ffmpeg::error::ENOMEM,
+            }
+        ));
     }
 
     #[test]
