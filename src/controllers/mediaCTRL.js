@@ -10,7 +10,8 @@ const mediaCTRL = Router();
 mediaCTRL.post("/media", requireAdmin, createMediaPOST);
 mediaCTRL.patch("/media/upload-part", requireAdmin, acknowledgeMediaPartPATCH);
 mediaCTRL.patch("/media", updateMediaPATCH);
-mediaCTRL.patch("/media/finnalize", requireAdmin, finalizeMediaPATCH);
+// mediaCTRL.patch("/media/finnalize", requireAdmin, finalizeMediaPATCH);
+mediaCTRL.patch("/media/finnalize", finalizeMediaPATCH);
 mediaCTRL.get("/userMedia", requireAdmin, userMediaGET);
 
 

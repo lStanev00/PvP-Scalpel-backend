@@ -62,5 +62,9 @@ echo "Testing ffmpeg..."
 ffmpeg -version | head -n 1
 ffprobe -version | head -n 1
 
+echo "Testing native media recovery..."
+media-recovery --version
+media-recovery --capabilities
+
 echo "Starting Node worker..."
 exec su-exec node:"$WORK_GROUP_GID" "$@"
