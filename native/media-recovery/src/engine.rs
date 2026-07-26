@@ -1451,7 +1451,9 @@ fn drain_analysis_frames(
                         frame.is_key(),
                     )
                 } else {
-                    let damage_timestamp_ms = next_damage_timestamp(
+                    let damage_timestamp_ms = timeline_observation_timestamp(
+                        timestamp_ms,
+                        false,
                         *last_trustworthy_timestamp_ms,
                         *consecutive_damage_ms,
                         source.frame_duration_ms,
@@ -1612,8 +1614,8 @@ fn tolerant_video_decoder(
         "failed to configure tolerant video decoder",
     ))?;
     context.set_threading(codec::threading::Config {
-        kind: codec::threading::Type::Frame,
-        count: 2,
+        kind: codec::threading::Type::None,
+        count: 1,
     });
     let mut decoder = context.decoder();
     decoder.set_packet_time_base(time_base);
@@ -1707,6 +1709,24 @@ fn next_damage_timestamp(
         last.saturating_add(i64::try_from(frame_duration_ms).unwrap_or(i64::MAX))
     });
     base.saturating_add(i64::try_from(consecutive_damage_ms).unwrap_or(i64::MAX))
+}
+
+fn timeline_observation_timestamp(
+    candidate_timestamp_ms: i64,
+    clean: bool,
+    last_trustworthy_timestamp_ms: Option<i64>,
+    consecutive_damage_ms: u64,
+    frame_duration_ms: u64,
+) -> i64 {
+    if clean {
+        candidate_timestamp_ms
+    } else {
+        next_damage_timestamp(
+            last_trustworthy_timestamp_ms,
+            consecutive_damage_ms,
+            frame_duration_ms,
+        )
+    }
 }
 
 fn milliseconds_to_samples_floor(milliseconds: u64) -> u64 {
@@ -1833,7 +1853,14 @@ fn encode_reconstruction(
         || video_rebuilder.edit_map.as_ref() != Some(&analysis.edit_map)
     {
         return Err(PipelineFailure::Operational(OperationalError::new(
-            "video decode changed between analysis and reconstruction passes",
+            format!(
+                "video decode changed between deterministic passes: analysis_output={} rebuilt_output={} analysis_removed={} rebuilt_removed={} edit_map_match={}",
+                analysis.summary.output_frames,
+                rebuilt_summary.output_frames,
+                analysis.summary.removed_frames,
+                rebuilt_summary.removed_frames,
+                video_rebuilder.edit_map.as_ref() == Some(&analysis.edit_map),
+            ),
         )));
     }
 
@@ -2212,12 +2239,16 @@ impl VideoRebuilder {
                         self.apply_actions(actions, Some(&frame), muxer)?;
                         self.input_index = self.input_index.saturating_add(1);
                     } else {
-                        let damage_timestamp_ms = if timestamp_valid {
-                            timestamp_ms
-                        } else {
-                            self.synthetic_timestamp()
-                        };
-                        self.observe_damage(damage_timestamp_ms)?;
+                        // Rejected pixels must never anchor the source timeline,
+                        // even when their decoder-provided timestamp looks valid.
+                        // This mirrors the analysis pass exactly.
+                        self.observe_damage(timeline_observation_timestamp(
+                            timestamp_ms,
+                            false,
+                            self.last_trustworthy_timestamp_ms,
+                            self.consecutive_damage_ms,
+                            self.frame_duration_ms,
+                        ))?;
                     }
                     self.last_trustworthy_timestamp_ms = retain_trustworthy_timestamp(
                         self.last_trustworthy_timestamp_ms,
@@ -3433,6 +3464,18 @@ mod tests {
         let last = Some(1_000);
         assert_eq!(retain_trustworthy_timestamp(last, 900_000, false), last);
         assert_eq!(retain_trustworthy_timestamp(last, 1_033, true), Some(1_033));
+    }
+
+    #[test]
+    fn rejected_frame_ignores_a_plausible_decoder_timestamp() {
+        assert_eq!(
+            timeline_observation_timestamp(50_000, false, Some(1_000), 80, 40),
+            1_120,
+        );
+        assert_eq!(
+            timeline_observation_timestamp(1_040, true, Some(1_000), 80, 40),
+            1_040,
+        );
     }
 
     #[test]
