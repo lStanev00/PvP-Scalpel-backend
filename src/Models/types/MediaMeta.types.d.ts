@@ -10,7 +10,7 @@ export interface MediaManifestData {
     mimeType?: string;
     thumbnail: string | null;
     playlist?: string | null;
-    videoParts?: string[];
+    video?: string | null;
 }
 
 export interface MediaMetaData {

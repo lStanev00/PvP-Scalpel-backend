@@ -1,5 +1,7 @@
 import { createReadStream } from "node:fs";
 import { lstat, open, realpath, rm } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import path from "node:path";
 import {
     deleteCDNObjects,
@@ -10,7 +12,9 @@ const PUBLIC_BUCKET = "pvp-scalpel-frontend";
 const QUARANTINE_BUCKET = "quarantine-uploads";
 const PUBLIC_VIDEO_ROOT = "videos";
 const WORK_ROOT = "/mnt/work";
-const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+const INTERNAL_STORAGE_ENDPOINT =
+    process.env.STORAGE_LOCAL_ENDPOINT || "http://minio:4010";
+const UPLOAD_TIMEOUT_MS = 60 * 60 * 1000;
 const MAXIMUM_DELETE_OBJECTS = 1000;
 
 /**
@@ -87,62 +91,46 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
 }
 
 /**
- * Publishes the original uploaded parts and thumbnail when HLS conversion
- * rejects the assembled stream.
+ * Publishes the composed original MP4 and thumbnail when HLS conversion
+ * rejects the source stream.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string[]} mediaPartPaths Exact ordered local media-part paths.
+ * @param {string} mediaPath Exact assembled `/mnt/work/<mediaId>/source/media.mp4`.
  * @param {string} thumbnailPath Exact staged thumbnail path.
  * @returns {Promise<{
  * bucket: string,
  * prefix: string,
- * videoPartKeys: string[],
+ * videoKey: string,
  * thumbnailKey: string,
  * uploadedKeys: string[],
  * cleanupSucceeded: boolean,
  * cleanupMessage?: string
  * }>}
  */
-export async function commitMediaPartsToPublic(
+export async function commitComposedMediaToPublic(
     mediaId,
-    mediaPartPaths,
+    mediaPath,
     thumbnailPath,
 ) {
     const normalizedMediaId = normalizeMediaId(mediaId);
-    const source = await validateMediaPartSourceFiles(
+    const source = await validateComposedSourceFiles(
         normalizedMediaId,
-        mediaPartPaths,
+        mediaPath,
         thumbnailPath,
     );
     const publicPrefix = path.posix.join(PUBLIC_VIDEO_ROOT, normalizedMediaId);
-    const videoPartKeys = source.mediaPartPaths.map((_, index) =>
-        path.posix.join(
-            publicPrefix,
-            `part_${index.toString().padStart(2, "0")}`,
-        ),
-    );
+    const videoKey = path.posix.join(publicPrefix, "video.mp4");
     const publicThumbnailKey = path.posix.join(
         publicPrefix,
         `thumbnail${thumbnailExtension(source.thumbnailMime)}`,
     );
 
-    const uploads = source.mediaPartPaths.map((mediaPartPath, index) => ({
-        sourcePath: mediaPartPath,
-        keyId: videoPartKeys[index],
-        mimeType: "application/octet-stream",
-    }));
-    uploads.push({
-        sourcePath: source.thumbnailPath,
-        keyId: publicThumbnailKey,
-        mimeType: source.thumbnailMime,
-    });
-    const uploadResults = await Promise.allSettled(
-        uploads.map(({ sourcePath, keyId, mimeType }) =>
-            uploadObject(sourcePath, keyId, mimeType),
-        ),
+    await uploadObject(source.mediaPath, videoKey, "video/mp4");
+    await uploadObject(
+        source.thumbnailPath,
+        publicThumbnailKey,
+        source.thumbnailMime,
     );
-    const failedUpload = uploadResults.find(({ status }) => status === "rejected");
-    if (failedUpload) throw failedUpload.reason;
 
     const { cleanupSucceeded, cleanupMessage } = await cleanupWorkDirectory(
         normalizedMediaId,
@@ -152,9 +140,9 @@ export async function commitMediaPartsToPublic(
     return {
         bucket: PUBLIC_BUCKET,
         prefix: publicPrefix,
-        videoPartKeys,
+        videoKey,
         thumbnailKey: publicThumbnailKey,
-        uploadedKeys: [...videoPartKeys, publicThumbnailKey],
+        uploadedKeys: [videoKey, publicThumbnailKey],
         cleanupSucceeded,
         ...(cleanupMessage ? { cleanupMessage } : {}),
     };
@@ -314,42 +302,32 @@ async function validateSourceFiles(mediaId, concatResult, thumbnailPath) {
     };
 }
 
-async function validateMediaPartSourceFiles(
-    mediaId,
-    mediaPartPaths,
-    thumbnailPath,
-) {
+async function validateComposedSourceFiles(mediaId, mediaPath, thumbnailPath) {
     const workDirectory = path.posix.join(WORK_ROOT, mediaId);
-    const sourceDirectory = path.posix.join(workDirectory, "source");
+    const expectedMediaPath = path.posix.join(
+        workDirectory,
+        "source",
+        "media.mp4",
+    );
     const expectedThumbnailPath = path.posix.join(
-        sourceDirectory,
+        workDirectory,
+        "source",
         "thumbnail",
     );
 
-    if (!Array.isArray(mediaPartPaths) || mediaPartPaths.length === 0) {
-        throw new TypeError("Original media publication requires ordered parts");
-    }
-    for (let index = 0; index < mediaPartPaths.length; index++) {
-        const expectedPartPath = path.posix.join(
-            sourceDirectory,
-            `part_${index}`,
-        );
-        if (mediaPartPaths[index] !== expectedPartPath) {
-            throw new TypeError(
-                `Unexpected original media part: ${mediaPartPaths[index]}`,
-            );
-        }
-        await verifyRegularFile(mediaPartPaths[index], "original media part");
+    if (mediaPath !== expectedMediaPath) {
+        throw new TypeError(`Unexpected composed media path: ${mediaPath}`);
     }
     if (thumbnailPath !== expectedThumbnailPath) {
         throw new TypeError(`Unexpected thumbnail path: ${thumbnailPath}`);
     }
 
+    await verifyRegularFile(mediaPath, "composed media");
     await verifyRegularFile(thumbnailPath, "thumbnail");
 
     return {
         workDirectory,
-        mediaPartPaths,
+        mediaPath,
         thumbnailPath,
         thumbnailMime: await detectThumbnailMime(thumbnailPath),
     };
@@ -451,26 +429,113 @@ async function uploadObject(sourcePath, keyId, mimeType) {
         throw new TypeError(`Upload source must be a regular file: ${sourcePath}`);
     }
 
-    const body = createReadStream(sourcePath);
-    let response;
+    let signedUrl;
     try {
-        response = await fetch(uploadData.uploadUrl, {
-            method: "PUT",
-            headers: {
-                "Content-Type": mimeType,
-                "Content-Length": String(fileStats.size),
-            },
-            body,
-            duplex: "half",
-            signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+        signedUrl = parseSignedUploadUrl(uploadData.uploadUrl, keyId);
+    } catch (error) {
+        throw new Error(`CDN returned an invalid upload URL for ${keyId}`, {
+            cause: error,
         });
+    }
+
+    try {
+        await uploadThroughInternalStorage(
+            signedUrl,
+            sourcePath,
+            mimeType,
+            fileStats.size,
+        );
     } catch (error) {
         throw new Error(`Failed to upload ${keyId}`, { cause: error });
     }
+}
 
-    if (!response.ok) {
-        throw new Error(`Failed to upload ${keyId}: HTTP ${response.status}`);
+function uploadThroughInternalStorage(
+    signedUrl,
+    sourcePath,
+    mimeType,
+    contentLength,
+) {
+    const internalEndpoint = parseInternalEndpoint();
+    const requestFn =
+        internalEndpoint.protocol === "https:" ? httpsRequest : httpRequest;
+    const signal = AbortSignal.timeout(UPLOAD_TIMEOUT_MS);
+
+    return new Promise((resolve, reject) => {
+        const request = requestFn(
+            {
+                protocol: internalEndpoint.protocol,
+                hostname: internalEndpoint.hostname,
+                port: internalEndpoint.port || undefined,
+                method: "PUT",
+                path: `${signedUrl.pathname}${signedUrl.search}`,
+                headers: {
+                    Host: signedUrl.host,
+                    "Content-Type": mimeType,
+                    "Content-Length": String(contentLength),
+                },
+                signal,
+            },
+            (response) => {
+                response.once("error", (error) => request.destroy(error));
+                response.resume();
+                response.once("end", () => {
+                    if (
+                        Number.isInteger(response.statusCode) &&
+                        response.statusCode >= 200 &&
+                        response.statusCode < 300
+                    ) {
+                        resolve();
+                        return;
+                    }
+                    reject(
+                        new Error(
+                            `Storage upload returned HTTP ${response.statusCode || 0}`,
+                        ),
+                    );
+                });
+            },
+        );
+        const body = createReadStream(sourcePath);
+
+        request.once("error", (error) => {
+            body.destroy();
+            reject(error);
+        });
+        body.once("error", (error) => request.destroy(error));
+        body.pipe(request);
+    });
+}
+
+function parseInternalEndpoint() {
+    const endpoint = new URL(INTERNAL_STORAGE_ENDPOINT);
+    if (
+        !["http:", "https:"].includes(endpoint.protocol) ||
+        endpoint.username ||
+        endpoint.password ||
+        endpoint.pathname !== "/" ||
+        endpoint.search ||
+        endpoint.hash
+    ) {
+        throw new TypeError(
+            "STORAGE_LOCAL_ENDPOINT must contain only an HTTP origin",
+        );
     }
+    return endpoint;
+}
+
+function parseSignedUploadUrl(uploadUrl, keyId) {
+    const signedUrl = new URL(uploadUrl);
+    const expectedPathname = `/${PUBLIC_BUCKET}/${keyId}`;
+    if (
+        !["http:", "https:"].includes(signedUrl.protocol) ||
+        signedUrl.username ||
+        signedUrl.password ||
+        signedUrl.pathname !== expectedPathname
+    ) {
+        throw new TypeError("Storage returned an unexpected upload URL");
+    }
+    return signedUrl;
 }
 
 async function cleanupWorkDirectory(mediaId, workDirectory) {

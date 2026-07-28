@@ -5,7 +5,7 @@
         1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
         2. Validate the complete upload's MIME signature.
         3. Moderate the complete upload with the local AI validation service.
-        4. Export the approved upload as HLS, or publish its original parts if export rejects it.
+        4. Export the approved upload as HLS, or publish the composed original MP4 if export rejects it.
         5. Generate a random thumbnail from the final accepted input when none was uploaded.
         6. Publish the HLS output and thumbnail to public object storage.
         7. Delete the quarantine sources after the media is persisted as done.
@@ -28,7 +28,7 @@ import generateMediaThumbnail from "./processMedia/generateMediaThumbnail.js";
 import assembleMediaParts from "./processMedia/assembleMediaParts.js";
 import recoverCorruptMedia from "./processMedia/recoverCorruptMedia.js";
 import commitMediaToPublic, {
-    commitMediaPartsToPublic,
+    commitComposedMediaToPublic,
     deleteQuarantineMedia,
 } from "./commitMediaToPublic.js";
 
@@ -57,7 +57,7 @@ const RECOVERY_QUALITY_TARGET_PERCENT = 1;
  * 1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
  * 2. Validate the complete upload's MIME signature.
  * 3. Moderate the complete upload with the local AI validation service.
- * 4. Export the approved upload as HLS, or publish its original parts if export rejects it.
+ * 4. Export the approved upload as HLS, or publish the composed original MP4 if export rejects it.
  * 5. Generate a random thumbnail from the final accepted input when none was uploaded.
  * 6. Publish the HLS output and thumbnail to public object storage.
  * 7. Delete the quarantine sources after the media is persisted as done.
@@ -220,7 +220,7 @@ export default async function processMedia(job) {
 
         // Stage 4: render the approved complete upload as a streamable HLS output.
         let concatData;
-        let publishParts = false;
+        let publishComposedVideo = false;
         try {
             concatData = await concatToStream(
                 workDoc.id,
@@ -230,9 +230,9 @@ export default async function processMedia(job) {
             if (!(error instanceof InvalidMediaStreamError)) {
                 throw error;
             }
-            publishParts = true;
+            publishComposedVideo = true;
             console.warn(
-                `[processMedia][${mediaId}] HLS conversion rejected; publishing original parts`,
+                `[processMedia][${mediaId}] HLS conversion rejected; publishing composed original MP4`,
             );
         }
 
@@ -244,11 +244,11 @@ export default async function processMedia(job) {
                 processingMediaPath,
             ));
 
-        // Stage 6: publish HLS, or the original parts when transcoding rejects it.
-        const publicMedia = publishParts
-            ? await commitMediaPartsToPublic(
+        // Stage 6: publish HLS, or the composed MP4 when transcoding rejects it.
+        const publicMedia = publishComposedVideo
+            ? await commitComposedMediaToPublic(
                 workDoc.id,
-                stagedMedia.mediaPartPaths,
+                localMediaPath,
                 thumbnailPath,
             )
             : await commitMediaToPublic(
@@ -258,7 +258,7 @@ export default async function processMedia(job) {
             );
         localMediaStaged = false;
         workDoc.manifest.playlist = publicMedia.playlistKey || null;
-        workDoc.manifest.videoParts = publicMedia.videoPartKeys || [];
+        workDoc.manifest.video = publicMedia.videoKey || null;
         workDoc.manifest.thumbnail = publicMedia.thumbnailKey;
         workDoc.quarantined = false;
 
@@ -293,7 +293,7 @@ export default async function processMedia(job) {
         return successResult(
             mediaId,
             "processed",
-            publishParts ? "original_parts_published" : undefined,
+            publishComposedVideo ? "original_media_published" : undefined,
         );
     } catch (error) {
         // the proccessing genuinly threw error and need investigating
