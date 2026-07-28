@@ -183,6 +183,7 @@ export async function deleteQuarantineMedia(
 
     for (let offset = 0; offset < keyIds.length; offset += MAXIMUM_DELETE_OBJECTS) {
         const batch = keyIds.slice(offset, offset + MAXIMUM_DELETE_OBJECTS);
+        const batchNumber = Math.floor(offset / MAXIMUM_DELETE_OBJECTS) + 1;
 
         try {
             const result = await deleteCDNObjects({
@@ -192,8 +193,13 @@ export async function deleteQuarantineMedia(
 
             deletedKeys.push(...result.deletedKeys);
             failedKeys.push(...result.failedKeys);
-        } catch {
-            failedKeys.push(...batch);
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : String(error);
+            throw new Error(
+                `Quarantine deletion batch ${batchNumber} failed: ${message}`,
+                { cause: error },
+            );
         }
     }
 
