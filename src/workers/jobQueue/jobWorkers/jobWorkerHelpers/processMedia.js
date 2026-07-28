@@ -258,7 +258,8 @@ export default async function processMedia(job) {
             );
         localMediaStaged = false;
         workDoc.manifest.playlist = publicMedia.playlistKey || null;
-        workDoc.manifest.video = publicMedia.videoKey || null;
+        workDoc.manifest.video =
+            publicMedia.playlistKey || publicMedia.videoKey || null;
         workDoc.manifest.thumbnail = publicMedia.thumbnailKey;
         workDoc.quarantined = false;
 
