@@ -101,25 +101,66 @@ export default async function processMedia(job) {
             return failureResult(mediaId, 404, "not_found", "Media document was not found");
         }
         mediaAudit = await MediaAudit.findOne({ media: workDoc._id });
+        const mediaParts = workDoc.manifest?.mediaParts;
+        const expectedQuarantineThumbnailKey = `videos/${mediaId}/thumbnail`;
         const isQuarantinedRetry =
             workDoc.state === "done" && workDoc.quarantined === true;
-        if (workDoc.state !== "need_process" && !isQuarantinedRetry) {
+        const isCleanupRetry =
+            workDoc.state === "done" &&
+            workDoc.quarantined === false &&
+            typeof workDoc.manifest?.video === "string" &&
+            workDoc.manifest.video.length > 0 &&
+            Array.isArray(mediaParts) &&
+            mediaParts.length > 0;
+        if (
+            workDoc.state !== "need_process" &&
+            !isQuarantinedRetry &&
+            !isCleanupRetry
+        ) {
             // this module is for inital proccessin by date: 24.7/26 is subject to change
             // for now will remain as is and will throw if the document is not with state listed on the in block
             return failureResult(
                 mediaId,
                 409,
                 "invalid_state",
-                `Media must be need_process or done and quarantined, received state=${workDoc.state} quarantined=${workDoc.quarantined}`,
+                `Media must require processing, quarantine retry, or pending source cleanup; received state=${workDoc.state} quarantined=${workDoc.quarantined}`,
             );
         }
+
+        if (isCleanupRetry) {
+            console.info(
+                `[processMedia][${mediaId}][quarantine_cleanup] retry started`,
+            );
+            const cleanup = await deleteQuarantineMedia(
+                workDoc.id,
+                mediaParts,
+                expectedQuarantineThumbnailKey,
+                workDoc.state,
+            );
+            if (cleanup.failedKeys.length > 0) {
+                throw new Error(
+                    `Quarantine cleanup still failed for ${cleanup.failedKeys.length} objects`,
+                );
+            }
+
+            workDoc.manifest.mediaParts = [];
+            await workDoc.save();
+            console.info(
+                `[processMedia][${mediaId}][quarantine_cleanup] retry completed`,
+            );
+            return successResult(
+                mediaId,
+                "processed",
+                "quarantine_cleanup_completed",
+            );
+        }
+
         if (isQuarantinedRetry) {
             console.info(
                 `[processMedia][${mediaId}][state] reopening done quarantined media for processing`,
             );
         }
 
-        const mediaParts = workDoc.manifest?.mediaParts; // check for existing parts
         if (!Array.isArray(mediaParts) || mediaParts.length === 0) {
             // if there is no parts the proccessing can't continue and has to throw an err
             throw new Error("Media document has no manifest media parts");
@@ -129,7 +170,6 @@ export default async function processMedia(job) {
         await workDoc.save();
         claimedProcessing = true;
 
-        const expectedQuarantineThumbnailKey = `videos/${mediaId}/thumbnail`;
         const quarantineThumbnailKey =
             workDoc.manifest?.thumbnail === expectedQuarantineThumbnailKey
                 ? expectedQuarantineThumbnailKey

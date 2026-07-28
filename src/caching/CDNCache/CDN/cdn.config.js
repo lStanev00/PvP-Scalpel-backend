@@ -1,6 +1,8 @@
 import "dotenv/config";
 
 export const CDNURI = "http://" + process.env.CDN_PRIVATE_DOMAIN + ":" + process.env.CDN_PORT;
+const STORAGE_REST_URI =
+    process.env.STORAGE_REST_ENDPOINT || CDNURI;
 
 export const CDNAUTH =
     process.env.JWT_CDN_PUBLIC ||
@@ -164,6 +166,7 @@ export async function uploadPresignLink(params = {}) {
  */
 export async function deleteCDNObjects(params = {}) {
     const { bucket, keyIds } = params;
+    const deleteToken = process.env.JWT_CDN_PUBLIC;
 
     if (typeof bucket !== "string" || bucket.length === 0) {
         throw new TypeError("deleteCDNObjects requires a bucket");
@@ -177,19 +180,31 @@ export async function deleteCDNObjects(params = {}) {
     ) {
         throw new TypeError("deleteCDNObjects requires between 1 and 1000 object keys");
     }
+    if (typeof deleteToken !== "string" || deleteToken.length === 0) {
+        throw new Error(
+            "Storage deletion requires JWT_CDN_PUBLIC in the worker environment",
+        );
+    }
 
-    const response = await fetch(`${CDNURI}/objects`, {
-        method: "DELETE",
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${CDNAUTH}`,
-        },
-        body: JSON.stringify({
-            bucket,
-            keyIds,
-        }),
-        signal: AbortSignal.timeout(CDN_DELETE_TIMEOUT_MS),
-    });
+    let response;
+    try {
+        response = await fetch(`${STORAGE_REST_URI}/objects`, {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${deleteToken}`,
+            },
+            body: JSON.stringify({
+                bucket,
+                keyIds,
+            }),
+            signal: AbortSignal.timeout(CDN_DELETE_TIMEOUT_MS),
+        });
+    } catch (error) {
+        throw new Error("Storage deletion request could not reach the REST service", {
+            cause: error,
+        });
+    }
 
     let data;
     try {

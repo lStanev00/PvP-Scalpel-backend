@@ -19,7 +19,8 @@ RUN cargo test --locked \
 FROM node:22-alpine3.24
 
 ENV NODE_ENV=production \
-    STORAGE_LOCAL_ENDPOINT=http://minio:4010
+    STORAGE_LOCAL_ENDPOINT=http://minio:4010 \
+    STORAGE_REST_ENDPOINT=http://storage:4002
 
 WORKDIR /app
 
