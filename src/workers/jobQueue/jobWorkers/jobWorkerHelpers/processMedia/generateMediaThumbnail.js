@@ -45,13 +45,20 @@ export default async function generateMediaThumbnail(mediaId, mediaPath) {
         "recovery",
         "recovered.mp4",
     );
+    const expectedFFmpegRecoveredPath = path.posix.join(
+        WORK_ROOT,
+        normalizedMediaId,
+        "recovery",
+        "ffmpeg-recovered.mp4",
+    );
     const thumbnailPath = path.posix.join(sourceDirectory, "thumbnail");
     const partialThumbnailPath = `${thumbnailPath}.partial`;
 
     if (
         mediaPath !== expectedMediaPath &&
         mediaPath !== expectedStructuralPath &&
-        mediaPath !== expectedRecoveredPath
+        mediaPath !== expectedRecoveredPath &&
+        mediaPath !== expectedFFmpegRecoveredPath
     ) {
         throw new TypeError(`Unexpected complete media path: ${mediaPath}`);
     }
