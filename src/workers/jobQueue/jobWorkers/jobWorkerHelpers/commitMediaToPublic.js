@@ -1,4 +1,5 @@
-import { lstat, open, readFile, realpath, rm } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { lstat, open, realpath, rm } from "node:fs/promises";
 import path from "node:path";
 import {
     deleteCDNObjects,
@@ -69,17 +70,10 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
     await uploadObject(source.playlistPath, playlistKey, "application/vnd.apple.mpegurl");
     uploadedKeys.push(playlistKey);
 
-    let cleanupSucceeded = true;
-    let cleanupMessage;
-    try {
-        await rm(source.workDirectory, { recursive: true, force: true });
-    } catch (error) {
-        cleanupSucceeded = false;
-        cleanupMessage = error instanceof Error ? error.message : String(error);
-        console.warn(
-            `[commitMediaToPublic][${normalizedMediaId}] publication succeeded but local cleanup failed: ${cleanupMessage}`,
-        );
-    }
+    const { cleanupSucceeded, cleanupMessage } = await cleanupWorkDirectory(
+        normalizedMediaId,
+        source.workDirectory,
+    );
 
     return {
         bucket: PUBLIC_BUCKET,
@@ -87,6 +81,80 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
         playlistKey,
         thumbnailKey: publicThumbnailKey,
         uploadedKeys,
+        cleanupSucceeded,
+        ...(cleanupMessage ? { cleanupMessage } : {}),
+    };
+}
+
+/**
+ * Publishes the original uploaded parts and thumbnail when HLS conversion
+ * rejects the assembled stream.
+ *
+ * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
+ * @param {string[]} mediaPartPaths Exact ordered local media-part paths.
+ * @param {string} thumbnailPath Exact staged thumbnail path.
+ * @returns {Promise<{
+ * bucket: string,
+ * prefix: string,
+ * videoPartKeys: string[],
+ * thumbnailKey: string,
+ * uploadedKeys: string[],
+ * cleanupSucceeded: boolean,
+ * cleanupMessage?: string
+ * }>}
+ */
+export async function commitMediaPartsToPublic(
+    mediaId,
+    mediaPartPaths,
+    thumbnailPath,
+) {
+    const normalizedMediaId = normalizeMediaId(mediaId);
+    const source = await validateMediaPartSourceFiles(
+        normalizedMediaId,
+        mediaPartPaths,
+        thumbnailPath,
+    );
+    const publicPrefix = path.posix.join(PUBLIC_VIDEO_ROOT, normalizedMediaId);
+    const videoPartKeys = source.mediaPartPaths.map((_, index) =>
+        path.posix.join(
+            publicPrefix,
+            `part_${index.toString().padStart(2, "0")}`,
+        ),
+    );
+    const publicThumbnailKey = path.posix.join(
+        publicPrefix,
+        `thumbnail${thumbnailExtension(source.thumbnailMime)}`,
+    );
+
+    const uploads = source.mediaPartPaths.map((mediaPartPath, index) => ({
+        sourcePath: mediaPartPath,
+        keyId: videoPartKeys[index],
+        mimeType: "application/octet-stream",
+    }));
+    uploads.push({
+        sourcePath: source.thumbnailPath,
+        keyId: publicThumbnailKey,
+        mimeType: source.thumbnailMime,
+    });
+    const uploadResults = await Promise.allSettled(
+        uploads.map(({ sourcePath, keyId, mimeType }) =>
+            uploadObject(sourcePath, keyId, mimeType),
+        ),
+    );
+    const failedUpload = uploadResults.find(({ status }) => status === "rejected");
+    if (failedUpload) throw failedUpload.reason;
+
+    const { cleanupSucceeded, cleanupMessage } = await cleanupWorkDirectory(
+        normalizedMediaId,
+        source.workDirectory,
+    );
+
+    return {
+        bucket: PUBLIC_BUCKET,
+        prefix: publicPrefix,
+        videoPartKeys,
+        thumbnailKey: publicThumbnailKey,
+        uploadedKeys: [...videoPartKeys, publicThumbnailKey],
         cleanupSucceeded,
         ...(cleanupMessage ? { cleanupMessage } : {}),
     };
@@ -246,6 +314,47 @@ async function validateSourceFiles(mediaId, concatResult, thumbnailPath) {
     };
 }
 
+async function validateMediaPartSourceFiles(
+    mediaId,
+    mediaPartPaths,
+    thumbnailPath,
+) {
+    const workDirectory = path.posix.join(WORK_ROOT, mediaId);
+    const sourceDirectory = path.posix.join(workDirectory, "source");
+    const expectedThumbnailPath = path.posix.join(
+        sourceDirectory,
+        "thumbnail",
+    );
+
+    if (!Array.isArray(mediaPartPaths) || mediaPartPaths.length === 0) {
+        throw new TypeError("Original media publication requires ordered parts");
+    }
+    for (let index = 0; index < mediaPartPaths.length; index++) {
+        const expectedPartPath = path.posix.join(
+            sourceDirectory,
+            `part_${index}`,
+        );
+        if (mediaPartPaths[index] !== expectedPartPath) {
+            throw new TypeError(
+                `Unexpected original media part: ${mediaPartPaths[index]}`,
+            );
+        }
+        await verifyRegularFile(mediaPartPaths[index], "original media part");
+    }
+    if (thumbnailPath !== expectedThumbnailPath) {
+        throw new TypeError(`Unexpected thumbnail path: ${thumbnailPath}`);
+    }
+
+    await verifyRegularFile(thumbnailPath, "thumbnail");
+
+    return {
+        workDirectory,
+        mediaPartPaths,
+        thumbnailPath,
+        thumbnailMime: await detectThumbnailMime(thumbnailPath),
+    };
+}
+
 async function verifyRegularFile(filePath, label) {
     let fileStats;
     let resolvedPath;
@@ -330,21 +439,29 @@ async function uploadObject(sourcePath, keyId, mimeType) {
         throw new Error(`CDN did not return an upload URL for ${keyId}${reason}`);
     }
 
-    let body;
+    let fileStats;
     try {
-        body = await readFile(sourcePath);
+        fileStats = await lstat(sourcePath);
     } catch (error) {
-        throw new Error(`Failed to read upload source for ${keyId}`, { cause: error });
+        throw new Error(`Failed to inspect upload source for ${keyId}`, {
+            cause: error,
+        });
+    }
+    if (!fileStats.isFile() || fileStats.isSymbolicLink()) {
+        throw new TypeError(`Upload source must be a regular file: ${sourcePath}`);
     }
 
+    const body = createReadStream(sourcePath);
     let response;
     try {
         response = await fetch(uploadData.uploadUrl, {
             method: "PUT",
             headers: {
                 "Content-Type": mimeType,
+                "Content-Length": String(fileStats.size),
             },
             body,
+            duplex: "half",
             signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
         });
     } catch (error) {
@@ -353,5 +470,19 @@ async function uploadObject(sourcePath, keyId, mimeType) {
 
     if (!response.ok) {
         throw new Error(`Failed to upload ${keyId}: HTTP ${response.status}`);
+    }
+}
+
+async function cleanupWorkDirectory(mediaId, workDirectory) {
+    try {
+        await rm(workDirectory, { recursive: true, force: true });
+        return { cleanupSucceeded: true };
+    } catch (error) {
+        const cleanupMessage =
+            error instanceof Error ? error.message : String(error);
+        console.warn(
+            `[commitMediaToPublic][${mediaId}] publication succeeded but local cleanup failed: ${cleanupMessage}`,
+        );
+        return { cleanupSucceeded: false, cleanupMessage };
     }
 }
