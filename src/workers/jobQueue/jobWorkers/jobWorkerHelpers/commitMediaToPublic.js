@@ -1,4 +1,7 @@
-import { lstat, open, readFile, realpath, rm } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { lstat, open, realpath, rm } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import path from "node:path";
 import {
     deleteCDNObjects,
@@ -9,7 +12,9 @@ const PUBLIC_BUCKET = "pvp-scalpel-frontend";
 const QUARANTINE_BUCKET = "quarantine-uploads";
 const PUBLIC_VIDEO_ROOT = "videos";
 const WORK_ROOT = "/mnt/work";
-const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
+const INTERNAL_STORAGE_ENDPOINT =
+    process.env.STORAGE_LOCAL_ENDPOINT || "http://minio:4010";
+const UPLOAD_TIMEOUT_MS = 60 * 60 * 1000;
 const MAXIMUM_DELETE_OBJECTS = 1000;
 
 /**
@@ -69,17 +74,10 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
     await uploadObject(source.playlistPath, playlistKey, "application/vnd.apple.mpegurl");
     uploadedKeys.push(playlistKey);
 
-    let cleanupSucceeded = true;
-    let cleanupMessage;
-    try {
-        await rm(source.workDirectory, { recursive: true, force: true });
-    } catch (error) {
-        cleanupSucceeded = false;
-        cleanupMessage = error instanceof Error ? error.message : String(error);
-        console.warn(
-            `[commitMediaToPublic][${normalizedMediaId}] publication succeeded but local cleanup failed: ${cleanupMessage}`,
-        );
-    }
+    const { cleanupSucceeded, cleanupMessage } = await cleanupWorkDirectory(
+        normalizedMediaId,
+        source.workDirectory,
+    );
 
     return {
         bucket: PUBLIC_BUCKET,
@@ -87,6 +85,64 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
         playlistKey,
         thumbnailKey: publicThumbnailKey,
         uploadedKeys,
+        cleanupSucceeded,
+        ...(cleanupMessage ? { cleanupMessage } : {}),
+    };
+}
+
+/**
+ * Publishes the composed original MP4 and thumbnail when HLS conversion
+ * rejects the source stream.
+ *
+ * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
+ * @param {string} mediaPath Exact assembled `/mnt/work/<mediaId>/source/media.mp4`.
+ * @param {string} thumbnailPath Exact staged thumbnail path.
+ * @returns {Promise<{
+ * bucket: string,
+ * prefix: string,
+ * videoKey: string,
+ * thumbnailKey: string,
+ * uploadedKeys: string[],
+ * cleanupSucceeded: boolean,
+ * cleanupMessage?: string
+ * }>}
+ */
+export async function commitComposedMediaToPublic(
+    mediaId,
+    mediaPath,
+    thumbnailPath,
+) {
+    const normalizedMediaId = normalizeMediaId(mediaId);
+    const source = await validateComposedSourceFiles(
+        normalizedMediaId,
+        mediaPath,
+        thumbnailPath,
+    );
+    const publicPrefix = path.posix.join(PUBLIC_VIDEO_ROOT, normalizedMediaId);
+    const videoKey = path.posix.join(publicPrefix, "video.mp4");
+    const publicThumbnailKey = path.posix.join(
+        publicPrefix,
+        `thumbnail${thumbnailExtension(source.thumbnailMime)}`,
+    );
+
+    await uploadObject(source.mediaPath, videoKey, "video/mp4");
+    await uploadObject(
+        source.thumbnailPath,
+        publicThumbnailKey,
+        source.thumbnailMime,
+    );
+
+    const { cleanupSucceeded, cleanupMessage } = await cleanupWorkDirectory(
+        normalizedMediaId,
+        source.workDirectory,
+    );
+
+    return {
+        bucket: PUBLIC_BUCKET,
+        prefix: publicPrefix,
+        videoKey,
+        thumbnailKey: publicThumbnailKey,
+        uploadedKeys: [videoKey, publicThumbnailKey],
         cleanupSucceeded,
         ...(cleanupMessage ? { cleanupMessage } : {}),
     };
@@ -246,6 +302,37 @@ async function validateSourceFiles(mediaId, concatResult, thumbnailPath) {
     };
 }
 
+async function validateComposedSourceFiles(mediaId, mediaPath, thumbnailPath) {
+    const workDirectory = path.posix.join(WORK_ROOT, mediaId);
+    const expectedMediaPath = path.posix.join(
+        workDirectory,
+        "source",
+        "media.mp4",
+    );
+    const expectedThumbnailPath = path.posix.join(
+        workDirectory,
+        "source",
+        "thumbnail",
+    );
+
+    if (mediaPath !== expectedMediaPath) {
+        throw new TypeError(`Unexpected composed media path: ${mediaPath}`);
+    }
+    if (thumbnailPath !== expectedThumbnailPath) {
+        throw new TypeError(`Unexpected thumbnail path: ${thumbnailPath}`);
+    }
+
+    await verifyRegularFile(mediaPath, "composed media");
+    await verifyRegularFile(thumbnailPath, "thumbnail");
+
+    return {
+        workDirectory,
+        mediaPath,
+        thumbnailPath,
+        thumbnailMime: await detectThumbnailMime(thumbnailPath),
+    };
+}
+
 async function verifyRegularFile(filePath, label) {
     let fileStats;
     let resolvedPath;
@@ -330,28 +417,137 @@ async function uploadObject(sourcePath, keyId, mimeType) {
         throw new Error(`CDN did not return an upload URL for ${keyId}${reason}`);
     }
 
-    let body;
+    let fileStats;
     try {
-        body = await readFile(sourcePath);
+        fileStats = await lstat(sourcePath);
     } catch (error) {
-        throw new Error(`Failed to read upload source for ${keyId}`, { cause: error });
+        throw new Error(`Failed to inspect upload source for ${keyId}`, {
+            cause: error,
+        });
+    }
+    if (!fileStats.isFile() || fileStats.isSymbolicLink()) {
+        throw new TypeError(`Upload source must be a regular file: ${sourcePath}`);
     }
 
-    let response;
+    let signedUrl;
     try {
-        response = await fetch(uploadData.uploadUrl, {
-            method: "PUT",
-            headers: {
-                "Content-Type": mimeType,
-            },
-            body,
-            signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+        signedUrl = parseSignedUploadUrl(uploadData.uploadUrl, keyId);
+    } catch (error) {
+        throw new Error(`CDN returned an invalid upload URL for ${keyId}`, {
+            cause: error,
         });
+    }
+
+    try {
+        await uploadThroughInternalStorage(
+            signedUrl,
+            sourcePath,
+            mimeType,
+            fileStats.size,
+        );
     } catch (error) {
         throw new Error(`Failed to upload ${keyId}`, { cause: error });
     }
+}
 
-    if (!response.ok) {
-        throw new Error(`Failed to upload ${keyId}: HTTP ${response.status}`);
+function uploadThroughInternalStorage(
+    signedUrl,
+    sourcePath,
+    mimeType,
+    contentLength,
+) {
+    const internalEndpoint = parseInternalEndpoint();
+    const requestFn =
+        internalEndpoint.protocol === "https:" ? httpsRequest : httpRequest;
+    const signal = AbortSignal.timeout(UPLOAD_TIMEOUT_MS);
+
+    return new Promise((resolve, reject) => {
+        const request = requestFn(
+            {
+                protocol: internalEndpoint.protocol,
+                hostname: internalEndpoint.hostname,
+                port: internalEndpoint.port || undefined,
+                method: "PUT",
+                path: `${signedUrl.pathname}${signedUrl.search}`,
+                headers: {
+                    Host: signedUrl.host,
+                    "Content-Type": mimeType,
+                    "Content-Length": String(contentLength),
+                },
+                signal,
+            },
+            (response) => {
+                response.once("error", (error) => request.destroy(error));
+                response.resume();
+                response.once("end", () => {
+                    if (
+                        Number.isInteger(response.statusCode) &&
+                        response.statusCode >= 200 &&
+                        response.statusCode < 300
+                    ) {
+                        resolve();
+                        return;
+                    }
+                    reject(
+                        new Error(
+                            `Storage upload returned HTTP ${response.statusCode || 0}`,
+                        ),
+                    );
+                });
+            },
+        );
+        const body = createReadStream(sourcePath);
+
+        request.once("error", (error) => {
+            body.destroy();
+            reject(error);
+        });
+        body.once("error", (error) => request.destroy(error));
+        body.pipe(request);
+    });
+}
+
+function parseInternalEndpoint() {
+    const endpoint = new URL(INTERNAL_STORAGE_ENDPOINT);
+    if (
+        !["http:", "https:"].includes(endpoint.protocol) ||
+        endpoint.username ||
+        endpoint.password ||
+        endpoint.pathname !== "/" ||
+        endpoint.search ||
+        endpoint.hash
+    ) {
+        throw new TypeError(
+            "STORAGE_LOCAL_ENDPOINT must contain only an HTTP origin",
+        );
+    }
+    return endpoint;
+}
+
+function parseSignedUploadUrl(uploadUrl, keyId) {
+    const signedUrl = new URL(uploadUrl);
+    const expectedPathname = `/${PUBLIC_BUCKET}/${keyId}`;
+    if (
+        !["http:", "https:"].includes(signedUrl.protocol) ||
+        signedUrl.username ||
+        signedUrl.password ||
+        signedUrl.pathname !== expectedPathname
+    ) {
+        throw new TypeError("Storage returned an unexpected upload URL");
+    }
+    return signedUrl;
+}
+
+async function cleanupWorkDirectory(mediaId, workDirectory) {
+    try {
+        await rm(workDirectory, { recursive: true, force: true });
+        return { cleanupSucceeded: true };
+    } catch (error) {
+        const cleanupMessage =
+            error instanceof Error ? error.message : String(error);
+        console.warn(
+            `[commitMediaToPublic][${mediaId}] publication succeeded but local cleanup failed: ${cleanupMessage}`,
+        );
+        return { cleanupSucceeded: false, cleanupMessage };
     }
 }

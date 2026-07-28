@@ -5,7 +5,7 @@
         1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
         2. Validate the complete upload's MIME signature.
         3. Moderate the complete upload with the local AI validation service.
-        4. Export the approved upload as HLS, recovering corrupt MP4 streams when possible.
+        4. Export the approved upload as HLS, or publish the composed original MP4 if export rejects it.
         5. Generate a random thumbnail from the final accepted input when none was uploaded.
         6. Publish the HLS output and thumbnail to public object storage.
         7. Delete the quarantine sources after the media is persisted as done.
@@ -28,6 +28,7 @@ import generateMediaThumbnail from "./processMedia/generateMediaThumbnail.js";
 import assembleMediaParts from "./processMedia/assembleMediaParts.js";
 import recoverCorruptMedia from "./processMedia/recoverCorruptMedia.js";
 import commitMediaToPublic, {
+    commitComposedMediaToPublic,
     deleteQuarantineMedia,
 } from "./commitMediaToPublic.js";
 
@@ -56,7 +57,7 @@ const RECOVERY_QUALITY_TARGET_PERCENT = 1;
  * 1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
  * 2. Validate the complete upload's MIME signature.
  * 3. Moderate the complete upload with the local AI validation service.
- * 4. Export the approved upload as HLS, recovering corrupt MP4 streams when possible.
+ * 4. Export the approved upload as HLS, or publish the composed original MP4 if export rejects it.
  * 5. Generate a random thumbnail from the final accepted input when none was uploaded.
  * 6. Publish the HLS output and thumbnail to public object storage.
  * 7. Delete the quarantine sources after the media is persisted as done.
@@ -125,7 +126,11 @@ export default async function processMedia(job) {
         await workDoc.save();
         claimedProcessing = true;
 
-        const quarantineThumbnailKey = workDoc.manifest?.thumbnail;
+        const expectedQuarantineThumbnailKey = `videos/${mediaId}/thumbnail`;
+        const quarantineThumbnailKey =
+            workDoc.manifest?.thumbnail === expectedQuarantineThumbnailKey
+                ? expectedQuarantineThumbnailKey
+                : null;
         const sourceFingerprint = buildRecoverySourceFingerprint(workDoc.manifest);
         const recoveryRetry = isMatchingRecoveryRetry(
             mediaAudit?.recovery,
@@ -148,23 +153,12 @@ export default async function processMedia(job) {
             workDoc.id,
             stagedMedia.mediaPartPaths,
         );
-        let processingMediaPath = localMediaPath;
-        let recoveryApplied = false;
+        const processingMediaPath = localMediaPath;
 
         if (recoveryRetry) {
             console.info(
-                `[processMedia][${mediaId}][recovery] matching retry detected; skipping malware, MIME, and AI checks`,
+                `[processMedia][${mediaId}] matching retry detected; skipping malware, MIME, and AI checks`,
             );
-            const recoveryAttempt = await runRecoveryAttempt(
-                mediaAudit,
-                mediaId,
-                localMediaPath,
-                sourceFingerprint,
-                true,
-            );
-            mediaAudit = recoveryAttempt.mediaAudit;
-            processingMediaPath = recoveryAttempt.recovery.mediaPath;
-            recoveryApplied = true;
         } else {
             if (mediaAudit?.recovery?.attempted) {
                 console.warn(
@@ -226,6 +220,7 @@ export default async function processMedia(job) {
 
         // Stage 4: render the approved complete upload as a streamable HLS output.
         let concatData;
+        let publishComposedVideo = false;
         try {
             concatData = await concatToStream(
                 workDoc.id,
@@ -235,43 +230,10 @@ export default async function processMedia(job) {
             if (!(error instanceof InvalidMediaStreamError)) {
                 throw error;
             }
-
-            if (recoveryApplied) {
-                await markRecoveryExportFailure(mediaAudit, mediaId, error);
-                throw new Error("Recovered media failed HLS export", {
-                    cause: error,
-                });
-            }
-
-            const recoveryAttempt = await runRecoveryAttempt(
-                mediaAudit,
-                mediaId,
-                localMediaPath,
-                sourceFingerprint,
-                false,
+            publishComposedVideo = true;
+            console.warn(
+                `[processMedia][${mediaId}] HLS conversion rejected; publishing composed original MP4`,
             );
-            mediaAudit = recoveryAttempt.mediaAudit;
-            try {
-                processingMediaPath = recoveryAttempt.recovery.mediaPath;
-                concatData = await concatToStream(
-                    workDoc.id,
-                    processingMediaPath,
-                );
-                recoveryApplied = true;
-            } catch (recoveryOutputError) {
-                if (!(recoveryOutputError instanceof InvalidMediaStreamError)) {
-                    throw recoveryOutputError;
-                }
-
-                await markRecoveryExportFailure(
-                    mediaAudit,
-                    mediaId,
-                    recoveryOutputError,
-                );
-                throw new Error("Recovered media failed HLS export", {
-                    cause: recoveryOutputError,
-                });
-            }
         }
 
         // Stage 5: generate a fallback from the final accepted input, when needed.
@@ -282,14 +244,21 @@ export default async function processMedia(job) {
                 processingMediaPath,
             ));
 
-        // Stage 6: publish only generated HLS files and the staged thumbnail.
-        const publicMedia = await commitMediaToPublic(
-            workDoc.id,
-            concatData,
-            thumbnailPath,
-        );
+        // Stage 6: publish HLS, or the composed MP4 when transcoding rejects it.
+        const publicMedia = publishComposedVideo
+            ? await commitComposedMediaToPublic(
+                workDoc.id,
+                localMediaPath,
+                thumbnailPath,
+            )
+            : await commitMediaToPublic(
+                workDoc.id,
+                concatData,
+                thumbnailPath,
+            );
         localMediaStaged = false;
-        workDoc.manifest.playlist = publicMedia.playlistKey;
+        workDoc.manifest.playlist = publicMedia.playlistKey || null;
+        workDoc.manifest.video = publicMedia.videoKey || null;
         workDoc.manifest.thumbnail = publicMedia.thumbnailKey;
         workDoc.quarantined = false;
 
@@ -321,21 +290,10 @@ export default async function processMedia(job) {
             );
         }
 
-        if (recoveryApplied) {
-            const recoveryStats = mediaAudit?.recovery?.stats;
-            console.info(
-                `[processMedia][${mediaId}][recovery] completed ` +
-                    `video corruption=${formatRecoveryPercent(recoveryStats?.videoCorruptionPercent)} ` +
-                    `audio inserted-silence=${formatRecoveryPercent(recoveryStats?.audioInsertedSilencePercent)} ` +
-                    `${formatRecoveryCuts(recoveryStats)} ` +
-                    formatRecoveryQualityTarget(recoveryStats),
-            );
-        }
-
         return successResult(
             mediaId,
             "processed",
-            recoveryApplied ? "corrupt_media_recovered" : undefined,
+            publishComposedVideo ? "original_media_published" : undefined,
         );
     } catch (error) {
         // the proccessing genuinly threw error and need investigating
