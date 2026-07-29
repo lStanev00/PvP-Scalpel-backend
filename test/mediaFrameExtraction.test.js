@@ -13,8 +13,14 @@ test("moderation extraction guarantees a full-range JPEG for short videos", () =
     assert.equal(args[args.indexOf("-i") + 1], mediaPath);
     assert.equal(args[args.indexOf("-map") + 1], "0:v:0");
     assert.equal(args.includes("-an"), true);
-    assert.match(filter, /fps=1\/20:start_time=0/);
+    assert.equal(
+        filter.includes(
+            "select=eq(n\\,0)+gte(t-prev_selected_t\\,20)",
+        ),
+        true,
+    );
     assert.match(filter, /out_range=full/);
     assert.match(filter, /format=yuvj420p/);
     assert.equal(args[args.indexOf("-pix_fmt") + 1], "yuvj420p");
+    assert.equal(args[args.indexOf("-fps_mode") + 1], "vfr");
 });
