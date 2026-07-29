@@ -173,15 +173,17 @@ export function buildFrameExtractionArgs(mediaPath) {
         "0:v:0",
         "-an",
 
-        // start_time=0 guarantees a sample for valid videos shorter than 20 seconds.
+        // Keep decoded frame zero, then sample only after another 20 seconds.
         "-vf",
-        "fps=1/20:start_time=0,scale=720:-2:out_range=full,format=yuvj420p",
+        "select=eq(n\\,0)+gte(t-prev_selected_t\\,20),scale=720:-2:out_range=full,format=yuvj420p",
 
         // quality of the jpeg (lower is better)
         "-q:v",
         "2",
         "-pix_fmt",
         "yuvj420p",
+        "-fps_mode",
+        "vfr",
 
         // Output JPEG stream to stdout
         "-f",
