@@ -45,13 +45,20 @@ export default async function generateMediaThumbnail(mediaId, mediaPath) {
         "recovery",
         "recovered.mp4",
     );
+    const expectedFFmpegRecoveredPath = path.posix.join(
+        WORK_ROOT,
+        normalizedMediaId,
+        "recovery",
+        "ffmpeg-recovered.mp4",
+    );
     const thumbnailPath = path.posix.join(sourceDirectory, "thumbnail");
     const partialThumbnailPath = `${thumbnailPath}.partial`;
 
     if (
         mediaPath !== expectedMediaPath &&
         mediaPath !== expectedStructuralPath &&
-        mediaPath !== expectedRecoveredPath
+        mediaPath !== expectedRecoveredPath &&
+        mediaPath !== expectedFFmpegRecoveredPath
     ) {
         throw new TypeError(`Unexpected complete media path: ${mediaPath}`);
     }
@@ -76,9 +83,11 @@ export default async function generateMediaThumbnail(mediaId, mediaPath) {
             "1",
             "-an",
             "-vf",
-            "thumbnail=30,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+            "thumbnail=30,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:out_range=full,format=yuvj420p",
             "-q:v",
             "2",
+            "-pix_fmt",
+            "yuvj420p",
             "-vcodec",
             "mjpeg",
             "-f",

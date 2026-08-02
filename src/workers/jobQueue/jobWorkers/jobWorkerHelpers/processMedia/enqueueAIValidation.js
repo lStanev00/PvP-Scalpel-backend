@@ -61,27 +61,7 @@ export default async function enqueueAIValidation(path) {
     }
     path = normalizedPath;
 
-    const ffmpeg = spawn("ffmpeg", [
-        "-hide_banner",
-        "-nostdin",
-        "-i",
-        path,
-
-        // 1 frame every 20 sec and resize to 720p
-        "-vf",
-        "fps=1/20,scale=720:-2",
-
-        // quality of the jpeg (lower is better)
-        "-q:v",
-        "2",
-
-        // Output JPEG stream to stdout
-        "-f",
-        "image2pipe",
-        "-vcodec",
-        "mjpeg",
-        "pipe:1",
-    ]);
+    const ffmpeg = spawn("ffmpeg", buildFrameExtractionArgs(path));
 
     let stderrTail = "";
     let timedOut = false;
@@ -174,6 +154,44 @@ export default async function enqueueAIValidation(path) {
         await stopFFmpeg(ffmpeg, completion);
         throw error;
     }
+}
+
+/**
+ * Builds the FFmpeg command that samples a guaranteed first frame and one
+ * additional frame every twenty seconds as full-range JPEG.
+ *
+ * @param {string} mediaPath
+ * @returns {string[]}
+ */
+export function buildFrameExtractionArgs(mediaPath) {
+    return [
+        "-hide_banner",
+        "-nostdin",
+        "-i",
+        mediaPath,
+        "-map",
+        "0:v:0",
+        "-an",
+
+        // Keep decoded frame zero, then sample only after another 20 seconds.
+        "-vf",
+        "select=eq(n\\,0)+gte(t-prev_selected_t\\,20),scale=720:-2:out_range=full,format=yuvj420p",
+
+        // quality of the jpeg (lower is better)
+        "-q:v",
+        "2",
+        "-pix_fmt",
+        "yuvj420p",
+        "-fps_mode",
+        "vfr",
+
+        // Output JPEG stream to stdout
+        "-f",
+        "image2pipe",
+        "-vcodec",
+        "mjpeg",
+        "pipe:1",
+    ];
 }
 
 function pathModuleSafeNormalize(filePath) {

@@ -5,10 +5,11 @@
         1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
         2. Validate the complete upload's MIME signature.
         3. Moderate the complete upload with the local AI validation service.
-        4. Export the approved upload as HLS, or publish the composed original MP4 if export rejects it.
-        5. Generate a random thumbnail from the final accepted input when none was uploaded.
-        6. Publish the HLS output and thumbnail to public object storage.
-        7. Delete the quarantine sources after the media is persisted as done.
+        4. Export the approved upload as HLS.
+        5. Try FFmpeg salvage, then native reconstruction, when HLS rejects corrupt media.
+        6. Publish recovered HLS or the composed original MP4 fallback with a thumbnail.
+        7. Persist the selected public entry file and mark the media done.
+        8. Delete the quarantine sources after the media is persisted as done.
 
     The proccess itself is not time sensitive and is optimised for workflow completion roughtly estimates work to
     6-20 minutes based on the server setup and proccessing power of the hardware as described in docs\server-resources.md
@@ -27,6 +28,7 @@ import stageMediaLocally, {
 import generateMediaThumbnail from "./processMedia/generateMediaThumbnail.js";
 import assembleMediaParts from "./processMedia/assembleMediaParts.js";
 import recoverCorruptMedia from "./processMedia/recoverCorruptMedia.js";
+import salvageCorruptMedia from "./processMedia/salvageCorruptMedia.js";
 import commitMediaToPublic, {
     commitComposedMediaToPublic,
     deleteQuarantineMedia,
@@ -57,10 +59,11 @@ const RECOVERY_QUALITY_TARGET_PERCENT = 1;
  * 1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
  * 2. Validate the complete upload's MIME signature.
  * 3. Moderate the complete upload with the local AI validation service.
- * 4. Export the approved upload as HLS, or publish the composed original MP4 if export rejects it.
- * 5. Generate a random thumbnail from the final accepted input when none was uploaded.
- * 6. Publish the HLS output and thumbnail to public object storage.
- * 7. Delete the quarantine sources after the media is persisted as done.
+ * 4. Export the approved upload as HLS.
+ * 5. Try FFmpeg salvage, then native reconstruction, when HLS rejects corrupt media.
+ * 6. Publish recovered HLS or the composed original MP4 fallback with a thumbnail.
+ * 7. Persist the selected public entry file and mark the media done.
+ * 8. Delete the quarantine sources after the media is persisted as done.
  *
  * Return values:
  * - `200 / processed`: approved media was exported and marked done.
@@ -98,25 +101,66 @@ export default async function processMedia(job) {
             return failureResult(mediaId, 404, "not_found", "Media document was not found");
         }
         mediaAudit = await MediaAudit.findOne({ media: workDoc._id });
+        const mediaParts = workDoc.manifest?.mediaParts;
+        const expectedQuarantineThumbnailKey = `videos/${mediaId}/thumbnail`;
         const isQuarantinedRetry =
             workDoc.state === "done" && workDoc.quarantined === true;
-        if (workDoc.state !== "need_process" && !isQuarantinedRetry) {
+        const isCleanupRetry =
+            workDoc.state === "done" &&
+            workDoc.quarantined === false &&
+            typeof workDoc.manifest?.video === "string" &&
+            workDoc.manifest.video.length > 0 &&
+            Array.isArray(mediaParts) &&
+            mediaParts.length > 0;
+        if (
+            workDoc.state !== "need_process" &&
+            !isQuarantinedRetry &&
+            !isCleanupRetry
+        ) {
             // this module is for inital proccessin by date: 24.7/26 is subject to change
             // for now will remain as is and will throw if the document is not with state listed on the in block
             return failureResult(
                 mediaId,
                 409,
                 "invalid_state",
-                `Media must be need_process or done and quarantined, received state=${workDoc.state} quarantined=${workDoc.quarantined}`,
+                `Media must require processing, quarantine retry, or pending source cleanup; received state=${workDoc.state} quarantined=${workDoc.quarantined}`,
             );
         }
+
+        if (isCleanupRetry) {
+            console.info(
+                `[processMedia][${mediaId}][quarantine_cleanup] retry started`,
+            );
+            const cleanup = await deleteQuarantineMedia(
+                workDoc.id,
+                mediaParts,
+                expectedQuarantineThumbnailKey,
+                workDoc.state,
+            );
+            if (cleanup.failedKeys.length > 0) {
+                throw new Error(
+                    `Quarantine cleanup still failed for ${cleanup.failedKeys.length} objects`,
+                );
+            }
+
+            workDoc.manifest.mediaParts = [];
+            await workDoc.save();
+            console.info(
+                `[processMedia][${mediaId}][quarantine_cleanup] retry completed`,
+            );
+            return successResult(
+                mediaId,
+                "processed",
+                "quarantine_cleanup_completed",
+            );
+        }
+
         if (isQuarantinedRetry) {
             console.info(
                 `[processMedia][${mediaId}][state] reopening done quarantined media for processing`,
             );
         }
 
-        const mediaParts = workDoc.manifest?.mediaParts; // check for existing parts
         if (!Array.isArray(mediaParts) || mediaParts.length === 0) {
             // if there is no parts the proccessing can't continue and has to throw an err
             throw new Error("Media document has no manifest media parts");
@@ -126,7 +170,6 @@ export default async function processMedia(job) {
         await workDoc.save();
         claimedProcessing = true;
 
-        const expectedQuarantineThumbnailKey = `videos/${mediaId}/thumbnail`;
         const quarantineThumbnailKey =
             workDoc.manifest?.thumbnail === expectedQuarantineThumbnailKey
                 ? expectedQuarantineThumbnailKey
@@ -153,7 +196,6 @@ export default async function processMedia(job) {
             workDoc.id,
             stagedMedia.mediaPartPaths,
         );
-        const processingMediaPath = localMediaPath;
 
         if (recoveryRetry) {
             console.info(
@@ -218,33 +260,132 @@ export default async function processMedia(job) {
             console.info(`[processMedia][${mediaId}][moderation] allowed`);
         }
 
-        // Stage 4: render the approved complete upload as a streamable HLS output.
+        // Stages 4-5: export HLS, then recover corrupt media in bounded layers.
         let concatData;
         let publishComposedVideo = false;
+        let publicationReason;
+        let thumbnailMediaPath = localMediaPath;
+
+        console.info(
+            `[processMedia][${mediaId}][initial_hls] conversion started`,
+        );
         try {
             concatData = await concatToStream(
                 workDoc.id,
-                processingMediaPath,
+                localMediaPath,
+            );
+            console.info(
+                `[processMedia][${mediaId}][initial_hls] conversion completed`,
             );
         } catch (error) {
             if (!(error instanceof InvalidMediaStreamError)) {
                 throw error;
             }
-            publishComposedVideo = true;
             console.warn(
-                `[processMedia][${mediaId}] HLS conversion rejected; publishing composed original MP4`,
+                `[processMedia][${mediaId}][initial_hls] corrupt stream rejected`,
             );
+
+            let salvagedMediaPath;
+            console.info(
+                `[processMedia][${mediaId}][ffmpeg_salvage] recovery started`,
+            );
+            try {
+                salvagedMediaPath = await salvageCorruptMedia(
+                    mediaId,
+                    localMediaPath,
+                );
+                console.info(
+                    `[processMedia][${mediaId}][ffmpeg_salvage] recovery output created`,
+                );
+            } catch (salvageError) {
+                if (!(salvageError instanceof InvalidMediaStreamError)) {
+                    throw salvageError;
+                }
+                console.warn(
+                    `[processMedia][${mediaId}][ffmpeg_salvage] corrupt stream could not be salvaged`,
+                );
+            }
+
+            if (salvagedMediaPath) {
+                try {
+                    concatData = await concatToStream(
+                        workDoc.id,
+                        salvagedMediaPath,
+                    );
+                    thumbnailMediaPath = salvagedMediaPath;
+                    publicationReason = "corrupt_media_salvaged";
+                    console.info(
+                        `[processMedia][${mediaId}][ffmpeg_salvage] HLS conversion completed`,
+                    );
+                } catch (salvagedHLSError) {
+                    if (!(salvagedHLSError instanceof InvalidMediaStreamError)) {
+                        throw salvagedHLSError;
+                    }
+                    console.warn(
+                        `[processMedia][${mediaId}][ffmpeg_salvage] recovered output was rejected by HLS`,
+                    );
+                }
+            }
+
+            if (!concatData) {
+                const recoveryAttempt = await runRecoveryAttempt(
+                    mediaAudit,
+                    mediaId,
+                    localMediaPath,
+                    sourceFingerprint,
+                    recoveryRetry,
+                );
+                mediaAudit = recoveryAttempt.mediaAudit;
+
+                if (recoveryAttempt.recovery.succeed) {
+                    try {
+                        concatData = await concatToStream(
+                            workDoc.id,
+                            recoveryAttempt.recovery.mediaPath,
+                        );
+                        thumbnailMediaPath =
+                            recoveryAttempt.recovery.mediaPath;
+                        publicationReason = "corrupt_media_recovered";
+                        console.info(
+                            `[processMedia][${mediaId}][native_recovery] HLS conversion completed`,
+                        );
+                    } catch (recoveredHLSError) {
+                        if (
+                            !(
+                                recoveredHLSError instanceof
+                                InvalidMediaStreamError
+                            )
+                        ) {
+                            throw recoveredHLSError;
+                        }
+                        await markRecoveryExportFailure(
+                            mediaAudit,
+                            mediaId,
+                            recoveredHLSError,
+                        );
+                    }
+                }
+            }
+
+            if (!concatData) {
+                publishComposedVideo = true;
+                publicationReason = "original_media_published";
+                thumbnailMediaPath = localMediaPath;
+                console.warn(
+                    `[processMedia][${mediaId}][raw_fallback] recovery rejected; publishing composed original MP4`,
+                );
+            }
         }
 
-        // Stage 5: generate a fallback from the final accepted input, when needed.
+        // Stage 6: generate a thumbnail from the selected publication input.
         const thumbnailPath =
             stagedMedia.thumbnailPath ||
             (await generateMediaThumbnail(
                 workDoc.id,
-                processingMediaPath,
+                thumbnailMediaPath,
             ));
 
-        // Stage 6: publish HLS, or the composed MP4 when transcoding rejects it.
+        // Stage 6: publish HLS, or the composed MP4 after both recovery layers reject it.
         const publicMedia = publishComposedVideo
             ? await commitComposedMediaToPublic(
                 workDoc.id,
@@ -257,15 +398,18 @@ export default async function processMedia(job) {
                 thumbnailPath,
             );
         localMediaStaged = false;
+
+        // Stage 7: persist the selected public entry file and terminal state.
         workDoc.manifest.playlist = publicMedia.playlistKey || null;
-        workDoc.manifest.video = publicMedia.videoKey || null;
+        workDoc.manifest.video =
+            publicMedia.playlistKey || publicMedia.videoKey || null;
         workDoc.manifest.thumbnail = publicMedia.thumbnailKey;
         workDoc.quarantined = false;
 
         await finishProcessing(workDoc);
         claimedProcessing = false;
 
-        // Stage 7: remove exact quarantine sources only after state `done` is persisted.
+        // Stage 8: remove exact quarantine sources only after state `done` is persisted.
         try {
             const cleanup = await deleteQuarantineMedia(
                 workDoc.id,
@@ -293,7 +437,7 @@ export default async function processMedia(job) {
         return successResult(
             mediaId,
             "processed",
-            publishComposedVideo ? "original_media_published" : undefined,
+            publicationReason,
         );
     } catch (error) {
         // the proccessing genuinly threw error and need investigating
@@ -396,7 +540,7 @@ async function runRecoveryAttempt(
         lastError: null,
     });
     console.info(
-        `[processMedia][${mediaId}][recovery] attempt=${attempts} mode=${isRetry ? "retry" : "initial"} started`,
+        `[processMedia][${mediaId}][native_recovery] attempt=${attempts} mode=${isRetry ? "retry" : "initial"} started`,
     );
 
     let recovery;
@@ -430,7 +574,7 @@ async function runRecoveryAttempt(
             ),
         );
         console.error(
-            `[processMedia][${mediaId}][recovery] attempt=${attempts} operational failure: ${truncateRecoveryMessage(handledError.message)}`,
+            `[processMedia][${mediaId}][native_recovery] attempt=${attempts} operational failure: ${truncateRecoveryMessage(handledError.message)}`,
         );
         throw handledError;
     }
@@ -457,17 +601,18 @@ async function runRecoveryAttempt(
             `audio inserted-silence=${formatRecoveryPercent(recovery.stats?.audioInsertedSilencePercent)} ` +
             formatRecoveryCuts(recovery.stats);
         console.warn(
-            `[processMedia][${mediaId}][recovery] attempt=${attempts} unsuccessful ` +
+            `[processMedia][${mediaId}][native_recovery] attempt=${attempts} unsuccessful ` +
                 `reason=${recovery.reason} ${ratioSummary} ${corruptionSummary}; ` +
-                "state will reset to need_process",
+                "raw fallback selected",
         );
-        throw new Error(
-            `Media recovery was unsuccessful: ${recovery.reason} (${ratioSummary})`,
-        );
+        return {
+            recovery,
+            mediaAudit,
+        };
     }
 
     console.info(
-        `[processMedia][${mediaId}][recovery] attempt=${attempts} native accepted ` +
+        `[processMedia][${mediaId}][native_recovery] attempt=${attempts} accepted ` +
             `method=${recovery.method} video=${formatRecoveryRatio(recovery.videoRatio)} ` +
             `audio=${formatRecoveryRatio(recovery.audioRatio)} ` +
             `video corruption=${formatRecoveryPercent(recovery.stats?.videoCorruptionPercent)} ` +
@@ -494,8 +639,8 @@ async function markRecoveryExportFailure(mediaAudit, mediaId, error) {
     mediaAudit.recovery.lastError = truncateRecoveryMessage(message);
     mediaAudit.markModified("recovery");
     await mediaAudit.save();
-    console.error(
-        `[processMedia][${mediaId}][recovery] recovered input failed HLS export ` +
+    console.warn(
+        `[processMedia][${mediaId}][native_recovery] recovered input failed HLS export ` +
             `video corruption=${formatRecoveryPercent(recoveryStats?.videoCorruptionPercent)} ` +
             `audio inserted-silence=${formatRecoveryPercent(recoveryStats?.audioInsertedSilencePercent)} ` +
             `${formatRecoveryCuts(recoveryStats)}: ` +
