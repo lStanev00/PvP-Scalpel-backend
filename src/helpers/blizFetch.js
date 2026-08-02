@@ -33,7 +33,7 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             class: data.character_class.id,
             race: data.race.name,
             // activeSpec: { name: data.active_spec.name },
-            activeSpec: data.active_spec.id || null,
+            activeSpec: data.active_spec?.id || null,
             guildName : data?.guild?.name,
             guildMember: data?.guild?.name == "PvP Scalpel" ? true : false,
         };
