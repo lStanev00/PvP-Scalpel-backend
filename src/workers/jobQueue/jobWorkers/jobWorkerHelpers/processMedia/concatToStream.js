@@ -13,7 +13,7 @@ import path from "node:path";
 const WORK_ROOT = "/mnt/work";
 const STDERR_TAIL_LIMIT = 8 * 1024;
 const INVALID_MEDIA_STREAM_PATTERN =
-    /(?:invalid data found when processing input|invalid nal unit(?: size)?|error splitting the input into nal units|corrupt decoded frame|error submitting packet to decoder|error while decoding stream|decode_slice_header error|packet corrupt|channel element \d+\.\d+ is not allocated|input buffer exhausted before end element found|could not find codec parameters)/i;
+    /(?:invalid data found when processing input|invalid nal unit(?: size)?|error splitting the input into nal units|corrupt decoded frame|error submitting packet to decoder|error while decoding stream|decode_slice_header error|packet corrupt|channel element \d+\.\d+ is not allocated|input buffer exhausted before end element found|could not find codec parameters|output file does not contain any stream|nothing was written into output file)/i;
 const FFMPEG_TIMEOUT_MS = readPositiveInteger(
     process.env.MEDIA_FFMPEG_TIMEOUT_MS,
     60 * 60 * 1000,
@@ -27,6 +27,16 @@ export class InvalidMediaStreamError extends Error {
         super(message);
         this.name = "InvalidMediaStreamError";
     }
+}
+
+/**
+ * Identifies FFmpeg diagnostics caused by invalid media bytes.
+ *
+ * @param {string} details
+ * @returns {boolean}
+ */
+export function isInvalidMediaStreamFailure(details) {
+    return INVALID_MEDIA_STREAM_PATTERN.test(details);
 }
 
 /**
@@ -101,10 +111,17 @@ function resolveMediaPath(mediaId, mediaPath) {
         "recovery",
         "structural.mp4",
     );
+    const ffmpegRecoveredPath = path.posix.join(
+        WORK_ROOT,
+        mediaId,
+        "recovery",
+        "ffmpeg-recovered.mp4",
+    );
     if (
         mediaPath !== sourcePath &&
         mediaPath !== recoveredPath &&
-        mediaPath !== structuralPath
+        mediaPath !== structuralPath &&
+        mediaPath !== ffmpegRecoveredPath
     ) {
         throw new TypeError(
             "Invalid complete media path for this isolated media job",
@@ -235,7 +252,7 @@ function runFFmpeg(args) {
                 `${details ? `: ${details}` : ""}`;
 
             reject(
-                INVALID_MEDIA_STREAM_PATTERN.test(details)
+                isInvalidMediaStreamFailure(details)
                     ? new InvalidMediaStreamError(message)
                     : new Error(message),
             );

@@ -26,6 +26,8 @@ const MAX_SOURCE_AUDIO_FRAME_SAMPLES: usize = 262_144;
 const MAX_RESAMPLED_AUDIO_FRAME_SAMPLES: usize = 2_000_000;
 const MAX_AUDIO_FIFO_SAMPLES: usize = 2_000_000;
 const AUDIO_SILENCE_CHUNK_SAMPLES: u64 = 4_096;
+const MAX_AUDIO_FORMAT_CHANGES: u32 = 16;
+const MAX_AUDIO_RESAMPLER_FAILURES: u32 = 16;
 const MAX_FRAME_RATE: f64 = 60.0;
 const FALLBACK_FRAME_RATE: i32 = 30;
 const MAX_WIDTH: u32 = 1_280;
@@ -680,6 +682,62 @@ fn valid_audio_frame(frame: &ffmpeg::frame::Audio) -> bool {
         && frame.samples() <= MAX_SOURCE_AUDIO_FRAME_SAMPLES
         && (MIN_SOURCE_AUDIO_RATE..=MAX_SOURCE_AUDIO_RATE).contains(&frame.rate())
         && (1..=MAX_SOURCE_AUDIO_CHANNELS).contains(&channels)
+        && audio_samples_are_finite(frame, channels as usize)
+}
+
+fn audio_samples_are_finite(frame: &ffmpeg::frame::Audio, channels: usize) -> bool {
+    let (component_width, finite_component): (usize, fn(&[u8]) -> bool) = match frame.format() {
+        format::Sample::F32(_) => (std::mem::size_of::<f32>(), |bytes| {
+            f32::from_ne_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]).is_finite()
+        }),
+        format::Sample::F64(_) => (std::mem::size_of::<f64>(), |bytes| {
+            f64::from_ne_bytes([
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+            ])
+            .is_finite()
+        }),
+        _ => return true,
+    };
+    if channels == 0 {
+        return false;
+    }
+
+    let planar = frame.format().is_planar();
+    let plane_count = if planar { channels } else { 1 };
+    let components_per_plane = if planar {
+        frame.samples()
+    } else {
+        match frame.samples().checked_mul(channels) {
+            Some(components) => components,
+            None => return false,
+        }
+    };
+    let required_bytes = match components_per_plane.checked_mul(component_width) {
+        Some(bytes) => bytes,
+        None => return false,
+    };
+    if frame.planes() < plane_count {
+        return false;
+    }
+
+    unsafe {
+        let raw = frame.as_ptr();
+        let line_size = usize::try_from((*raw).linesize[0]).unwrap_or(0);
+        let extended_data = (*raw).extended_data;
+        if line_size < required_bytes || extended_data.is_null() {
+            return false;
+        }
+
+        (0..plane_count).all(|plane| {
+            let data = *extended_data.add(plane);
+            if data.is_null() {
+                return false;
+            }
+            std::slice::from_raw_parts(data, required_bytes)
+                .chunks_exact(component_width)
+                .all(finite_component)
+        })
+    }
 }
 
 fn validate_video_decoder_limits(
@@ -723,6 +781,50 @@ fn ensure_audio_frame_allocated(
     } else {
         Ok(())
     }
+}
+
+fn zero_audio_frame(
+    frame: &mut ffmpeg::frame::Audio,
+    context: &'static str,
+) -> Result<(), OperationalError> {
+    ensure_audio_frame_allocated(frame, context)?;
+    let channels = usize::from(frame.channels());
+    let sample_width = frame.format().bytes();
+    if channels == 0 || sample_width == 0 {
+        return Err(OperationalError::new(context));
+    }
+
+    let planar = frame.format().is_planar();
+    let plane_count = if planar { channels } else { 1 };
+    let components_per_plane = if planar {
+        frame.samples()
+    } else {
+        frame
+            .samples()
+            .checked_mul(channels)
+            .ok_or_else(|| OperationalError::new(context))?
+    };
+    let required_bytes = components_per_plane
+        .checked_mul(sample_width)
+        .ok_or_else(|| OperationalError::new(context))?;
+
+    unsafe {
+        let raw = frame.as_mut_ptr();
+        let line_size =
+            usize::try_from((*raw).linesize[0]).map_err(|_| OperationalError::new(context))?;
+        let extended_data = (*raw).extended_data;
+        if line_size < required_bytes || extended_data.is_null() {
+            return Err(OperationalError::new(context));
+        }
+        for plane in 0..plane_count {
+            let data = *extended_data.add(plane);
+            if data.is_null() {
+                return Err(OperationalError::new(context));
+            }
+            std::ptr::write_bytes(data, 0, line_size);
+        }
+    }
+    Ok(())
 }
 
 fn frame_decode_error_flags<T>(frame: &T) -> i32
@@ -801,6 +903,24 @@ fn is_again_or_eof(error: ffmpeg::Error) -> bool {
 
 fn is_recoverable_demux_end(error: ffmpeg::Error) -> bool {
     matches!(error, ffmpeg::Error::Eof | ffmpeg::Error::InvalidData)
+}
+
+fn is_recoverable_resampler_definition_error(error: ffmpeg::Error) -> bool {
+    matches!(
+        error,
+        ffmpeg::Error::InvalidData
+            | ffmpeg::Error::InputChanged
+            | ffmpeg::Error::OutputChanged
+            | ffmpeg::Error::Other {
+                errno: ffmpeg::error::EINVAL
+            }
+            | ffmpeg::Error::Other {
+                errno: ffmpeg::error::ENOSYS
+            }
+            | ffmpeg::Error::Other {
+                errno: ffmpeg::error::ENOTSUP
+            }
+    )
 }
 
 fn stage_log(media_id: &str, stage: &str, message: &str) {
@@ -889,6 +1009,18 @@ fn reconstruct(paths: &RecoveryPaths) -> Result<Outcome, OperationalError> {
             return Err(error);
         }
     };
+    if encoded.audio_format_changes > 0 || encoded.skipped_audio_format_frames > 0 {
+        stage_log(
+            &paths.media_id,
+            "audio",
+            &format!(
+                "resampler_changes={} init_failures={} skipped_format_frames={}",
+                encoded.audio_format_changes,
+                encoded.audio_resampler_failures,
+                encoded.skipped_audio_format_frames,
+            ),
+        );
+    }
     validate_output_file(&paths.partial_output).map_err(OperationalError::new)?;
 
     let strict = match strict_validate(&paths.partial_output) {
@@ -1319,7 +1451,9 @@ fn drain_analysis_frames(
                         frame.is_key(),
                     )
                 } else {
-                    let damage_timestamp_ms = next_damage_timestamp(
+                    let damage_timestamp_ms = timeline_observation_timestamp(
+                        timestamp_ms,
+                        false,
                         *last_trustworthy_timestamp_ms,
                         *consecutive_damage_ms,
                         source.frame_duration_ms,
@@ -1480,8 +1614,8 @@ fn tolerant_video_decoder(
         "failed to configure tolerant video decoder",
     ))?;
     context.set_threading(codec::threading::Config {
-        kind: codec::threading::Type::Frame,
-        count: 2,
+        kind: codec::threading::Type::None,
+        count: 1,
     });
     let mut decoder = context.decoder();
     decoder.set_packet_time_base(time_base);
@@ -1577,6 +1711,24 @@ fn next_damage_timestamp(
     base.saturating_add(i64::try_from(consecutive_damage_ms).unwrap_or(i64::MAX))
 }
 
+fn timeline_observation_timestamp(
+    candidate_timestamp_ms: i64,
+    clean: bool,
+    last_trustworthy_timestamp_ms: Option<i64>,
+    consecutive_damage_ms: u64,
+    frame_duration_ms: u64,
+) -> i64 {
+    if clean {
+        candidate_timestamp_ms
+    } else {
+        next_damage_timestamp(
+            last_trustworthy_timestamp_ms,
+            consecutive_damage_ms,
+            frame_duration_ms,
+        )
+    }
+}
+
 fn milliseconds_to_samples_floor(milliseconds: u64) -> u64 {
     milliseconds.saturating_mul(u64::from(AUDIO_RATE)) / 1_000
 }
@@ -1590,6 +1742,9 @@ fn milliseconds_to_samples_ceil(milliseconds: u64) -> u64 {
 
 struct EncodedRecovery {
     stats: Stats,
+    audio_format_changes: u32,
+    audio_resampler_failures: u32,
+    skipped_audio_format_frames: u64,
 }
 
 fn encode_reconstruction(
@@ -1698,7 +1853,14 @@ fn encode_reconstruction(
         || video_rebuilder.edit_map.as_ref() != Some(&analysis.edit_map)
     {
         return Err(PipelineFailure::Operational(OperationalError::new(
-            "video decode changed between analysis and reconstruction passes",
+            format!(
+                "video decode changed between deterministic passes: analysis_output={} rebuilt_output={} analysis_removed={} rebuilt_removed={} edit_map_match={}",
+                analysis.summary.output_frames,
+                rebuilt_summary.output_frames,
+                analysis.summary.removed_frames,
+                rebuilt_summary.removed_frames,
+                video_rebuilder.edit_map.as_ref() == Some(&analysis.edit_map),
+            ),
         )));
     }
 
@@ -1706,7 +1868,18 @@ fn encode_reconstruction(
     stats.inserted_audio_silence_ms = audio_rebuilder
         .as_ref()
         .map_or(0, |rebuilder| rebuilder.inserted_silence_ms);
-    Ok(EncodedRecovery { stats })
+    Ok(EncodedRecovery {
+        stats,
+        audio_format_changes: audio_rebuilder
+            .as_ref()
+            .map_or(0, |rebuilder| rebuilder.format_changes),
+        audio_resampler_failures: audio_rebuilder
+            .as_ref()
+            .map_or(0, |rebuilder| rebuilder.resampler_init_failures),
+        skipped_audio_format_frames: audio_rebuilder
+            .as_ref()
+            .map_or(0, |rebuilder| rebuilder.skipped_format_change_frames),
+    })
 }
 
 struct NativeMuxer {
@@ -2066,12 +2239,16 @@ impl VideoRebuilder {
                         self.apply_actions(actions, Some(&frame), muxer)?;
                         self.input_index = self.input_index.saturating_add(1);
                     } else {
-                        let damage_timestamp_ms = if timestamp_valid {
-                            timestamp_ms
-                        } else {
-                            self.synthetic_timestamp()
-                        };
-                        self.observe_damage(damage_timestamp_ms)?;
+                        // Rejected pixels must never anchor the source timeline,
+                        // even when their decoder-provided timestamp looks valid.
+                        // This mirrors the analysis pass exactly.
+                        self.observe_damage(timeline_observation_timestamp(
+                            timestamp_ms,
+                            false,
+                            self.last_trustworthy_timestamp_ms,
+                            self.consecutive_damage_ms,
+                            self.frame_duration_ms,
+                        ))?;
                     }
                     self.last_trustworthy_timestamp_ms = retain_trustworthy_timestamp(
                         self.last_trustworthy_timestamp_ms,
@@ -2411,6 +2588,10 @@ struct AudioRebuilder {
     inserted_silence_ms: u64,
     last_timestamp: Option<i64>,
     resampler_source_cursor: Option<i64>,
+    format_changes: u32,
+    rejected_resampler_input: Option<(format::Sample, ffmpeg::ChannelLayout, u32)>,
+    resampler_init_failures: u32,
+    skipped_format_change_frames: u64,
 }
 
 impl AudioRebuilder {
@@ -2439,6 +2620,10 @@ impl AudioRebuilder {
             inserted_silence_ms: 0,
             last_timestamp: None,
             resampler_source_cursor: None,
+            format_changes: 0,
+            rejected_resampler_input: None,
+            resampler_init_failures: 0,
+            skipped_format_change_frames: 0,
         })
     }
 
@@ -2500,26 +2685,52 @@ impl AudioRebuilder {
             .resampler_input
             .is_some_and(|current| current != definition)
         {
-            return Err(PipelineFailure::Operational(OperationalError::new(
-                "audio format changed during recovery",
-            )));
+            if self.format_changes >= MAX_AUDIO_FORMAT_CHANGES {
+                self.skipped_format_change_frames =
+                    self.skipped_format_change_frames.saturating_add(1);
+                return Ok(());
+            }
+            self.flush_resampler(muxer)?;
+            self.resampler = None;
+            self.resampler_input = None;
+            self.format_changes = self.format_changes.saturating_add(1);
         }
         if self.resampler.is_none() {
-            self.resampler = Some(
-                resampling::Context::get(
-                    frame.format(),
-                    layout,
-                    frame.rate(),
-                    self.output_format,
-                    ffmpeg::ChannelLayout::STEREO,
-                    AUDIO_RATE,
-                )
-                .map_err(|error| {
-                    PipelineFailure::Operational(OperationalError::new(format!(
-                        "failed to initialize audio resampler: {error}"
-                    )))
-                })?,
-            );
+            if self
+                .rejected_resampler_input
+                .is_some_and(|rejected| rejected == definition)
+                || self.resampler_init_failures >= MAX_AUDIO_RESAMPLER_FAILURES
+            {
+                self.skipped_format_change_frames =
+                    self.skipped_format_change_frames.saturating_add(1);
+                return Ok(());
+            }
+            match resampling::Context::get(
+                frame.format(),
+                layout,
+                frame.rate(),
+                self.output_format,
+                ffmpeg::ChannelLayout::STEREO,
+                AUDIO_RATE,
+            ) {
+                Ok(resampler) => {
+                    self.resampler = Some(resampler);
+                    self.rejected_resampler_input = None;
+                }
+                Err(error) if is_recoverable_resampler_definition_error(error) => {
+                    self.rejected_resampler_input = Some(definition);
+                    self.resampler_init_failures =
+                        self.resampler_init_failures.saturating_add(1);
+                    self.skipped_format_change_frames =
+                        self.skipped_format_change_frames.saturating_add(1);
+                    return Ok(());
+                }
+                Err(error) => {
+                    return Err(PipelineFailure::Operational(OperationalError::new(
+                        format!("failed to initialize audio resampler: {error}"),
+                    )));
+                }
+            }
             self.resampler_input = Some(definition);
         }
 
@@ -2598,6 +2809,9 @@ impl AudioRebuilder {
             return Err(PipelineFailure::Operational(OperationalError::new(
                 "audio resampler exceeded its bounded output frame",
             )));
+        }
+        if !audio_samples_are_finite(&converted, 2) {
+            return Ok(());
         }
 
         let slices = self
@@ -2723,6 +2937,11 @@ impl AudioRebuilder {
             muxer.write_audio_frame(&frame)?;
             self.emitted_samples = self.emitted_samples.saturating_add(remaining as u64);
         }
+        self.inserted_silence_samples = self
+            .inserted_silence_samples
+            .saturating_add(self.fifo.replaced_non_finite_samples);
+        self.inserted_silence_ms =
+            self.inserted_silence_samples.saturating_mul(1_000) / u64::from(AUDIO_RATE);
         Ok(())
     }
 
@@ -2760,8 +2979,10 @@ impl AudioRebuilder {
                 let slices = self.edit_map.retained_slices(source_start, count);
                 self.resampler_source_cursor =
                     Some(source_start.saturating_add(i64::try_from(count).unwrap_or(i64::MAX)));
-                for slice in slices {
-                    self.write_edited_slice(&converted, slice, muxer)?;
+                if audio_samples_are_finite(&converted, 2) {
+                    for slice in slices {
+                        self.write_edited_slice(&converted, slice, muxer)?;
+                    }
                 }
             }
             if remaining.is_none() || count == 0 {
@@ -2782,6 +3003,7 @@ struct AudioFifo {
     format: format::Sample,
     layout: ffmpeg::ChannelLayout,
     channels: usize,
+    replaced_non_finite_samples: u64,
 }
 
 impl AudioFifo {
@@ -2810,6 +3032,7 @@ impl AudioFifo {
             format,
             layout,
             channels,
+            replaced_non_finite_samples: 0,
         })
     }
 
@@ -2826,9 +3049,7 @@ impl AudioFifo {
         let mut frame = ffmpeg::frame::Audio::new(self.format, samples, self.layout);
         ensure_audio_frame_allocated(&frame, "failed to allocate an audio silence frame")?;
         frame.set_rate(AUDIO_RATE);
-        for plane in 0..frame.planes() {
-            frame.data_mut(plane).fill(0);
-        }
+        zero_audio_frame(&mut frame, "failed to zero an audio silence frame")?;
         self.write_frame(&frame, 0, samples)
     }
 
@@ -2938,9 +3159,7 @@ impl AudioFifo {
         frame.set_pts(Some(i64::try_from(pts).map_err(|_| {
             OperationalError::new("audio frame timestamp cannot be represented")
         })?));
-        for plane in 0..frame.planes() {
-            frame.data_mut(plane).fill(0);
-        }
+        zero_audio_frame(&mut frame, "failed to zero an audio encoder frame")?;
         let sample_count_i32 = i32::try_from(samples)
             .map_err(|_| OperationalError::new("audio FIFO read count cannot be represented"))?;
         let read = unsafe {
@@ -2954,6 +3173,15 @@ impl AudioFifo {
             return Err(OperationalError::new(
                 "audio FIFO returned an incomplete frame",
             ));
+        }
+        if !audio_samples_are_finite(&frame, self.channels) {
+            zero_audio_frame(
+                &mut frame,
+                "failed to replace non-finite reconstructed audio",
+            )?;
+            self.replaced_non_finite_samples = self
+                .replaced_non_finite_samples
+                .saturating_add(samples as u64);
         }
         Ok(frame)
     }
@@ -3145,6 +3373,57 @@ mod tests {
     }
 
     #[test]
+    fn rejects_non_finite_planar_audio_samples() {
+        let mut frame = ffmpeg::frame::Audio::new(
+            format::Sample::F32(format::sample::Type::Planar),
+            8,
+            ffmpeg::ChannelLayout::STEREO,
+        );
+        frame.set_rate(AUDIO_RATE);
+        for plane in 0..frame.planes() {
+            frame.plane_mut::<f32>(plane).fill(0.0);
+        }
+        assert!(audio_samples_are_finite(&frame, 2));
+
+        frame.plane_mut::<f32>(1)[1] = f32::NAN;
+        assert!(!audio_samples_are_finite(&frame, 2));
+    }
+
+    #[test]
+    fn zeroes_every_planar_audio_plane() {
+        let mut frame = ffmpeg::frame::Audio::new(
+            format::Sample::F32(format::sample::Type::Planar),
+            8,
+            ffmpeg::ChannelLayout::STEREO,
+        );
+        frame.set_rate(AUDIO_RATE);
+        frame.plane_mut::<f32>(0).fill(1.0);
+        frame.plane_mut::<f32>(1).fill(f32::NAN);
+
+        zero_audio_frame(&mut frame, "test frame must be allocated").unwrap();
+
+        for plane in 0..frame.planes() {
+            assert!(frame.plane::<f32>(plane).iter().all(|sample| *sample == 0.0));
+        }
+        assert!(audio_samples_are_finite(&frame, 2));
+    }
+
+    #[test]
+    fn rejects_non_finite_packed_audio_samples() {
+        let mut frame = ffmpeg::frame::Audio::new(
+            format::Sample::F64(format::sample::Type::Packed),
+            8,
+            ffmpeg::ChannelLayout::STEREO,
+        );
+        frame.set_rate(AUDIO_RATE);
+        frame.plane_mut::<(f64, f64)>(0).fill((0.0, 0.0));
+        assert!(audio_samples_are_finite(&frame, 2));
+
+        frame.plane_mut::<(f64, f64)>(0)[0].1 = f64::INFINITY;
+        assert!(!audio_samples_are_finite(&frame, 2));
+    }
+
+    #[test]
     fn identifies_materially_variable_frame_rate_metadata() {
         assert!(!materially_different_frame_rates(
             Rational(30_000, 1_001),
@@ -3164,10 +3443,39 @@ mod tests {
     }
 
     #[test]
+    fn distinguishes_bad_resampler_definitions_from_operational_failures() {
+        assert!(is_recoverable_resampler_definition_error(
+            ffmpeg::Error::InvalidData
+        ));
+        assert!(is_recoverable_resampler_definition_error(
+            ffmpeg::Error::Other {
+                errno: ffmpeg::error::EINVAL,
+            }
+        ));
+        assert!(!is_recoverable_resampler_definition_error(
+            ffmpeg::Error::Other {
+                errno: ffmpeg::error::ENOMEM,
+            }
+        ));
+    }
+
+    #[test]
     fn damaged_timestamp_does_not_replace_the_last_trustworthy_timestamp() {
         let last = Some(1_000);
         assert_eq!(retain_trustworthy_timestamp(last, 900_000, false), last);
         assert_eq!(retain_trustworthy_timestamp(last, 1_033, true), Some(1_033));
+    }
+
+    #[test]
+    fn rejected_frame_ignores_a_plausible_decoder_timestamp() {
+        assert_eq!(
+            timeline_observation_timestamp(50_000, false, Some(1_000), 80, 40),
+            1_120,
+        );
+        assert_eq!(
+            timeline_observation_timestamp(1_040, true, Some(1_000), 80, 40),
+            1_040,
+        );
     }
 
     #[test]

@@ -48,8 +48,9 @@ Required:
 - `REDISPORT` - Redis port (used when `IS_LOCAL=false`).
 - `CDN_PRIVATE_DOMAIN` - internal CDN host for refreshes.
 - `CDN_PORT` - internal CDN port.
-- `JWT_CDN_PUBLIC` - token for CDN requests.
+- `JWT_CDN_PUBLIC` - shared destructive-operation token; it must be identical in the worker and storage-service environments.
 - `STORAGE_LOCAL_ENDPOINT` - internal MinIO Docker origin used by media workers; defaults to `http://minio:4010`.
+- `STORAGE_REST_ENDPOINT` - internal storage REST origin used for authenticated deletion; worker images default to `http://storage:4002`.
 - `MEDIA_DOWNLOAD_TIMEOUT_MS` - maximum time for one quarantine-object download; defaults to 10 minutes.
 - `MEDIA_MAX_PARTS` - maximum staged parts per media job; defaults to 100.
 - `MEDIA_MAX_PART_BYTES` - maximum bytes per staged media part; defaults to 512 MiB.
