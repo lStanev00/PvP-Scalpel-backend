@@ -352,18 +352,42 @@ const helpFetch = {
     },
 
     getCharMedia: async function (href) {
+        let data;
         try {
-            const data = (await helpFetch.fetchBlizzard(href)).assets;
-            const assets = {
-                avatar: (data[0])[`value`] || "",
-                banner: (data[1])[`value`] || "",
-                charImg: (data[2])[`value`] || "",
-            }
-            return assets
+            data = (await helpFetch.fetchBlizzard(href)).assets;
         } catch (error) {
-            console.log(error)
-            return {}
+            console.warn(`data retrival for the character assets failed at getCharMedia data fetch`)
+            return {};            
         }
+        try {
+            if (Array.isArray(data)) {
+                const avatarIndex = data.findIndex( (entry) => entry?.key === "avatar" );
+                
+                const assets = {};
+                if(typeof avatarIndex === "number" && avatarIndex !== -1) {
+                    const avatar = data.splice(avatarIndex, 1)[0];
+                    assets.avatar = avatar.value || "";
+                };
+                const charImgIndex = data.findIndex( (entry) => entry?.key === "main-raw" );
+                if(typeof charImgIndex === "number" && charImgIndex !== -1) {
+                    const charImg = data.splice(charImgIndex, 1)[0];
+                    assets.charImg = charImg.value || "";
+                }
+                if(data.length !== 0) {
+                    assets.banner = data?.[0]?.value || "";
+                }
+                return assets
+            }
+            return {};
+            // const assets = {
+            //     avatar: (data[0])[`value`] || "",
+            //     banner: (data[1])[`value`] || "",
+            //     charImg: (data[2])[`value`] || "",
+            // }
+        } catch (error) {
+            console.error(error)
+            return {};
+        };
     },
     getCharGear: async function (href) {
         try {
