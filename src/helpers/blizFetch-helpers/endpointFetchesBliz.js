@@ -354,7 +354,20 @@ const helpFetch = {
     getCharMedia: async function (href) {
         try {
             const response = await helpFetch.fetchBlizzard(href);
-            const data = generateMissingCharacterAssets(response?.assets);
+            const fetchedAssets = Array.isArray(response?.assets) ? response.assets : [];
+            const requiredAssetKeys = ["avatar", "inset", "main-raw"];
+            const hasMissingAssets = requiredAssetKeys.some(
+                (key) =>
+                    !fetchedAssets.some(
+                        (entry) =>
+                            entry?.key === key &&
+                            typeof entry?.value === "string" &&
+                            entry.value.length > 0,
+                    ),
+            );
+            const data = hasMissingAssets
+                ? generateMissingCharacterAssets(fetchedAssets)
+                : fetchedAssets;
 
             const avatar = data.find((entry) => entry.key === "avatar");
             const banner = data.find((entry) => entry.key === "inset");
