@@ -18,7 +18,7 @@ mediaCTRL.get("/userMedia", requireAdmin, userMediaGET);
 
 // specifical controllers for the videos;
 mediaCTRL.get("/videos", getVideos);
-
+mediaCTRL.get("/video/:videoID", getVideo);
 
 async function getVideos(_, res) {
     try {
@@ -29,11 +29,38 @@ async function getVideos(_, res) {
             isPrivate: false,
             quarantined: false,
         })
-            .select("title author views bracket manifest.video manifest.playlist manifest.thumbnail")
-            .sort({ views: -1 }).lean();
+            .select(
+                "title author views bracket manifest.video manifest.playlist manifest.thumbnail",
+            )
+            .sort({ views: -1 })
+            .lean();
 
-        if(docs) return jsonResponse(res, 200, docs)
-            else return jsonResponse(res, 404);
+        if (docs) return jsonResponse(res, 200, docs);
+        else return jsonResponse(res, 404);
+    } catch (error) {
+        console.error(error);
+        return jsonResponse(res, 500);
+    }
+}
+
+async function getVideo(req, res) {
+    const { videoID } = req.params;
+
+    try {
+        const videoDoc = await MediaMeta.findById(videoID)
+            .select(
+                "title author views bracket manifest.video manifest.playlist manifest.thumbnail isPrivate censored",
+            )
+            .lean();
+
+            if(videoDoc.isPrivate) {
+                return jsonResponse(res, 403);
+            } else if(videoDoc.censored) {
+                return jsonResponse(res, 451);
+            }
+
+        if (videoDoc) return jsonResponse(res, 200, videoDoc);
+        else return jsonResponse(res, 404);
     } catch (error) {
         console.error(error);
         return jsonResponse(res, 500);
