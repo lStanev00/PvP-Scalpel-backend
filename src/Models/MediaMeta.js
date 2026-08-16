@@ -37,6 +37,10 @@ const manifestSchema = new Schema(
             type: String,
             default: null,
         },
+        video: {
+            type: String,
+            default: null,
+        },
     },
     {
         timestamps: false,

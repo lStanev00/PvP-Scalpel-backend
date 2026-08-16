@@ -112,8 +112,15 @@ const updateDoc = {
     $push: {},
 };
 
+const lowLevelSkips = 0;
+
+// start the loop for the members list
 for (const member of members) {
-    // start the loop for the members list
+    // skip for non max lvl chars
+    if(member?.level <= 80) {
+        lowLevelSkips += 1;
+        continue;
+    }
     const server = "eu";
     const realm = member?.character.realm?.slug;
     const name = member?.character.name;
@@ -227,6 +234,8 @@ for (const member of members) {
 
 const endNow = new Date();
 const runtimeMS = endNow.getTime() - now.getTime();
+
+console.info(lowLevelSkips + " characters ware skipped");
 
 try {
     if (fullUpdate) {

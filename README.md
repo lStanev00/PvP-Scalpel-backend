@@ -48,8 +48,9 @@ Required:
 - `REDISPORT` - Redis port (used when `IS_LOCAL=false`).
 - `CDN_PRIVATE_DOMAIN` - internal CDN host for refreshes.
 - `CDN_PORT` - internal CDN port.
-- `JWT_CDN_PUBLIC` - token for CDN requests.
+- `JWT_CDN_PUBLIC` - shared destructive-operation token; it must be identical in the worker and storage-service environments.
 - `STORAGE_LOCAL_ENDPOINT` - internal MinIO Docker origin used by media workers; defaults to `http://minio:4010`.
+- `STORAGE_REST_ENDPOINT` - internal storage REST origin used for authenticated deletion; worker images default to `http://storage:4002`.
 - `MEDIA_DOWNLOAD_TIMEOUT_MS` - maximum time for one quarantine-object download; defaults to 10 minutes.
 - `MEDIA_MAX_PARTS` - maximum staged parts per media job; defaults to 100.
 - `MEDIA_MAX_PART_BYTES` - maximum bytes per staged media part; defaults to 512 MiB.
@@ -57,6 +58,13 @@ Required:
 - `MEDIA_MAX_JOB_BYTES` - maximum total staged bytes per media job; defaults to 10 GiB.
 - `MEDIA_FFMPEG_TIMEOUT_MS` - maximum runtime for one FFmpeg operation; defaults to 60 minutes.
 - `MEDIA_THUMBNAIL_TIMEOUT_MS` - maximum generated-thumbnail extraction time; defaults to 2 minutes.
+- `MEDIA_RECOVERY_STRUCTURAL_TIMEOUT_MS` - maximum native structural-repair time; defaults to 15 minutes.
+- `MEDIA_RECOVERY_SALVAGE_TIMEOUT_MS` - maximum time for one FFmpeg salvage operation; defaults to 60 minutes.
+- `MEDIA_RECOVERY_VALIDATION_TIMEOUT_MS` - maximum strict validation time; defaults to 60 minutes.
+- `MEDIA_RECOVERY_MIN_VIDEO_RATIO` - minimum recoverable decoded-video ratio; defaults to `0.85`.
+- `MEDIA_RECOVERY_MIN_AUDIO_RATIO` - minimum recovered-audio duration ratio; defaults to `0.75`.
+- `MEDIA_RECOVERY_MIN_DURATION_RATIO` - minimum final-to-source duration ratio; defaults to `0.98`.
+- `MEDIA_RECOVERY_FPS` - normalized salvage frame rate from 15 through 60; defaults to `30`.
 
 Optional / legacy:
 - `TESTDEV`

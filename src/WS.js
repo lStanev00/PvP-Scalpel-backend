@@ -1,4 +1,4 @@
-// version: 0.4.29
+// version: 0.4.32
 import http from "node:http";
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
@@ -89,8 +89,26 @@ server.on("upgrade", (req, socket, head) => {
 wss.on("connection", async (ws, req) => {
     ws.isAlive = true;
     const connectionContext = getConnectionLogContext(req);
+    let resolveAuthentication;
+    const authenticationReady = new Promise((resolve) => {
+        resolveAuthentication = resolve;
+    });
 
     console.log("[WS] client connected", connectionContext.ip, connectionContext.origin ?? "no-origin");
+
+    ws.on("message", async (raw) => {
+        const authenticatedConnection = await authenticationReady;
+        if (!authenticatedConnection || ws.readyState !== WebSocket.OPEN) return;
+
+        try {
+            await wsRouter(ws, raw);
+        } catch (err) {
+            console.error("[WS] message handler failed", {
+                ip: connectionContext.ip,
+                error: err,
+            });
+        }
+    });
 
     try {
         const authContext = await getWsAuthContext(req);
@@ -101,6 +119,7 @@ wss.on("connection", async (ws, req) => {
                 origin: connectionContext.origin,
                 reason: authContext.authError,
             });
+            resolveAuthentication(false);
             wsMessage(ws, "error", "Authentication failed");
             ws.close(1008, "Authentication failed");
             return;
@@ -115,23 +134,15 @@ wss.on("connection", async (ws, req) => {
             ip: connectionContext.ip,
             error,
         });
+        resolveAuthentication(false);
         wsMessage(ws, "error", "Authentication unavailable");
         ws.close(1011, "Authentication unavailable");
         return;
     }
 
     wsMessage(ws, "connected", "welcome");
+    resolveAuthentication(true);
 
-    ws.on("message", async (raw) => {
-        try {
-            await wsRouter(ws, raw);
-        } catch (err) {
-            console.error("[WS] message handler failed", {
-                ip: connectionContext.ip,
-                error: err,
-            });
-        }
-    });
     ws.on("pong", () => {
         ws.isAlive = true;
     });
