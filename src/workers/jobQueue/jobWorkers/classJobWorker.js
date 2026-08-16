@@ -310,8 +310,12 @@ export default class QueueWorker {
                     `There was a problem with the status code on the following object: \n ${JSON.stringify(data, null, 4)}`,
                 );
             } else if (status.toString().startsWith("4") || status.toString().startsWith("5")) {
+                const failureDetails =
+                    typeof data?.message === "string"
+                        ? `: ${data.message.replace(/\s+/g, " ").trim().slice(0, 512)}`
+                        : "";
                 JQOLog.error(
-                    `Worker ${this.name} failed processMedia ${mediaId} with status ${status}`,
+                    `Worker ${this.name} failed processMedia ${mediaId} with status ${status}${failureDetails}`,
                 );
                 await WorkerError.create({
                     workerName: this.name,

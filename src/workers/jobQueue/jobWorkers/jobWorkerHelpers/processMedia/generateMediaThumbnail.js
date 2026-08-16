@@ -22,20 +22,44 @@ const THUMBNAIL_TIMEOUT_MS = readPositiveInteger(
 
 /**
  * Extracts a representative JPEG frame near a random point in the complete
- * validated local video. The result fits within 1280x720 without upscaling.
+ * validated local or recovered video. The result fits within 1280x720 without
+ * upscaling.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string} mediaPath Exact staged `media.mp4` path.
+ * @param {string} mediaPath Exact staged source or validated recovery path.
  * @returns {Promise<string>} Exact generated local thumbnail path.
  */
 export default async function generateMediaThumbnail(mediaId, mediaPath) {
     const normalizedMediaId = normalizeMediaId(mediaId);
     const sourceDirectory = path.posix.join(WORK_ROOT, normalizedMediaId, "source");
     const expectedMediaPath = path.posix.join(sourceDirectory, "media.mp4");
+    const expectedStructuralPath = path.posix.join(
+        WORK_ROOT,
+        normalizedMediaId,
+        "recovery",
+        "structural.mp4",
+    );
+    const expectedRecoveredPath = path.posix.join(
+        WORK_ROOT,
+        normalizedMediaId,
+        "recovery",
+        "recovered.mp4",
+    );
+    const expectedFFmpegRecoveredPath = path.posix.join(
+        WORK_ROOT,
+        normalizedMediaId,
+        "recovery",
+        "ffmpeg-recovered.mp4",
+    );
     const thumbnailPath = path.posix.join(sourceDirectory, "thumbnail");
     const partialThumbnailPath = `${thumbnailPath}.partial`;
 
-    if (mediaPath !== expectedMediaPath) {
+    if (
+        mediaPath !== expectedMediaPath &&
+        mediaPath !== expectedStructuralPath &&
+        mediaPath !== expectedRecoveredPath &&
+        mediaPath !== expectedFFmpegRecoveredPath
+    ) {
         throw new TypeError(`Unexpected complete media path: ${mediaPath}`);
     }
     await verifyRegularFile(mediaPath, "thumbnail source");
@@ -59,9 +83,11 @@ export default async function generateMediaThumbnail(mediaId, mediaPath) {
             "1",
             "-an",
             "-vf",
-            "thumbnail=30,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2",
+            "thumbnail=30,scale=w='min(1280,iw)':h='min(720,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:out_range=full,format=yuvj420p",
             "-q:v",
             "2",
+            "-pix_fmt",
+            "yuvj420p",
             "-vcodec",
             "mjpeg",
             "-f",

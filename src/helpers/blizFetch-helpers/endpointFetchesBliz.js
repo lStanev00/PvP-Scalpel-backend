@@ -353,16 +353,34 @@ const helpFetch = {
 
     getCharMedia: async function (href) {
         try {
-            const data = (await helpFetch.fetchBlizzard(href)).assets;
-            const assets = {
-                avatar: (data[0])[`value`] || "",
-                banner: (data[1])[`value`] || "",
-                charImg: (data[2])[`value`] || "",
-            }
-            return assets
+            const response = await helpFetch.fetchBlizzard(href);
+            const fetchedAssets = Array.isArray(response?.assets) ? response.assets : [];
+            const requiredAssetKeys = ["avatar", "inset", "main-raw"];
+            const hasMissingAssets = requiredAssetKeys.some(
+                (key) =>
+                    !fetchedAssets.some(
+                        (entry) =>
+                            entry?.key === key &&
+                            typeof entry?.value === "string" &&
+                            entry.value.length > 0,
+                    ),
+            );
+            const data = hasMissingAssets
+                ? generateMissingCharacterAssets(fetchedAssets)
+                : fetchedAssets;
+
+            const avatar = data.find((entry) => entry.key === "avatar");
+            const banner = data.find((entry) => entry.key === "inset");
+            const charImg = data.find((entry) => entry.key === "main-raw");
+
+            return {
+                avatar: avatar?.value || "",
+                banner: banner?.value || "",
+                charImg: charImg?.value || "",
+            };
         } catch (error) {
-            console.log(error)
-            return {}
+            console.warn("Character assets retrieval failed in getCharMedia", error);
+            return {};
         }
     },
     getCharGear: async function (href) {
@@ -852,6 +870,56 @@ function extractStats(data) {
         Avoidance: `${data?.avoidance?.value?.toFixed(1) || "0"}%`
     };
     
+}
+
+/**
+ * Adds character-media URLs omitted by Blizzard using the path of an asset that
+ * was returned. Character renderer assets share the same path and differ only
+ * by their filename suffix.
+ *
+ * @param {Array<{key?: string, value?: string}>} assets
+ * @returns {Array<{key: string, value: string}>}
+ */
+function generateMissingCharacterAssets(assets) {
+    const characterMediaAssetSuffixes = {
+        avatar: "avatar.jpg",
+        inset: "inset.jpg",
+        "main-raw": "main-raw.png",
+    }; 
+    if (!Array.isArray(assets)) return [];
+
+    const validAssets = assets.filter(
+        (asset) =>
+            asset &&
+            typeof asset.key === "string" &&
+            typeof asset.value === "string" &&
+            asset.value.length > 0,
+    );
+    const knownKeys = new Set(validAssets.map((asset) => asset.key));
+    const referenceAsset = validAssets.find((asset) =>
+        Object.hasOwn(characterMediaAssetSuffixes, asset.key),
+    );
+
+    if (!referenceAsset) return validAssets;
+
+    const rendererPath = referenceAsset.value.match(
+        /^(.*)-(?:avatar|inset|main-raw|main)\.(?:jpg|png)([?#].*)?$/i,
+    );
+    if (!rendererPath) return validAssets;
+
+    const [, pathPrefix, urlTail = ""] = rendererPath;
+    const generatedAssets = [];
+
+    for (const [key, suffix] of Object.entries(characterMediaAssetSuffixes)) {
+        if (knownKeys.has(key)) continue;
+
+        generatedAssets.push({
+            key,
+            value: `${pathPrefix}-${suffix}${urlTail}`,
+        });
+    }
+
+    return [...validAssets, ...generatedAssets];
 }
 
 export default helpFetch
