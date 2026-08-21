@@ -9,35 +9,22 @@ import {
     rm,
 } from "node:fs/promises";
 import path from "node:path";
+import {
+    InvalidMediaStreamError,
+    isInvalidMediaStreamFailure,
+} from "./mediaStreamErrors.js";
+
+export {
+    InvalidMediaStreamError,
+    isInvalidMediaStreamFailure,
+} from "./mediaStreamErrors.js";
 
 const WORK_ROOT = "/mnt/work";
 const STDERR_TAIL_LIMIT = 8 * 1024;
-const INVALID_MEDIA_STREAM_PATTERN =
-    /(?:invalid data found when processing input|invalid nal unit(?: size)?|error splitting the input into nal units|corrupt decoded frame|error submitting packet to decoder|error while decoding stream|decode_slice_header error|packet corrupt|channel element \d+\.\d+ is not allocated|input buffer exhausted before end element found|could not find codec parameters|output file does not contain any stream|nothing was written into output file)/i;
 const FFMPEG_TIMEOUT_MS = readPositiveInteger(
     process.env.MEDIA_FFMPEG_TIMEOUT_MS,
     60 * 60 * 1000,
 );
-
-/**
- * Indicates that FFmpeg rejected the uploaded media stream itself.
- */
-export class InvalidMediaStreamError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = "InvalidMediaStreamError";
-    }
-}
-
-/**
- * Identifies FFmpeg diagnostics caused by invalid media bytes.
- *
- * @param {string} details
- * @returns {boolean}
- */
-export function isInvalidMediaStreamFailure(details) {
-    return INVALID_MEDIA_STREAM_PATTERN.test(details);
-}
 
 /**
  * @typedef {Object} HLSOutput

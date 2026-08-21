@@ -16,6 +16,11 @@ const INTERNAL_STORAGE_ENDPOINT =
     process.env.STORAGE_LOCAL_ENDPOINT || "http://minio:4010";
 const UPLOAD_TIMEOUT_MS = 60 * 60 * 1000;
 const MAXIMUM_DELETE_OBJECTS = 1000;
+const PUBLIC_VIDEO_FORMATS = Object.freeze({
+    "video/mp4": Object.freeze({ extension: ".mp4", mimeType: "video/mp4" }),
+    "video/webm": Object.freeze({ extension: ".webm", mimeType: "video/webm" }),
+    "video/ogg": Object.freeze({ extension: ".ogv", mimeType: "video/ogg" }),
+});
 
 /**
  * @typedef {Object} HLSOutput
@@ -91,11 +96,13 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
 }
 
 /**
- * Publishes the composed original MP4 and thumbnail when HLS conversion
- * rejects the source stream.
+ * Publishes one strictly validated original or recovered video with its
+ * thumbnail. Original files retain their detected container bytes; recovery
+ * outputs are MP4.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string} mediaPath Exact assembled `/mnt/work/<mediaId>/source/media.mp4`.
+ * @param {string} mediaPath Exact assembled source or validated recovery path.
+ * @param {"video/mp4"|"video/webm"|"video/ogg"} mediaMime MIME detected from bytes.
  * @param {string} thumbnailPath Exact staged thumbnail path.
  * @returns {Promise<{
  * bucket: string,
@@ -107,29 +114,38 @@ export default async function commitMediaToPublic(mediaId, concatResult, thumbna
  * cleanupMessage?: string
  * }>}
  */
-export async function commitComposedMediaToPublic(
+export async function commitVideoToPublic(
     mediaId,
     mediaPath,
+    mediaMime,
     thumbnailPath,
 ) {
     const normalizedMediaId = normalizeMediaId(mediaId);
-    const source = await validateComposedSourceFiles(
+    const source = await validateVideoSourceFiles(
         normalizedMediaId,
         mediaPath,
+        mediaMime,
         thumbnailPath,
     );
     const publicPrefix = path.posix.join(PUBLIC_VIDEO_ROOT, normalizedMediaId);
-    const videoKey = path.posix.join(publicPrefix, "video.mp4");
+    const videoKey = path.posix.join(
+        publicPrefix,
+        `video${source.videoFormat.extension}`,
+    );
     const publicThumbnailKey = path.posix.join(
         publicPrefix,
         `thumbnail${thumbnailExtension(source.thumbnailMime)}`,
     );
 
-    await uploadObject(source.mediaPath, videoKey, "video/mp4");
     await uploadObject(
         source.thumbnailPath,
         publicThumbnailKey,
         source.thumbnailMime,
+    );
+    await uploadObject(
+        source.mediaPath,
+        videoKey,
+        source.videoFormat.mimeType,
     );
 
     const { cleanupSucceeded, cleanupMessage } = await cleanupWorkDirectory(
@@ -142,10 +158,42 @@ export async function commitComposedMediaToPublic(
         prefix: publicPrefix,
         videoKey,
         thumbnailKey: publicThumbnailKey,
-        uploadedKeys: [videoKey, publicThumbnailKey],
+        uploadedKeys: [publicThumbnailKey, videoKey],
         cleanupSucceeded,
         ...(cleanupMessage ? { cleanupMessage } : {}),
     };
+}
+
+/**
+ * Backward-compatible MP4 publication wrapper.
+ *
+ * @deprecated Use `commitVideoToPublic` with an explicitly detected MIME type.
+ */
+export async function commitComposedMediaToPublic(
+    mediaId,
+    mediaPath,
+    thumbnailPath,
+) {
+    return await commitVideoToPublic(
+        mediaId,
+        mediaPath,
+        "video/mp4",
+        thumbnailPath,
+    );
+}
+
+/**
+ * Resolves one supported public video MIME to its deterministic extension.
+ *
+ * @param {string} mimeType
+ * @returns {{extension: string, mimeType: string}}
+ */
+export function publicVideoFormat(mimeType) {
+    const format = PUBLIC_VIDEO_FORMATS[mimeType];
+    if (!format) {
+        throw new TypeError(`Unsupported public video MIME type: ${mimeType}`);
+    }
+    return format;
 }
 
 /**
@@ -308,21 +356,39 @@ async function validateSourceFiles(mediaId, concatResult, thumbnailPath) {
     };
 }
 
-async function validateComposedSourceFiles(mediaId, mediaPath, thumbnailPath) {
+async function validateVideoSourceFiles(
+    mediaId,
+    mediaPath,
+    mediaMime,
+    thumbnailPath,
+) {
     const workDirectory = path.posix.join(WORK_ROOT, mediaId);
-    const expectedMediaPath = path.posix.join(
+    const sourceMediaPath = path.posix.join(
         workDirectory,
         "source",
         "media.mp4",
     );
+    const recoveryPaths = new Set([
+        path.posix.join(
+            workDirectory,
+            "recovery",
+            "ffmpeg-recovered.mp4",
+        ),
+        path.posix.join(workDirectory, "recovery", "recovered.mp4"),
+        path.posix.join(workDirectory, "recovery", "structural.mp4"),
+    ]);
     const expectedThumbnailPath = path.posix.join(
         workDirectory,
         "source",
         "thumbnail",
     );
+    const videoFormat = publicVideoFormat(mediaMime);
 
-    if (mediaPath !== expectedMediaPath) {
-        throw new TypeError(`Unexpected composed media path: ${mediaPath}`);
+    if (mediaPath !== sourceMediaPath && !recoveryPaths.has(mediaPath)) {
+        throw new TypeError(`Unexpected public media path: ${mediaPath}`);
+    }
+    if (recoveryPaths.has(mediaPath) && mediaMime !== "video/mp4") {
+        throw new TypeError("Media recovery outputs must be published as video/mp4");
     }
     if (thumbnailPath !== expectedThumbnailPath) {
         throw new TypeError(`Unexpected thumbnail path: ${thumbnailPath}`);
@@ -334,6 +400,7 @@ async function validateComposedSourceFiles(mediaId, mediaPath, thumbnailPath) {
     return {
         workDirectory,
         mediaPath,
+        videoFormat,
         thumbnailPath,
         thumbnailMime: await detectThumbnailMime(thumbnailPath),
     };
