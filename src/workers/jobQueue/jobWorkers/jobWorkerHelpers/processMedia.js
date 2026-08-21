@@ -5,9 +5,9 @@
         1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
         2. Validate the complete upload's MIME signature.
         3. Moderate the complete upload with the local AI validation service.
-        4. Export the approved upload as HLS.
-        5. Try FFmpeg salvage, then native reconstruction, when HLS rejects corrupt media.
-        6. Publish recovered HLS or the composed original MP4 fallback with a thumbnail.
+        4. Strictly decode the complete approved upload without modifying it.
+        5. Try FFmpeg salvage, then native MP4 reconstruction, when validation finds corruption.
+        6. Publish the unchanged original or a strictly validated recovered MP4 with a thumbnail.
         7. Persist the selected public entry file and mark the media done.
         8. Delete the quarantine sources after the media is persisted as done.
 
@@ -19,9 +19,7 @@ import { detectMimeFromFile, scanFolder } from "./processMedia/bucketFSWorkerOps
 import MediaAudit from "../../../../Models/MediaAudit.js";
 import MediaMeta from "../../../../Models/MediaMeta.js";
 import enqueueAIValidation from "./processMedia/enqueueAIValidation.js";
-import concatToStream, {
-    InvalidMediaStreamError,
-} from "./processMedia/concatToStream.js";
+import { InvalidMediaStreamError } from "./processMedia/mediaStreamErrors.js";
 import stageMediaLocally, {
     cleanupLocalMedia,
 } from "./processMedia/stageMediaLocally.js";
@@ -29,8 +27,9 @@ import generateMediaThumbnail from "./processMedia/generateMediaThumbnail.js";
 import assembleMediaParts from "./processMedia/assembleMediaParts.js";
 import recoverCorruptMedia from "./processMedia/recoverCorruptMedia.js";
 import salvageCorruptMedia from "./processMedia/salvageCorruptMedia.js";
-import commitMediaToPublic, {
-    commitComposedMediaToPublic,
+import validateMediaIntegrity from "./processMedia/validateMediaIntegrity.js";
+import {
+    commitVideoToPublic,
     deleteQuarantineMedia,
 } from "./commitMediaToPublic.js";
 
@@ -59,15 +58,15 @@ const RECOVERY_QUALITY_TARGET_PERCENT = 1;
  * 1. Reassemble and scan the upload, unless a recovery fingerprint already passed.
  * 2. Validate the complete upload's MIME signature.
  * 3. Moderate the complete upload with the local AI validation service.
- * 4. Export the approved upload as HLS.
- * 5. Try FFmpeg salvage, then native reconstruction, when HLS rejects corrupt media.
- * 6. Publish recovered HLS or the composed original MP4 fallback with a thumbnail.
+ * 4. Strictly decode the complete approved upload without modifying it.
+ * 5. Try FFmpeg salvage, then native MP4 reconstruction, when validation finds corruption.
+ * 6. Publish the unchanged original or a strictly validated recovered MP4 with a thumbnail.
  * 7. Persist the selected public entry file and mark the media done.
  * 8. Delete the quarantine sources after the media is persisted as done.
  *
  * Return values:
- * - `200 / processed`: approved media was exported and marked done.
- * - `200 / quarantined`: malware or an unsupported MIME was handled.
+ * - `200 / processed`: approved media was published and marked done.
+ * - `200 / quarantined`: malware, unsupported MIME, or unrecoverable corruption was handled.
  * - `200 / censored`: AI moderation rejected the media and processing stopped.
  * - `400 / invalid_job`: the job type or media ID is invalid.
  * - `404 / not_found`: no media document exists for the supplied ID.
@@ -199,7 +198,7 @@ export default async function processMedia(job) {
 
         if (recoveryRetry) {
             console.info(
-                `[processMedia][${mediaId}] matching retry detected; skipping malware, MIME, and AI checks`,
+                `[processMedia][${mediaId}] matching retry detected; skipping malware and AI checks`,
             );
         } else {
             if (mediaAudit?.recovery?.attempted) {
@@ -208,7 +207,7 @@ export default async function processMedia(job) {
                 );
             }
 
-            // Stage 1: scan the exact reconstructed source before native parsing.
+            // Stage 1: scan the exact reconstructed source before media parsing.
             console.info(`[processMedia][${mediaId}][malware] scan started`);
             const malwareScan = await scanFolder(stagedMedia.sourceDirectory);
             if (malwareScan?.infected) {
@@ -224,24 +223,26 @@ export default async function processMedia(job) {
                 throw new Error("Malware scanner returned an invalid result");
             }
             console.info(`[processMedia][${mediaId}][malware] scan passed`);
+        }
 
-            // Stage 2: detect the container from the restored complete upload.
-            const mimeFormat = await detectMimeFromFile(localMediaPath);
-            if (mimeFormat === "application/octet-stream") {
-                workDoc.quarantined = true;
-                await cleanupLocalMedia(mediaId);
-                localMediaStaged = false;
-                await finishProcessing(workDoc);
-                claimedProcessing = false;
-                console.warn(`[processMedia][${mediaId}][mime] unsupported signature`);
-                return successResult(
-                    mediaId,
-                    "quarantined",
-                    "unsupported_media_signature",
-                );
-            }
-            console.info(`[processMedia][${mediaId}][mime] accepted ${mimeFormat}`);
+        // Stage 2: detect the container from bytes even when safety checks may be reused.
+        const mimeFormat = await detectMimeFromFile(localMediaPath);
+        if (mimeFormat === "application/octet-stream") {
+            workDoc.quarantined = true;
+            await cleanupLocalMedia(mediaId);
+            localMediaStaged = false;
+            await finishProcessing(workDoc);
+            claimedProcessing = false;
+            console.warn(`[processMedia][${mediaId}][mime] unsupported signature`);
+            return successResult(
+                mediaId,
+                "quarantined",
+                "unsupported_media_signature",
+            );
+        }
+        console.info(`[processMedia][${mediaId}][mime] accepted ${mimeFormat}`);
 
+        if (!recoveryRetry) {
             // Stage 3: moderate representative frames from the complete upload.
             console.info(`[processMedia][${mediaId}][moderation] validation started`);
             const validation = await enqueueAIValidation(localMediaPath);
@@ -260,29 +261,33 @@ export default async function processMedia(job) {
             console.info(`[processMedia][${mediaId}][moderation] allowed`);
         }
 
-        // Stages 4-5: export HLS, then recover corrupt media in bounded layers.
-        let concatData;
-        let publishComposedVideo = false;
+        // Stages 4-5: strictly decode the source, then recover corruption in layers.
+        let selectedMediaPath;
+        let selectedMediaMime;
         let publicationReason;
-        let thumbnailMediaPath = localMediaPath;
 
         console.info(
-            `[processMedia][${mediaId}][initial_hls] conversion started`,
+            `[processMedia][${mediaId}][integrity] strict decode started`,
         );
         try {
-            concatData = await concatToStream(
+            const integrity = await validateMediaIntegrity(
                 workDoc.id,
                 localMediaPath,
             );
+            selectedMediaPath = localMediaPath;
+            selectedMediaMime = mimeFormat;
+            publicationReason = "original_media_published";
             console.info(
-                `[processMedia][${mediaId}][initial_hls] conversion completed`,
+                `[processMedia][${mediaId}][integrity] strict decode passed ` +
+                    `format=${mimeFormat} frames=${integrity.videoFrames}`,
             );
         } catch (error) {
             if (!(error instanceof InvalidMediaStreamError)) {
                 throw error;
             }
             console.warn(
-                `[processMedia][${mediaId}][initial_hls] corrupt stream rejected`,
+                `[processMedia][${mediaId}][integrity] corrupt source rejected: ` +
+                    truncateRecoveryMessage(error.message),
             );
 
             let salvagedMediaPath;
@@ -308,26 +313,36 @@ export default async function processMedia(job) {
 
             if (salvagedMediaPath) {
                 try {
-                    concatData = await concatToStream(
+                    const integrity = await validateMediaIntegrity(
                         workDoc.id,
                         salvagedMediaPath,
                     );
-                    thumbnailMediaPath = salvagedMediaPath;
+                    selectedMediaPath = salvagedMediaPath;
+                    selectedMediaMime = "video/mp4";
                     publicationReason = "corrupt_media_salvaged";
                     console.info(
-                        `[processMedia][${mediaId}][ffmpeg_salvage] HLS conversion completed`,
+                        `[processMedia][${mediaId}][ffmpeg_salvage] strict decode passed ` +
+                            `frames=${integrity.videoFrames}`,
                     );
-                } catch (salvagedHLSError) {
-                    if (!(salvagedHLSError instanceof InvalidMediaStreamError)) {
-                        throw salvagedHLSError;
+                } catch (salvagedValidationError) {
+                    if (
+                        !(
+                            salvagedValidationError instanceof
+                            InvalidMediaStreamError
+                        )
+                    ) {
+                        throw salvagedValidationError;
                     }
                     console.warn(
-                        `[processMedia][${mediaId}][ffmpeg_salvage] recovered output was rejected by HLS`,
+                        `[processMedia][${mediaId}][ffmpeg_salvage] output failed strict decode: ` +
+                            truncateRecoveryMessage(
+                                salvagedValidationError.message,
+                            ),
                     );
                 }
             }
 
-            if (!concatData) {
+            if (!selectedMediaPath && mimeFormat === "video/mp4") {
                 const recoveryAttempt = await runRecoveryAttempt(
                     mediaAudit,
                     mediaId,
@@ -339,40 +354,57 @@ export default async function processMedia(job) {
 
                 if (recoveryAttempt.recovery.succeed) {
                     try {
-                        concatData = await concatToStream(
+                        const integrity = await validateMediaIntegrity(
                             workDoc.id,
                             recoveryAttempt.recovery.mediaPath,
                         );
-                        thumbnailMediaPath =
+                        selectedMediaPath =
                             recoveryAttempt.recovery.mediaPath;
+                        selectedMediaMime = "video/mp4";
                         publicationReason = "corrupt_media_recovered";
                         console.info(
-                            `[processMedia][${mediaId}][native_recovery] HLS conversion completed`,
+                            `[processMedia][${mediaId}][native_recovery] strict decode passed ` +
+                                `frames=${integrity.videoFrames}`,
                         );
-                    } catch (recoveredHLSError) {
+                    } catch (recoveredValidationError) {
                         if (
                             !(
-                                recoveredHLSError instanceof
+                                recoveredValidationError instanceof
                                 InvalidMediaStreamError
                             )
                         ) {
-                            throw recoveredHLSError;
+                            throw recoveredValidationError;
                         }
-                        await markRecoveryExportFailure(
+                        await markRecoveryValidationFailure(
                             mediaAudit,
                             mediaId,
-                            recoveredHLSError,
+                            recoveredValidationError,
                         );
                     }
                 }
             }
 
-            if (!concatData) {
-                publishComposedVideo = true;
-                publicationReason = "original_media_published";
-                thumbnailMediaPath = localMediaPath;
+            if (!selectedMediaPath && mimeFormat !== "video/mp4") {
                 console.warn(
-                    `[processMedia][${mediaId}][raw_fallback] recovery rejected; publishing composed original MP4`,
+                    `[processMedia][${mediaId}][native_recovery] skipped for unsupported source format ${mimeFormat}`,
+                );
+            }
+
+            if (!selectedMediaPath) {
+                workDoc.manifest.video = null;
+                workDoc.manifest.playlist = null;
+                workDoc.quarantined = true;
+                await cleanupLocalMedia(mediaId);
+                localMediaStaged = false;
+                await finishProcessing(workDoc);
+                claimedProcessing = false;
+                console.warn(
+                    `[processMedia][${mediaId}][quarantine] corrupt media is unrecoverable`,
+                );
+                return successResult(
+                    mediaId,
+                    "quarantined",
+                    "corrupt_media_unrecoverable",
                 );
             }
         }
@@ -382,28 +414,27 @@ export default async function processMedia(job) {
             stagedMedia.thumbnailPath ||
             (await generateMediaThumbnail(
                 workDoc.id,
-                thumbnailMediaPath,
+                selectedMediaPath,
             ));
 
-        // Stage 6: publish HLS, or the composed MP4 after both recovery layers reject it.
-        const publicMedia = publishComposedVideo
-            ? await commitComposedMediaToPublic(
-                workDoc.id,
-                localMediaPath,
-                thumbnailPath,
-            )
-            : await commitMediaToPublic(
-                workDoc.id,
-                concatData,
-                thumbnailPath,
-            );
+        // Stage 6: publish the unchanged valid source or validated recovered MP4.
+        const publicMedia = await commitVideoToPublic(
+            workDoc.id,
+            selectedMediaPath,
+            selectedMediaMime,
+            thumbnailPath,
+        );
         localMediaStaged = false;
+        console.info(
+            `[processMedia][${mediaId}][publication] uploaded ${selectedMediaMime} ` +
+                `reason=${publicationReason}`,
+        );
 
         // Stage 7: persist the selected public entry file and terminal state.
-        workDoc.manifest.playlist = publicMedia.playlistKey || null;
-        workDoc.manifest.video =
-            publicMedia.playlistKey || publicMedia.videoKey || null;
+        workDoc.manifest.playlist = null;
+        workDoc.manifest.video = publicMedia.videoKey;
         workDoc.manifest.thumbnail = publicMedia.thumbnailKey;
+        workDoc.manifest.mimeType = selectedMediaMime;
         workDoc.quarantined = false;
 
         await finishProcessing(workDoc);
@@ -603,7 +634,7 @@ async function runRecoveryAttempt(
         console.warn(
             `[processMedia][${mediaId}][native_recovery] attempt=${attempts} unsuccessful ` +
                 `reason=${recovery.reason} ${ratioSummary} ${corruptionSummary}; ` +
-                "raw fallback selected",
+                "quarantine selected",
         );
         return {
             recovery,
@@ -626,7 +657,7 @@ async function runRecoveryAttempt(
     };
 }
 
-async function markRecoveryExportFailure(mediaAudit, mediaId, error) {
+async function markRecoveryValidationFailure(mediaAudit, mediaId, error) {
     if (!mediaAudit?.recovery) {
         throw new Error("Media recovery audit is missing after native recovery");
     }
@@ -635,12 +666,12 @@ async function markRecoveryExportFailure(mediaAudit, mediaId, error) {
         error instanceof Error ? error.message : String(error);
     const recoveryStats = mediaAudit.recovery.stats;
     mediaAudit.recovery.succeeded = false;
-    mediaAudit.recovery.reason = "recovery_hls_export_rejected";
+    mediaAudit.recovery.reason = "recovery_strict_validation_rejected";
     mediaAudit.recovery.lastError = truncateRecoveryMessage(message);
     mediaAudit.markModified("recovery");
     await mediaAudit.save();
     console.warn(
-        `[processMedia][${mediaId}][native_recovery] recovered input failed HLS export ` +
+        `[processMedia][${mediaId}][native_recovery] recovered input failed strict decode ` +
             `video corruption=${formatRecoveryPercent(recoveryStats?.videoCorruptionPercent)} ` +
             `audio inserted-silence=${formatRecoveryPercent(recoveryStats?.audioInsertedSilencePercent)} ` +
             `${formatRecoveryCuts(recoveryStats)}: ` +
