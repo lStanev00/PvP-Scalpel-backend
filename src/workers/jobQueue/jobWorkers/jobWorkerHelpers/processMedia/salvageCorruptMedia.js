@@ -12,7 +12,7 @@ import path from "node:path";
 import {
     InvalidMediaStreamError,
     isInvalidMediaStreamFailure,
-} from "./concatToStream.js";
+} from "./mediaStreamErrors.js";
 
 const WORK_ROOT = "/mnt/work";
 const STDERR_TAIL_LIMIT = 16 * 1024;
@@ -25,11 +25,12 @@ const FFMPEG_TIMEOUT_MS = readPositiveInteger(
 /**
  * Runs a tolerant FFmpeg transcode over the exact assembled upload.
  *
- * The output is only a recovery candidate. The caller must pass it through the
- * normal HLS export before publication.
+ * The output is only a recovery candidate. The caller must strictly decode it
+ * before publication.
  *
  * @param {string} mediaId Twenty-four character MongoDB ObjectId string.
- * @param {string} mediaPath Exact `/mnt/work/<id>/source/media.mp4` path.
+ * @param {string} mediaPath Exact assembled source path. Its detected container
+ * may be MP4, WebM, or Ogg despite the isolated local filename.
  * @returns {Promise<string>} Isolated FFmpeg recovery output path.
  * @throws {InvalidMediaStreamError} When FFmpeg still rejects the media stream.
  * @throws {Error} When validation, filesystem, process, or timeout handling fails.

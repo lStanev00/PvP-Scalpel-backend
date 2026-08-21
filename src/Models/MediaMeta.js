@@ -2,6 +2,7 @@ import { model, Schema } from "mongoose";
 import User from "./User.js";
 import Char from "./Chars.js";
 import GameBrackets from "./GameBrackets.js";
+import VideoComments from "./VideoComments.js";
 
 const manifestSchema = new Schema(
     {
@@ -105,11 +106,25 @@ const MediaMetaSchema = new Schema(
             type: manifestSchema,
             required: false,
         },
+        likes: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: User,
+                required: false,
+                default: [],
+            },
+        ],
     },
     {
         timestamps: true,
     },
 );
+
+MediaMetaSchema.virtual("comments", {
+    ref: VideoComments,
+    localField: "_id",
+    foreignField: "video",
+});
 
 async function cacheSavedMedia(doc) {
     if (!doc) return;
@@ -133,9 +148,7 @@ async function cacheMediaFromQuery(query, result) {
         const filter = query.getQuery();
         const filteredId = filter?._id;
         const normalizedFilteredId =
-            typeof filteredId === "string"
-                ? filteredId
-                : filteredId?.toString?.();
+            typeof filteredId === "string" ? filteredId : filteredId?.toString?.();
         if (/^[a-f\d]{24}$/i.test(normalizedFilteredId || "")) {
             await cacheSavedMedia(await query.model.findById(normalizedFilteredId));
             return;

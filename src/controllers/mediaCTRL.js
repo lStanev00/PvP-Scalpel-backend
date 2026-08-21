@@ -5,7 +5,7 @@ import updateMediaPATCH from "./route_logic/mediaCTRL/updateMediaPATCH.js";
 import finalizeMediaPATCH from "./route_logic/mediaCTRL/finalizeMediaPATCH.js";
 import acknowledgeMediaPartPATCH from "./route_logic/mediaCTRL/acknowledgeMediaPartPATCH.js";
 import MediaMeta from "../Models/MediaMeta.js";
-import { jsonResponse } from "../helpers/resposeHelpers.js";
+import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 
 const mediaCTRL = Router();
 
@@ -49,18 +49,22 @@ async function getVideo(req, res) {
     try {
         const videoDoc = await MediaMeta.findById(videoID)
             .select(
-                "title author views bracket manifest.video manifest.playlist manifest.thumbnail isPrivate censored",
-            ).populate({
+                "title author views bracket manifest.video manifest.playlist manifest.thumbnail isPrivate censored likes",
+            )
+            .populate({
                 path: "author",
-                select: "username"
+                select: "username",
             })
+            .populate({ path: "comments" })
             .lean();
 
-            if(videoDoc.isPrivate) {
-                return jsonResponse(res, 403);
-            } else if(videoDoc.censored) {
-                return jsonResponse(res, 451);
-            }
+        if(!videoDoc) return jsonMessage(res, 404, "Video not found")
+
+        if (videoDoc.isPrivate) {
+            return jsonResponse(res, 403);
+        } else if (videoDoc.censored) {
+            return jsonResponse(res, 451);
+        }
 
         if (videoDoc) return jsonResponse(res, 200, videoDoc);
         else return jsonResponse(res, 404);
