@@ -93,14 +93,19 @@ async function createPostPOST(req, res) {
     const user = req?.user;
     if(!user) return res.status(403).end();
 
-    let {  title, content, authorID, characterID  } = req.body;
-    if (!content || !authorID || !characterID) return res.status(400).json({msg:`Please provide all the information to proceed`});
+    const {  title, content, authorID, characterID  } = req.body;
+    if (!content || !authorID) return res.status(400).json({msg:`Please provide all the information to proceed`});
 
-    if (!title) title = "";
+    const postBuild = {
+        content, author: authorID
+    }
+    if (!title) postBuild.title = title;
+    if (characterID) postBuild.character = characterID;
     try {
-        const newPost = await new Post({
-            title, content, author: authorID, character: characterID
-        }).save();
+        const newPost = await new Post(postBuild).save();
+        // const newPost = await new Post({
+        //     title, content, author: authorID, character: characterID
+        // }).save();
 
         const popNewPost = await Post.findById(newPost.id).populate({
             path: "author",
