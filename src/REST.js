@@ -1,4 +1,4 @@
-// version: 0.0.50
+// version: 0.0.53
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
@@ -10,9 +10,10 @@ import sanitizer from "./middlewares/sanitizer.js";
 import compression from "compression";
 import { delay } from "./helpers/startBGTask.js";
 import threadBoot from "./helpers/threadBoot.js";
-import { searchRegionFromMapBySlug } from "./caching/regions/regionCache.js";
-import helpFetch from "./helpers/blizFetch-helpers/endpointFetchesBliz.js";
-import BracketTops from "./Models/bracketTops/BracketTops.js";
+// import { searchRegionFromMapBySlug } from "./caching/regions/regionCache.js";
+// import helpFetch from "./helpers/blizFetch-helpers/endpointFetchesBliz.js";
+// import BracketTops from "./Models/bracketTops/BracketTops.js";
+import MediaMeta from "./Models/MediaMeta.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -49,3 +50,8 @@ app.listen(port, console.info(`REST's running at http://localhost:${port} or ${p
 
 //     await BracketTops.formatBracketTops(bracketData);
 // }
+
+// await MediaMeta.updateMany(
+//     { likes: { $exists: false } },
+//     { $set: { likes: [] } },
+// );

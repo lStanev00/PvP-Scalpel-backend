@@ -32,6 +32,18 @@ Process video/media after upload
 6 Render/export pipeline into streamable format
 
 
+22.08/26 Bug Spotted
+
+in the next liens will be a terminal report of the bug (server logs)
+
+pvp-s-rest  |  server will evaluate to undefined
+pvp-s-rest  | TypeError: Cannot read properties of undefined (reading '0')
+pvp-s-rest  |     at extractRealmsBySearch (file:///app/src/controllers/route_logic/charSearchCtrl/helpers/extractRealms.js:41:35)
+pvp-s-rest  |     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+pvp-s-rest  |     at async queryCharacterBySearch (file:///app/src/controllers/route_logic/charSearchCtrl/querryCharacter.js:11:22)
+pvp-s-rest  |     at async searchCharacterGET (file:///app/src/controllers/characterSearchCTRL.js:31:28)
+
+
 --- These are non relevant to the project comments ---
 76k 
 28k pass
