@@ -49,7 +49,7 @@ async function getVideo(req, res) {
     try {
         const videoDoc = await MediaMeta.findById(videoID)
             .select(
-                "title author views bracket manifest.video manifest.playlist manifest.thumbnail isPrivate censored likes",
+                "title author views bracket manifest.video manifest.playlist manifest.thumbnail isPrivate censored likes description",
             )
             .populate({
                 path: "author",
