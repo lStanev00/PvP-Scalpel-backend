@@ -1,4 +1,4 @@
-// version: 0.4.35
+// version: 0.4.36
 import http from "node:http";
 import WebSocket, { WebSocketServer } from "ws";
 import dotenv from "dotenv";
