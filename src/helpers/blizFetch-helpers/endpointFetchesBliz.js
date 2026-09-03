@@ -115,7 +115,7 @@ const helpFetch = {
                             }
                         }
                     } catch (error) {
-                        console.warn(`[getRating] ${buildCharSearch({server, realm, name})} ext retrive failed`);
+                        // console.warn(`[getRating] ${buildCharSearch({server, realm, name})} ext retrive failed`);
                         retrievedRecords = undefined;
                     }
                 }

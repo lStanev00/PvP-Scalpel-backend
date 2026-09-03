@@ -6,7 +6,7 @@ import Char from "./Chars.js";
 const PostSchema = new mongoose.Schema({
     title : {
         type: String,
-        required: true
+        required: false
     },
     content: {
         type: String,
@@ -22,10 +22,25 @@ const PostSchema = new mongoose.Schema({
         ref: Char,
         require : false,
     },
-    favorites : {
+    media : {
         type: Schema.Types.ObjectId,
         ref: Char,
         require : false,
+    },
+    favorites : { // Usage ?
+        type: Schema.Types.ObjectId,
+        ref: Char,
+        require : false,
+    },
+    likes: {
+        type: [Schema.Types.ObjectId],
+        ref: User,
+        default: [],
+    },
+    replyTo: {
+        type: Schema.Types.ObjectId,
+        ref: "VideoComments",
+        required: false,
     },
 }, {timestamps: true});
 
