@@ -4,7 +4,7 @@
 /** @typedef {import("./charCache.types").CharacterMedia} CharacterMedia */
 /** @typedef {import("./charCache.types").CharacterTalents} CharacterTalents */
 /** @typedef {import("./charCache.types").CharacterGuildInsight} CharacterGuildInsight */
-/** @typedef {import("./charCache.types").CharacterRecord} CharacterRecord */
+/** @typedef {import("./charCache.types.js").CharacterRecord} CharacterRecord */
 import { EventEmitter, once } from "node:events";
 import setCache from "../../helpers/redis/setterRedis.js";
 import getCache from "../../helpers/redis/getterRedis.js";
@@ -31,6 +31,7 @@ CharCacheEmitter.setMaxListeners(CHAR_CACHE_EMMITER_MAX_LISTENERS);
 const CHARACTER_CACHE_TTL_SECONDS = 3600;
 const hashName = "";
 const humanReadableName = "Characters Cache";
+/** @type {Map<string, Promise<CharacterRecord | 404 | null | undefined>>} */
 const inFlightWorkerCharacters = new Map();
 
 function resolveCharacterSearch(params) {
