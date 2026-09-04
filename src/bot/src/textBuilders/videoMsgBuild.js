@@ -21,8 +21,10 @@ export default async function buildVideoAnno(videoID) {
         const description =
             videoDoc.description?.trim() || "New PvP content is live.";
 
-        const thumbnailURL =
-            videoDoc.manifest?.thumbnail;
+        const thumbnailKey = videoDoc.manifest?.thumbnail;
+        const thumbnailURL = thumbnailKey
+            ? new URL("pvp-scalpel-frontend/" + thumbnailKey, "https://bucket.pvpscalpel.com").href
+            : null;
 
         const embed = new EmbedBuilder()
             .setAuthor({
