@@ -17,6 +17,9 @@ if (!["QueueWorker1", "QueueWorker2", "QueueWorker3"].includes(workerName)) {
 const publishRetrieveCharacter = (result) =>
     redisCache.publish("job:retrieveCharacter", JSON.stringify(result));
 
+const publishVideoToZugee = (mediaID) =>
+    redisCache.publish("annoDiscord:newVideo", JSON.stringify(mediaID));
+
 const jobs = [];
 
 process.on("message", async (jobInfo) => {
@@ -47,6 +50,9 @@ process.on("message", async (jobInfo) => {
                 });
             } else if (type === "processMedia") {
                 const result = await processMedia(currentJobInfo);
+                if(result.status === 200 && result.outcome === "processed") {
+                    void publishVideoToZugee(result._id)
+                }
                 process.send({
                     type: "processMedia",
                     data: {
