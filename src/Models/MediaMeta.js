@@ -49,7 +49,6 @@ const manifestSchema = new Schema(
         versionKey: false,
     },
 );
-
 const MediaMetaSchema = new Schema(
     {
         type: {
@@ -119,6 +118,7 @@ const MediaMetaSchema = new Schema(
         timestamps: true,
     },
 );
+
 
 MediaMetaSchema.virtual("comments", {
     ref: VideoComments,
