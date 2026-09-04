@@ -1,4 +1,4 @@
-// version: 1.1.41
+// version: 1.1.42
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -11,6 +11,8 @@ import botRouter from "./src/botRouter.js";
 import "./src/botCommands.js";
 import messageRouter from "./src/messageRouter.js";
 import threadBoot from "../helpers/threadBoot.js";
+import { redisCache } from "../helpers/redis/connectRedis.js";
+import buildVideoAnno from "./src/textBuilders/videoMsgBuild.js";
 
 configDotenv({ path: "src/bot/bot.env" });
 
@@ -94,5 +96,27 @@ if (!messageCommandsEnabled) {
         "Guild message commands disabled. Team members can DM Zugee for AI chat.",
     );
 }
+
+const redisSubClone = redisCache.duplicate();
+
+if(!redisSubClone.isOpen) await redisSubClone.connect();
+
+await redisSubClone.pSubscribe("annoDiscord:newVideo", async (message, channel) => {
+    // todo ship msg to test bot-stroke channel for fire testing
+    // export to dif file for file struct 
+    // on success after meeting the satisfaction of msg struct ship msg to #kill-reel channel
+    // channel id of main target => 1437019535218577528
+    // test/bot-stroke chann ID => 1498225618095964230
+
+    const videoID = JSON.parse(message);
+    if(!videoID) return;
+
+    const testChannel = await client.channels.fetch("1498225618095964230");
+    if (!testChannel?.isTextBased()) return;
+    const textAnno = await buildVideoAnno(videoID);
+
+    if (textAnno) await testChannel.send(textAnno);
+    return null
+})
 
 await client.login(process.env.DISCORD_TOKEN);
