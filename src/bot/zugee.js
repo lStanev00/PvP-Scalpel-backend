@@ -1,4 +1,4 @@
-// version: 1.1.42
+// version: 1.1.43
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -110,6 +110,7 @@ await redisSubClone.pSubscribe("annoDiscord:newVideo", async (message, channel) 
 
     const videoID = JSON.parse(message);
     if(!videoID) return;
+    console.info(`recived anno for ${videoID}`)
 
     const testChannel = await client.channels.fetch("1498225618095964230");
     if (!testChannel?.isTextBased()) return;
