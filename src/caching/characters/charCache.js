@@ -302,6 +302,7 @@ export async function getCharacterViaWorker(
 }
 
 /**
+ * ! WARNING ! This function has to be used only in the workers drainer check the file to see other helpers to retrive a character
  * Resolves a character by region/server, realm and character name.
  *
  * Expected inputs:
