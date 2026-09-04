@@ -47,7 +47,13 @@ async function getVideo(req, res) {
     const { videoID } = req.params;
 
     try {
-        const videoDoc = await MediaMeta.findById(videoID)
+        const videoDoc = await MediaMeta.findByIdAndUpdate(
+            videoID,
+            {
+                $inc: { views: 1 },
+            },
+            { new: true },
+        )
             .select(
                 "title author views bracket manifest.video manifest.playlist manifest.thumbnail isPrivate censored likes description",
             )
@@ -56,9 +62,10 @@ async function getVideo(req, res) {
                 select: "username",
             })
             .populate({ path: "comments" })
+            .populate({ path: "characters" })
             .lean();
 
-        if(!videoDoc) return jsonMessage(res, 404, "Video not found")
+        if (!videoDoc) return jsonMessage(res, 404, "Video not found");
 
         if (videoDoc.isPrivate) {
             return jsonResponse(res, 403);

@@ -17,7 +17,9 @@ for this platform i dont see any other "native" resolution, i do it that way so 
 which if you are developer and read this u alredy know they are being exploited and this resolve in vonurabilities, am not
 telling this approach is better and safer but is more controlled from me, which is my safespot.
 
-01.07/26 new task
+--- 01.07/26 new task ---
+    => 04.09/2026 Partialy DONE // Production ready
+        !!! Done note: scale later if the feature's ingested and usage/publish rise
 
 Process video/media after upload
 0 Save to non-public quarantine bucket ✅
@@ -29,7 +31,9 @@ Process video/media after upload
 3 AI content checks — pornography, non-game content, watermarks, and legal/compliance issues will be censored, flagged, and reported where legally required ✅
 4 Content ownership & license checks // Skip for now
 5 File compression to reduce size // Skip for now scale later
-6 Render/export pipeline into streamable format
+6 Render/export pipeline into streamable format ✅
+
+--- ///////////////////* END *//////////////////// ---
 
 
 22.08/26 Bug Spotted
