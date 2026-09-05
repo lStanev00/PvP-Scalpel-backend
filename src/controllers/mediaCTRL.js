@@ -17,8 +17,50 @@ mediaCTRL.patch("/media/finnalize", finalizeMediaPATCH);
 mediaCTRL.get("/userMedia", requireAdmin, userMediaGET);
 
 // specifical controllers for the videos;
+mediaCTRL.get("/videos/user", getUserVideos);
 mediaCTRL.get("/videos", getVideos);
 mediaCTRL.get("/video/:videoID", getVideo);
+mediaCTRL.delete("/video/:videoID", deleteVideo);
+
+async function deleteVideo(req, res) {
+    const { videoID } = req.params;
+    const user = req?.user;
+
+    if (!videoID) return jsonMessage(res, 400, "Please specify video id");
+    if(!user) return jsonMessage(res, 403, "You are not logged in");
+
+    try {
+        const videoDoc = await MediaMeta.findById(videoID).lean();
+        if(!videoDoc) return jsonResponse(res, 404);
+        if(!user._id.equals(videoDoc.author)) return jsonResponse(res, 403);
+        const deletedVideo = await MediaMeta.findByIdAndDelete(videoID);
+
+        return jsonResponse(res, 200, { id: videoID });
+    } catch (error) {
+        console.error(error);
+        return jsonResponse(res, 500);
+    }
+    
+}
+
+async function getUserVideos(req, res) {
+    const user = req?.user;
+
+    try {
+
+        const userVideoList = await MediaMeta.find({author: user._id}).select(
+                "title author views bracket manifest.video manifest.playlist manifest.thumbnail",
+            )
+            .sort({ views: -1 })
+            .lean();
+        if(userVideoList) return jsonResponse(res, 200, userVideoList);
+        return jsonResponse(res, 404);
+
+    } catch (error) {
+        console.error(error);
+        jsonResponse(res, 500);
+    }
+}
 
 async function getVideos(_, res) {
     try {

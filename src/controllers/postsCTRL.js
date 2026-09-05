@@ -99,7 +99,8 @@ async function createPostPOST(req, res) {
     if (!content || !authorID) return res.status(400).json({msg:`Please provide all the information to proceed`});
 
     const postBuild = {
-        content, author: authorID
+        content,
+        author: user._id
     }
     if (!title) postBuild.title = title;
     if (!characterID && !media) return jsonMessage(res, 400, "You need to specify who you commenting!");
