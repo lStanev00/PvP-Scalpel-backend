@@ -48,7 +48,7 @@ async function editPostPATCH(req, res) {
 
     const {postID, content, title} = req.body;
 
-    if (!postID || !content || !title) return res.status(400).json({msg:`Bad request`});
+    if (!postID || typeof content !== "string" || !content.trim()) return res.status(400).json({msg:`Bad request`});
 
     let post = undefined;
 
@@ -65,11 +65,12 @@ async function editPostPATCH(req, res) {
     if (!((user._id).equals(post?.author?._id))) return res.status(401).end();
 
     try {
-        const newPostData = await Post.findByIdAndUpdate(postID, {
-            $set: {
-                content: content.trim(),
-                title: title.trim()
-            }
+        const ops = {content: content.trim()};
+        if (typeof title === "string" && title.trim()) {
+            ops.title = title.trim();
+        }
+        const editedPostData = await Post.findByIdAndUpdate(postID, {
+            $set: ops,
         },{ new: true })
         .populate({
             path: "author",
@@ -80,9 +81,9 @@ async function editPostPATCH(req, res) {
             select: "name playerRealm media server _id search"
         })
         .lean();
-        CharCacheEmitter.emit("updateRequest", newPostData?.character?.search);
+        if (editedPostData.character) CharCacheEmitter.emit("updateRequest", editedPostData?.character?.search);
         
-        return res.status(200).json(newPostData);
+        return res.status(200).json(editedPostData);
     } catch (error) {
         console.warn(error);
         return res.status(500).end();
