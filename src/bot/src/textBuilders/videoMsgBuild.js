@@ -15,6 +15,9 @@ import MediaMeta from "../../../Models/MediaMeta.js";
 const CDN_ROOT =
     "https://bucket.pvpscalpel.com/pvp-scalpel-frontend/";
 
+// DejaVu Sans is installed in the bot image; Arial supports local Windows runs.
+const FONT_FAMILY = '"DejaVu Sans", Arial, sans-serif';
+
 function wrapText(ctx, text, maxWidth) {
     const words = text.split(" ");
     const lines = [];
@@ -147,7 +150,7 @@ export default async function buildVideoAnno(videoID) {
         // =========================
 
         ctx.fillStyle = "#72a7ff";
-        ctx.font = "600 25px Arial";
+        ctx.font = `600 25px ${FONT_FAMILY}`;
 
         ctx.fillText(
             "PVP SCALPEL",
@@ -156,7 +159,7 @@ export default async function buildVideoAnno(videoID) {
         );
 
         ctx.fillStyle = "#888d97";
-        ctx.font = "500 19px Arial";
+        ctx.font = `500 19px ${FONT_FAMILY}`;
 
         ctx.fillText(
             "NEW VIDEO",
@@ -262,7 +265,7 @@ export default async function buildVideoAnno(videoID) {
                 );
 
                 ctx.fillStyle = "#777";
-                ctx.font = "28px Arial";
+                ctx.font = `28px ${FONT_FAMILY}`;
 
                 ctx.fillText(
                     "PvP Scalpel",
@@ -280,9 +283,10 @@ export default async function buildVideoAnno(videoID) {
 
         const contentX = 765;
         const contentWidth = 350;
+        const uploaderY = 460;
 
         ctx.fillStyle = "#ffad32";
-        ctx.font = "600 20px Arial";
+        ctx.font = `600 20px ${FONT_FAMILY}`;
 
         ctx.fillText(
             "NOW LIVE",
@@ -292,7 +296,7 @@ export default async function buildVideoAnno(videoID) {
 
         // Title
         ctx.fillStyle = "#ffffff";
-        ctx.font = "700 34px Arial";
+        ctx.font = `700 34px ${FONT_FAMILY}`;
 
         const titleLines = wrapText(
             ctx,
@@ -314,7 +318,7 @@ export default async function buildVideoAnno(videoID) {
 
         // Description
         ctx.fillStyle = "#aeb2ba";
-        ctx.font = "20px Arial";
+        ctx.font = `20px ${FONT_FAMILY}`;
 
         const descriptionLines =
             wrapText(
@@ -329,6 +333,14 @@ export default async function buildVideoAnno(videoID) {
         for (
             const line of descriptionLines
         ) {
+            // Keep the full glyph height and a gap above the uploader box.
+            const descent =
+                ctx.measureText(line).actualBoundingBoxDescent;
+
+            if (descriptionY + descent > uploaderY - 16) {
+                break;
+            }
+
             ctx.fillText(
                 line,
                 contentX,
@@ -347,7 +359,7 @@ export default async function buildVideoAnno(videoID) {
         roundedRect(
             ctx,
             contentX,
-            460,
+            uploaderY,
             contentWidth,
             70,
             14,
@@ -356,26 +368,26 @@ export default async function buildVideoAnno(videoID) {
         ctx.fill();
 
         ctx.fillStyle = "#888d97";
-        ctx.font = "17px Arial";
+        ctx.font = `17px ${FONT_FAMILY}`;
 
         ctx.fillText(
             "UPLOADED BY",
             contentX + 20,
-            485,
+            uploaderY + 25,
         );
 
         ctx.fillStyle = "#ffffff";
-        ctx.font = "600 23px Arial";
+        ctx.font = `600 23px ${FONT_FAMILY}`;
 
         ctx.fillText(
             username,
             contentX + 20,
-            515,
+            uploaderY + 55,
         );
 
         // Bottom branding
         ctx.fillStyle = "#666b75";
-        ctx.font = "17px Arial";
+        ctx.font = `17px ${FONT_FAMILY}`;
 
         ctx.fillText(
             "PvP Scalpel TV",
