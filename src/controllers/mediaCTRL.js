@@ -17,8 +17,50 @@ mediaCTRL.patch("/media/finnalize", finalizeMediaPATCH);
 mediaCTRL.get("/userMedia", requireAdmin, userMediaGET);
 
 // specifical controllers for the videos;
+mediaCTRL.get("/videos/user", getUserVideos);
 mediaCTRL.get("/videos", getVideos);
 mediaCTRL.get("/video/:videoID", getVideo);
+mediaCTRL.delete("/video/:videoID", deleteVideo);
+
+async function deleteVideo(req, res) {
+    const { videoID } = req.params;
+    const user = req?.user;
+
+    if (!videoID) return jsonMessage(res, 400, "Please specify video id");
+    if(!user) return jsonMessage(res, 403, "You are not logged in");
+
+    try {
+        const videoDoc = await MediaMeta.findById(videoID).lean();
+        if(!videoDoc) return jsonResponse(res, 404);
+        if(!user._id.equals(videoDoc.author)) return jsonResponse(res, 403);
+        const deletedVideo = await MediaMeta.findByIdAndDelete(videoID);
+
+        return jsonResponse(res, 200, { id: videoID });
+    } catch (error) {
+        console.error(error);
+        return jsonResponse(res, 500);
+    }
+    
+}
+
+async function getUserVideos(req, res) {
+    const user = req?.user;
+
+    try {
+
+        const userVideoList = await MediaMeta.find({author: user._id}).select(
+                "title author views bracket manifest.video manifest.playlist manifest.thumbnail",
+            )
+            .sort({ views: -1 })
+            .lean();
+        if(userVideoList) return jsonResponse(res, 200, userVideoList);
+        return jsonResponse(res, 404);
+
+    } catch (error) {
+        console.error(error);
+        jsonResponse(res, 500);
+    }
+}
 
 async function getVideos(_, res) {
     try {
@@ -61,7 +103,13 @@ async function getVideo(req, res) {
                 path: "author",
                 select: "username",
             })
-            .populate({ path: "comments" })
+            .populate({ 
+                path: "comments",
+                populate: {
+                    path: "author",
+                    select: "_id username" 
+                }
+            })
             .populate({ path: "characters" })
             .lean();
 
@@ -73,8 +121,39 @@ async function getVideo(req, res) {
             return jsonResponse(res, 451);
         }
 
-        if (videoDoc) return jsonResponse(res, 200, videoDoc);
-        else return jsonResponse(res, 404);
+        if (videoDoc) {
+            // build suggestions
+            const suggestedList = [];
+            const bracketSame = await MediaMeta.find({ bracket: videoDoc.bracket })
+                .select(
+                    "title author views bracket manifest.video manifest.playlist manifest.thumbnail",
+                )
+                .sort({ views: -1 })
+                .lean();
+
+            const authorSame = await MediaMeta.find({ author: videoDoc.author })
+                .select(
+                    "title author views bracket manifest.video manifest.playlist manifest.thumbnail",
+                )
+                .sort({ views: -1 })
+                .lean();
+
+            const alreadyIn = new Set();
+            alreadyIn.add(videoDoc._id.toString());
+
+            for (const doc of authorSame) {
+                alreadyIn.add(doc._id.toString())
+                suggestedList.push(doc);
+
+            }
+            for (const doc of bracketSame) {
+                if (alreadyIn.has(doc._id.toString())) continue;
+                suggestedList.push(doc);
+            }
+
+            videoDoc.suggestedList = suggestedList; // append
+            return jsonResponse(res, 200, videoDoc); // ship
+        } else return jsonResponse(res, 404);
     } catch (error) {
         console.error(error);
         return jsonResponse(res, 500);
