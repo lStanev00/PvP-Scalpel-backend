@@ -61,6 +61,7 @@
   },
   "homepage": "https://github.com/lStanev00/PvP-Scalpel-backend#readme",
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.8",
     "bcrypt": "^6.0.0",
     "compression": "^1.8.0",
     "cookie-parser": "^1.4.7",
