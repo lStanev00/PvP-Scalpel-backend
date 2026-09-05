@@ -91,6 +91,7 @@ async function getVideo(req, res) {
                 .lean();
 
             const alreadyIn = new Set();
+            alreadyIn.add(videoDoc._id.toString());
 
             for (const doc of authorSame) {
                 alreadyIn.add(doc._id.toString())
