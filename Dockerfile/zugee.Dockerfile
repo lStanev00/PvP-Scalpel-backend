@@ -4,7 +4,7 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-RUN apk add --no-cache libc6-compat \
+RUN apk add --no-cache libc6-compat font-dejavu \
     && apk add --no-cache --virtual .build-deps python3 make g++
 
 COPY package.json package-lock.json ./
