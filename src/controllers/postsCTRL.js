@@ -115,8 +115,11 @@ async function createPostPOST(req, res) {
             select : "username _id"
         });
 
-        const char = await Char.findById(characterID).lean();
-        CharCacheEmitter.emit("updateRequest", char?.search);
+        if(characterID) {
+
+            const char = await Char.findById(characterID).lean();
+            CharCacheEmitter.emit("updateRequest", char?.search);
+        }
         return res.status(201).json(popNewPost.toObject());
     } catch (error) {
         console.warn(error);
