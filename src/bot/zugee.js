@@ -112,12 +112,12 @@ await redisSubClone.pSubscribe("annoDiscord:newVideo", async (message, channel) 
     if(!videoID) return;
     console.info(`recived anno for ${videoID}`);
 
-    const testChannel = await client.channels.fetch("1498225618095964230");
-    if (!testChannel?.isTextBased()) return;
+    const killReelChannel = await client.channels.fetch("1437019535218577528");
+    if (!killReelChannel?.isTextBased()) return;
     const textAnno = await buildVideoAnno(videoID);
     if(textAnno === "vid is priv") return console.info(`Video is private ann skipped`);
 
-    if (textAnno) await testChannel.send(textAnno);
+    if (textAnno) await killReelChannel.send(textAnno);
     return null
 })
 
