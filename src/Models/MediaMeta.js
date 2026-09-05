@@ -3,6 +3,7 @@ import User from "./User.js";
 import Char from "./Chars.js";
 import GameBrackets from "./GameBrackets.js";
 import VideoComments from "./VideoComments.js";
+import Post from "./Post.js";
 
 const manifestSchema = new Schema(
     {
@@ -121,7 +122,7 @@ const MediaMetaSchema = new Schema(
 
 
 MediaMetaSchema.virtual("comments", {
-    ref: VideoComments,
+    ref: Post,
     localField: "_id",
     foreignField: "video",
 });

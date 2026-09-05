@@ -3,6 +3,7 @@ import Post from "../Models/Post.js";
 import User from "../Models/User.js";
 import { CharCacheEmitter } from "../caching/characters/charCache.js";
 import Char from "../Models/Chars.js";
+import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 
 
 const postsCTRL = Router();
@@ -93,14 +94,16 @@ async function createPostPOST(req, res) {
     const user = req?.user;
     if(!user) return res.status(403).end();
 
-    const {  title, content, authorID, characterID  } = req.body;
+    const {  title, content, authorID, characterID, video  } = req.body;
     if (!content || !authorID) return res.status(400).json({msg:`Please provide all the information to proceed`});
 
     const postBuild = {
         content, author: authorID
     }
     if (!title) postBuild.title = title;
-    if (characterID) postBuild.character = characterID;
+    if (!characterID && !video) return jsonMessage(res, 400, "You need to specify who you commenting!");
+    if (characterID && !video) postBuild.character = characterID;
+    if (video && !characterID) postBuild.video = video;
     try {
         const newPost = await new Post(postBuild).save();
         // const newPost = await new Post({
