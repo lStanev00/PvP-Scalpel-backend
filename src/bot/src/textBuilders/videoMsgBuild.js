@@ -17,9 +17,39 @@ const CDN_ROOT =
 
 // DejaVu Sans is installed in the bot image; Arial supports local Windows runs.
 const FONT_FAMILY = '"DejaVu Sans", Arial, sans-serif';
+const TEXT_SEGMENTER = new Intl.Segmenter(undefined, {
+    granularity: "grapheme",
+});
 
-function wrapText(ctx, text, maxWidth) {
-    const words = text.split(" ");
+function ellipsizeText(ctx, text, maxWidth, force = false) {
+    if (!force && ctx.measureText(text).width <= maxWidth) {
+        return text;
+    }
+
+    const characters = Array.from(
+        TEXT_SEGMENTER.segment(text),
+        ({ segment }) => segment,
+    );
+    let low = 0;
+    let high = characters.length;
+
+    while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+        const candidate =
+            characters.slice(0, middle).join("").trimEnd() + "…";
+
+        if (ctx.measureText(candidate).width <= maxWidth) {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+
+    return characters.slice(0, low).join("").trimEnd() + "…";
+}
+
+function wrapText(ctx, text, maxWidth, maxLines) {
+    const words = text.trim().split(/\s+/u);
     const lines = [];
     let line = "";
 
@@ -28,18 +58,49 @@ function wrapText(ctx, text, maxWidth) {
             ? `${line} ${word}`
             : word;
 
-        if (ctx.measureText(testLine).width > maxWidth) {
-            if (line) {
-                lines.push(line);
-            }
-
-            line = word;
-        } else {
+        if (ctx.measureText(testLine).width <= maxWidth) {
             line = testLine;
+            continue;
+        }
+
+        if (line) {
+            lines.push(line);
+            line = "";
+        }
+
+        if (lines.length === maxLines) {
+            break;
+        }
+
+        // Split oversized words without separating emoji or combining marks.
+        for (const { segment } of TEXT_SEGMENTER.segment(word)) {
+            const candidate = line + segment;
+
+            if (line && ctx.measureText(candidate).width > maxWidth) {
+                lines.push(line);
+                line = segment;
+
+                if (lines.length === maxLines) {
+                    break;
+                }
+            } else {
+                line = candidate;
+            }
+        }
+
+        if (lines.length === maxLines) {
+            break;
         }
     }
 
-    if (line) {
+    if (lines.length === maxLines) {
+        lines[maxLines - 1] = ellipsizeText(
+            ctx,
+            lines[maxLines - 1],
+            maxWidth,
+            true,
+        );
+    } else if (line) {
         lines.push(line);
     }
 
@@ -100,12 +161,8 @@ export default async function buildVideoAnno(videoID) {
             videoDoc.title?.trim() ||
             "New PvP Scalpel Video";
 
-        const description =
-            videoDoc.description?.trim() ||
-            "Fresh PvP content is now live.";
-
         const username =
-            videoDoc.author?.username ||
+            videoDoc.author?.username?.trim() ||
             "Unknown";
 
         // =========================
@@ -113,7 +170,9 @@ export default async function buildVideoAnno(videoID) {
         // =========================
 
         const WIDTH = 1200;
-        const HEIGHT = 630;
+        const HEIGHT = 1000;
+        const contentX = 48;
+        const contentWidth = WIDTH - contentX * 2;
 
         const canvas = createCanvas(
             WIDTH,
@@ -136,10 +195,10 @@ export default async function buildVideoAnno(videoID) {
 
         roundedRect(
             ctx,
-            25,
-            25,
-            1150,
-            580,
+            24,
+            24,
+            WIDTH - 48,
+            HEIGHT - 48,
             24,
         );
 
@@ -150,32 +209,48 @@ export default async function buildVideoAnno(videoID) {
         // =========================
 
         ctx.fillStyle = "#72a7ff";
-        ctx.font = `600 25px ${FONT_FAMILY}`;
+        ctx.font = `600 32px ${FONT_FAMILY}`;
 
         ctx.fillText(
-            "PVP SCALPEL",
-            65,
-            75,
+            "PvP Scalpel TV",
+            contentX,
+            78,
         );
 
         ctx.fillStyle = "#888d97";
-        ctx.font = `500 19px ${FONT_FAMILY}`;
+        ctx.font = `500 32px ${FONT_FAMILY}`;
+        ctx.textAlign = "right";
 
         ctx.fillText(
             "NEW VIDEO",
-            1020,
-            75,
+            WIDTH - contentX,
+            78,
         );
+
+        ctx.textAlign = "left";
 
         // =========================
         // THUMBNAIL
         // =========================
 
-        const thumbnailX = 65;
-        const thumbnailY = 110;
+        const thumbnailX = contentX;
+        const thumbnailY = 104;
 
-        const thumbnailWidth = 650;
-        const thumbnailHeight = 410;
+        const thumbnailWidth = contentWidth;
+        const thumbnailHeight = 621;
+        let thumbnail = null;
+
+        if (videoDoc.manifest?.thumbnail) {
+            try {
+                const thumbnailBuffer = await getThumbnailBuffer(
+                    videoDoc.manifest.thumbnail,
+                );
+
+                thumbnail = await loadImage(thumbnailBuffer);
+            } catch (error) {
+                console.error("Could not load video thumbnail:", error);
+            }
+        }
 
         ctx.save();
 
@@ -190,121 +265,68 @@ export default async function buildVideoAnno(videoID) {
 
         ctx.clip();
 
-        if (videoDoc.manifest?.thumbnail) {
-            try {
-                const thumbnailBuffer =
-                    await getThumbnailBuffer(
-                        videoDoc.manifest.thumbnail,
-                    );
+        if (thumbnail) {
+            // Center-crop to cover the frame without stretching the image.
+            const sourceRatio = thumbnail.width / thumbnail.height;
+            const targetRatio = thumbnailWidth / thumbnailHeight;
 
-                const thumbnail =
-                    await loadImage(
-                        thumbnailBuffer,
-                    );
+            let sx = 0;
+            let sy = 0;
+            let sw = thumbnail.width;
+            let sh = thumbnail.height;
 
-                /*
-                 * Cover behavior:
-                 * crop the image instead of stretching it.
-                 */
-
-                const sourceRatio =
-                    thumbnail.width /
-                    thumbnail.height;
-
-                const targetRatio =
-                    thumbnailWidth /
-                    thumbnailHeight;
-
-                let sx = 0;
-                let sy = 0;
-                let sw = thumbnail.width;
-                let sh = thumbnail.height;
-
-                if (sourceRatio > targetRatio) {
-                    sw =
-                        thumbnail.height *
-                        targetRatio;
-
-                    sx =
-                        (thumbnail.width - sw) /
-                        2;
-                } else {
-                    sh =
-                        thumbnail.width /
-                        targetRatio;
-
-                    sy =
-                        (thumbnail.height - sh) /
-                        2;
-                }
-
-                ctx.drawImage(
-                    thumbnail,
-                    sx,
-                    sy,
-                    sw,
-                    sh,
-                    thumbnailX,
-                    thumbnailY,
-                    thumbnailWidth,
-                    thumbnailHeight,
-                );
-            } catch (error) {
-                console.error(
-                    "Could not load video thumbnail:",
-                    error,
-                );
-
-                ctx.fillStyle = "#24272d";
-
-                ctx.fillRect(
-                    thumbnailX,
-                    thumbnailY,
-                    thumbnailWidth,
-                    thumbnailHeight,
-                );
-
-                ctx.fillStyle = "#777";
-                ctx.font = `28px ${FONT_FAMILY}`;
-
-                ctx.fillText(
-                    "PvP Scalpel",
-                    thumbnailX + 230,
-                    thumbnailY + 210,
-                );
+            if (sourceRatio > targetRatio) {
+                sw = thumbnail.height * targetRatio;
+                sx = (thumbnail.width - sw) / 2;
+            } else {
+                sh = thumbnail.width / targetRatio;
+                sy = (thumbnail.height - sh) / 2;
             }
+
+            ctx.drawImage(
+                thumbnail,
+                sx,
+                sy,
+                sw,
+                sh,
+                thumbnailX,
+                thumbnailY,
+                thumbnailWidth,
+                thumbnailHeight,
+            );
+        } else {
+            ctx.fillStyle = "#24272d";
+            ctx.fillRect(
+                thumbnailX,
+                thumbnailY,
+                thumbnailWidth,
+                thumbnailHeight,
+            );
+            ctx.fillStyle = "#aeb2ba";
+            ctx.font = `40px ${FONT_FAMILY}`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(
+                "Preview unavailable",
+                thumbnailX + thumbnailWidth / 2,
+                thumbnailY + thumbnailHeight / 2,
+            );
         }
 
         ctx.restore();
 
-        // =========================
-        // RIGHT SIDE INFO
-        // =========================
-
-        const contentX = 765;
-        const contentWidth = 350;
-        const uploaderY = 460;
-
-        ctx.fillStyle = "#ffad32";
-        ctx.font = `600 20px ${FONT_FAMILY}`;
-
-        ctx.fillText(
-            "NOW LIVE",
-            contentX,
-            140,
-        );
-
         // Title
         ctx.fillStyle = "#ffffff";
-        ctx.font = `700 34px ${FONT_FAMILY}`;
+        ctx.font = `700 60px ${FONT_FAMILY}`;
 
         const titleLines = wrapText(
             ctx,
             title,
             contentWidth,
-        ).slice(0, 3);
+            2,
+        );
 
-        let titleY = 190;
+        let titleY = 794;
 
         for (const line of titleLines) {
             ctx.fillText(
@@ -313,97 +335,18 @@ export default async function buildVideoAnno(videoID) {
                 titleY,
             );
 
-            titleY += 42;
+            titleY += 70;
         }
 
-        // Description
+        // Author
         ctx.fillStyle = "#aeb2ba";
-        ctx.font = `20px ${FONT_FAMILY}`;
+        ctx.font = `40px ${FONT_FAMILY}`;
 
-        const descriptionLines =
-            wrapText(
-                ctx,
-                description,
-                contentWidth,
-            ).slice(0, 5);
-
-        let descriptionY =
-            titleY + 25;
-
-        for (
-            const line of descriptionLines
-        ) {
-            // Keep the full glyph height and a gap above the uploader box.
-            const descent =
-                ctx.measureText(line).actualBoundingBoxDescent;
-
-            if (descriptionY + descent > uploaderY - 16) {
-                break;
-            }
-
-            ctx.fillText(
-                line,
-                contentX,
-                descriptionY,
-            );
-
-            descriptionY += 29;
-        }
-
-        // =========================
-        // BOTTOM INFO
-        // =========================
-
-        ctx.fillStyle = "#25282f";
-
-        roundedRect(
-            ctx,
+        ctx.fillText(
+            ellipsizeText(ctx, `By ${username}`, contentWidth),
             contentX,
-            uploaderY,
-            contentWidth,
-            70,
-            14,
+            936,
         );
-
-        ctx.fill();
-
-        ctx.fillStyle = "#888d97";
-        ctx.font = `17px ${FONT_FAMILY}`;
-
-        ctx.fillText(
-            "UPLOADED BY",
-            contentX + 20,
-            uploaderY + 25,
-        );
-
-        ctx.fillStyle = "#ffffff";
-        ctx.font = `600 23px ${FONT_FAMILY}`;
-
-        ctx.fillText(
-            username,
-            contentX + 20,
-            uploaderY + 55,
-        );
-
-        // Bottom branding
-        ctx.fillStyle = "#666b75";
-        ctx.font = `17px ${FONT_FAMILY}`;
-
-        ctx.fillText(
-            "PvP Scalpel TV",
-            65,
-            570,
-        );
-
-        ctx.textAlign = "right";
-
-        ctx.fillText(
-            "pvpscalpel.com",
-            1115,
-            570,
-        );
-
-        ctx.textAlign = "left";
 
         // =========================
         // EXPORT
