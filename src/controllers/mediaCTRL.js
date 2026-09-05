@@ -61,7 +61,13 @@ async function getVideo(req, res) {
                 path: "author",
                 select: "username",
             })
-            .populate({ path: "comments" })
+            .populate({ 
+                path: "comments",
+                populate: {
+                    path: "author",
+                    select: "_id username" 
+                }
+            })
             .populate({ path: "characters" })
             .lean();
 
