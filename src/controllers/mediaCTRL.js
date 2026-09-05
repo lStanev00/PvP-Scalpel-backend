@@ -73,8 +73,38 @@ async function getVideo(req, res) {
             return jsonResponse(res, 451);
         }
 
-        if (videoDoc) return jsonResponse(res, 200, videoDoc);
-        else return jsonResponse(res, 404);
+        if (videoDoc) {
+            // build suggestions
+            const suggestedList = [];
+            const bracketSame = await MediaMeta.find({ bracket: videoDoc.bracket })
+                .select(
+                    "title author views bracket manifest.video manifest.playlist manifest.thumbnail",
+                )
+                .sort({ views: -1 })
+                .lean();
+
+            const authorSame = await MediaMeta.find({ author: videoDoc.author })
+                .select(
+                    "title author views bracket manifest.video manifest.playlist manifest.thumbnail",
+                )
+                .sort({ views: -1 })
+                .lean();
+
+            const alreadyIn = new Set();
+
+            for (const doc of authorSame) {
+                alreadyIn.add(doc._id.toString())
+                suggestedList.push(doc);
+
+            }
+            for (const doc of bracketSame) {
+                if (alreadyIn.has(doc._id.toString())) continue;
+                suggestedList.push(doc);
+            }
+
+            videoDoc.suggestedList = suggestedList; // append
+            return jsonResponse(res, 200, videoDoc); // ship
+        } else return jsonResponse(res, 404);
     } catch (error) {
         console.error(error);
         return jsonResponse(res, 500);
