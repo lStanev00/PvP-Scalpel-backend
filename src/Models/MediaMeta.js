@@ -124,7 +124,7 @@ const MediaMetaSchema = new Schema(
 MediaMetaSchema.virtual("comments", {
     ref: Post,
     localField: "_id",
-    foreignField: "video",
+    foreignField: "media",
 });
 
 async function cacheSavedMedia(doc) {
