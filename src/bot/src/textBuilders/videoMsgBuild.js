@@ -154,6 +154,8 @@ export default async function buildVideoAnno(videoID) {
             return null;
         }
 
+        if(videoDoc.isPrivate) return "vid is priv";
+
         const videoURL =
             `https://www.pvpscalpel.com/watch/${videoDoc._id}`;
 
