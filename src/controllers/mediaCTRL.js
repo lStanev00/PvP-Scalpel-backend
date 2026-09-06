@@ -90,7 +90,7 @@ async function getVideo(req, res) {
     const { videoID } = req.params;
 
     try {
-        const bumpViews = await shouldBumpViews(req, { _id: videoID });
+        const bumpViews = req.headers?.["fe-ping"] === "front-end" ? false : await shouldBumpViews(req, { _id: videoID });
         const videoDoc = await MediaMeta.findByIdAndUpdate(
             videoID,
             {
