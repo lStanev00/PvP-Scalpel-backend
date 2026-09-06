@@ -5,9 +5,10 @@ import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import queryCharacterBySearch from "./route_logic/charSearchCtrl/querryCharacter.js";
 // import buildCharacter from "../helpers/buildCharacter.js";
-import { getCharacterViaWorker } from "../caching/characters/charCache.js";
+import { cacheOneCharacter, getCharacterViaWorker } from "../caching/characters/charCache.js";
 import { searchCharFromMap } from "../caching/searchCache/charSearchCache.js";
 import buildCharSearch from "../helpers/buildCharSearch.js";
+import shouldBumpViews from "../caching/viewerCache/viewCache.js";
 // import getCache from "../helpers/redis/getterRedis.js";
 // import setCache from "../helpers/redis/setterRedis.js";
 
@@ -63,7 +64,17 @@ async function checkCharacterGet(req, res) {
     }
 
     try {
-        const character = await getCharacterViaWorker(server, realm, name);
+        const character = await getCharacterViaWorker(server, realm, name, false);
+
+        if (character && character !== 404 && await shouldBumpViews(req, character)) {
+            await Char.findByIdAndUpdate(
+                character._id,
+                { $inc: { checkedCount: 1 } },
+                { timestamps: false },
+            );
+            character.checkedCount = (character.checkedCount || 0) + 1;
+            await cacheOneCharacter(character);
+        }
 
         if (character === 404) response.code = 404;
         else if (character) response.code = 200;
