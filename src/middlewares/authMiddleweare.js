@@ -6,6 +6,16 @@ import { jsonResponse } from '../helpers/resposeHelpers.js';
 
 const JWT_SECRET = process.env.JWT_SECRET
 export async function authMiddleware(req, res, next) {
+    //temporal searchengines option
+    const botRegex =
+        /Googlebot|bingbot|DuckDuckBot|YandexBot|Baiduspider/i;
+
+    const isSearchEngine = botRegex.test(req.headers["user-agent"] || "");
+
+    if (isSearchEngine) {
+        return next();
+    };
+
     const auth1 = req.headers["600"];
     if (!auth1 && auth1 !== "BasicPass") return jsonResponse(res, 500);
     const isDesktopOrigin = req.headers.origin === "http://tauri.localhost";
