@@ -6,6 +6,7 @@ import finalizeMediaPATCH from "./route_logic/mediaCTRL/finalizeMediaPATCH.js";
 import acknowledgeMediaPartPATCH from "./route_logic/mediaCTRL/acknowledgeMediaPartPATCH.js";
 import MediaMeta from "../Models/MediaMeta.js";
 import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
+import shouldBumpViews from "../caching/viewerCache/viewCache.js";
 
 const mediaCTRL = Router();
 
@@ -89,10 +90,11 @@ async function getVideo(req, res) {
     const { videoID } = req.params;
 
     try {
+        const bumpViews = await shouldBumpViews(req, { _id: videoID });
         const videoDoc = await MediaMeta.findByIdAndUpdate(
             videoID,
             {
-                $inc: { views: 1 },
+                $inc: { views: bumpViews ? 1 : 0 },
             },
             { new: true },
         )
