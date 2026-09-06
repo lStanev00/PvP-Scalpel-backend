@@ -3,6 +3,7 @@ import Post from "../Models/Post.js";
 import User from "../Models/User.js";
 import { CharCacheEmitter } from "../caching/characters/charCache.js";
 import Char from "../Models/Chars.js";
+import { jsonMessage, jsonResponse } from "../helpers/resposeHelpers.js";
 
 
 const postsCTRL = Router();
@@ -47,7 +48,7 @@ async function editPostPATCH(req, res) {
 
     const {postID, content, title} = req.body;
 
-    if (!postID || !content || !title) return res.status(400).json({msg:`Bad request`});
+    if (!postID || typeof content !== "string" || !content.trim()) return res.status(400).json({msg:`Bad request`});
 
     let post = undefined;
 
@@ -64,11 +65,12 @@ async function editPostPATCH(req, res) {
     if (!((user._id).equals(post?.author?._id))) return res.status(401).end();
 
     try {
-        const newPostData = await Post.findByIdAndUpdate(postID, {
-            $set: {
-                content: content.trim(),
-                title: title.trim()
-            }
+        const ops = {content: content.trim()};
+        if (typeof title === "string" && title.trim()) {
+            ops.title = title.trim();
+        }
+        const editedPostData = await Post.findByIdAndUpdate(postID, {
+            $set: ops,
         },{ new: true })
         .populate({
             path: "author",
@@ -79,9 +81,9 @@ async function editPostPATCH(req, res) {
             select: "name playerRealm media server _id search"
         })
         .lean();
-        CharCacheEmitter.emit("updateRequest", newPostData?.character?.search);
+        if (editedPostData.character) CharCacheEmitter.emit("updateRequest", editedPostData?.character?.search);
         
-        return res.status(200).json(newPostData);
+        return res.status(200).json(editedPostData);
     } catch (error) {
         console.warn(error);
         return res.status(500).end();
@@ -93,14 +95,17 @@ async function createPostPOST(req, res) {
     const user = req?.user;
     if(!user) return res.status(403).end();
 
-    const {  title, content, authorID, characterID  } = req.body;
+    const {  title, content, authorID, characterID, media  } = req.body;
     if (!content || !authorID) return res.status(400).json({msg:`Please provide all the information to proceed`});
 
     const postBuild = {
-        content, author: authorID
+        content,
+        author: user._id
     }
     if (!title) postBuild.title = title;
-    if (characterID) postBuild.character = characterID;
+    if (!characterID && !media) return jsonMessage(res, 400, "You need to specify who you commenting!");
+    if (characterID && !media) postBuild.character = characterID;
+    if (media && !characterID) postBuild.media = media;
     try {
         const newPost = await new Post(postBuild).save();
         // const newPost = await new Post({
@@ -112,8 +117,11 @@ async function createPostPOST(req, res) {
             select : "username _id"
         });
 
-        const char = await Char.findById(characterID).lean();
-        CharCacheEmitter.emit("updateRequest", char?.search);
+        if(characterID) {
+
+            const char = await Char.findById(characterID).lean();
+            CharCacheEmitter.emit("updateRequest", char?.search);
+        }
         return res.status(201).json(popNewPost.toObject());
     } catch (error) {
         console.warn(error);
@@ -130,8 +138,11 @@ async function postDELETE(req, res) {
         if (!user._id.equals(post.author)) return res.status(400).end();
 
         await Post.findByIdAndDelete(postID);
-        const char = await Char.findById(post.character._id);
-        CharCacheEmitter.emit("updateRequest", char?.search);
+        if (post.character) {
+
+            const char = await Char.findById(post.character._id);
+            CharCacheEmitter.emit("updateRequest", char?.search);
+        }
 
         return res.status(200).end();
     } catch (error) {
