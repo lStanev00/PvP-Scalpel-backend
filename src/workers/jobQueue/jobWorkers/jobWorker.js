@@ -51,7 +51,7 @@ process.on("message", async (jobInfo) => {
             } else if (type === "processMedia") {
                 const result = await processMedia(currentJobInfo);
                 if(result.status === 200 && result.outcome === "processed") {
-                    void publishVideoToZugee(result._id)
+                    void await publishVideoToZugee(result._id)
                 }
                 process.send({
                     type: "processMedia",
