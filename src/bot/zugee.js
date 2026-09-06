@@ -1,4 +1,4 @@
-// version: 1.1.51
+// version: 1.1.52
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -114,7 +114,8 @@ await redisSubClone.pSubscribe("annoDiscord:newVideo", async (message, channel) 
 
     const killReelChannel = await client.channels.fetch("1437019535218577528");
     if (!killReelChannel?.isTextBased()) return;
-    const textAnno = await buildVideoAnno(videoID);
+    // const textAnno = await buildVideoAnno(videoID);
+    const textAnno = `https://www.pvpscalpel.com/watch/${videoID}`;
     if(textAnno === "vid is priv") return console.info(`Video is private ann skipped`);
 
     if (textAnno) await killReelChannel.send(textAnno);
