@@ -1,4 +1,4 @@
-// version: 1.1.52
+// version: 1.1.53
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -12,7 +12,8 @@ import "./src/botCommands.js";
 import messageRouter from "./src/messageRouter.js";
 import threadBoot from "../helpers/threadBoot.js";
 import { redisCache } from "../helpers/redis/connectRedis.js";
-import buildVideoAnno from "./src/textBuilders/videoMsgBuild.js";
+import MediaMeta from "../Models/MediaMeta.js";
+import User from "../Models/User.js";
 
 configDotenv({ path: "src/bot/bot.env" });
 
@@ -27,9 +28,7 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.MessageContent,
-        ...(messageCommandsEnabled
-            ? [GatewayIntentBits.GuildMessages]
-            : []),
+        ...(messageCommandsEnabled ? [GatewayIntentBits.GuildMessages] : []),
     ],
     partials: [Partials.Channel, Partials.Message, Partials.User],
 });
@@ -92,34 +91,45 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 if (!messageCommandsEnabled) {
-    console.info(
-        "Guild message commands disabled. Team members can DM Zugee for AI chat.",
-    );
+    console.info("Guild message commands disabled. Team members can DM Zugee for AI chat.");
 }
 
 const redisSubClone = redisCache.duplicate();
 
-if(!redisSubClone.isOpen) await redisSubClone.connect();
+if (!redisSubClone.isOpen) await redisSubClone.connect();
 
 await redisSubClone.pSubscribe("annoDiscord:newVideo", async (message, channel) => {
     // todo ship msg to test bot-stroke channel for fire testing
-    // export to dif file for file struct 
+    // export to dif file for file struct
     // on success after meeting the satisfaction of msg struct ship msg to #kill-reel channel
     // channel id of main target => 1437019535218577528
     // test/bot-stroke chann ID => 1498225618095964230
 
     const videoID = JSON.parse(message);
-    if(!videoID) return;
+    if (!videoID) return;
     console.info(`recived anno for ${videoID}`);
 
     const killReelChannel = await client.channels.fetch("1437019535218577528");
     if (!killReelChannel?.isTextBased()) return;
     // const textAnno = await buildVideoAnno(videoID);
-    const textAnno = `https://www.pvpscalpel.com/watch/${videoID}`;
-    if(textAnno === "vid is priv") return console.info(`Video is private ann skipped`);
+    const videoDoc = await MediaMeta.findById(videoID);
+    const user = await User.findById(videoDoc.author);
+    const discordID = user?.discordIDs?.[0];
 
-    if (textAnno) await killReelChannel.send(textAnno);
-    return null
-})
+    const textAnno = `
+https://www.pvpscalpel.com/watch/${videoID}
+${discordID ? `By <@${discordID}>` : ""}
+`.trim();
+    if (textAnno === "vid is priv") return console.info(`Video is private ann skipped`);
+
+    if (textAnno)
+        await killReelChannel.send({
+            content: textAnno,
+            allowedMentions: {
+                users: discordID ? [discordID] : [],
+            },
+        });
+    return null;
+});
 
 await client.login(process.env.DISCORD_TOKEN);
