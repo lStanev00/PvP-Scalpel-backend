@@ -15,7 +15,7 @@ export default async function checkForPatchNotes() {
         });
 
         // while (exited !== true) await delay(3000);
-        await delay(2147483647); // max 24.8 days
+        await delay(3600000); // 1 hr delay
     }
     // src\services\updateRealms.js
 }
