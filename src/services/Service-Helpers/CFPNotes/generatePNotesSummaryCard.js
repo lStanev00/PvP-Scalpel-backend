@@ -1,4 +1,4 @@
-import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,8 +17,8 @@ const STATS_HEIGHT = 138;
 const GRID_GAP = 12;
 const OUTER_MARGIN = 40;
 const BUG_ICON_SCALE = 0.84;
-const SERIF_FONT = '"DejaVu Serif", Georgia, serif';
-const SANS_FONT = '"DejaVu Sans", Arial, sans-serif';
+const SERIF_FONT = '"PVP Scalpel Serif"';
+const SANS_FONT = '"PVP Scalpel Sans"';
 
 const CHANGE_TYPES = Object.freeze([
     "buff",
@@ -31,6 +31,13 @@ const CHANGE_TYPES = Object.freeze([
 const ASSET_DIRECTORY = fileURLToPath(
     new URL("./canvaAssets/", import.meta.url),
 );
+const FONT_DIRECTORY = path.join(ASSET_DIRECTORY, "fonts");
+const BUNDLED_FONTS = Object.freeze([
+    ["DejaVuSerif.ttf", "PVP Scalpel Serif"],
+    ["DejaVuSerif-Bold.ttf", "PVP Scalpel Serif"],
+    ["DejaVuSans.ttf", "PVP Scalpel Sans"],
+    ["DejaVuSans-Bold.ttf", "PVP Scalpel Sans"],
+]);
 const DEFAULT_OUTPUT_DIRECTORY = fileURLToPath(
     new URL("../../../../image_gen/", import.meta.url),
 );
@@ -399,6 +406,7 @@ function mapDocumentsById(documents, label) {
 
 async function loadStaticAssets() {
     if (!staticAssetsPromise) {
+        registerBundledFonts();
         staticAssetsPromise = Promise.all([
             loadLocalImage("backgroundCard.png"),
             loadLocalImage("headerLogo.png"),
@@ -424,6 +432,16 @@ async function loadStaticAssets() {
     }
 
     return staticAssetsPromise;
+}
+
+function registerBundledFonts() {
+    for (const [filename, family] of BUNDLED_FONTS) {
+        const fontPath = path.join(FONT_DIRECTORY, filename);
+        const fontKey = GlobalFonts.registerFromPath(fontPath, family);
+        if (!fontKey) {
+            throw new Error(`Could not register bundled Canvas font: ${fontPath}`);
+        }
+    }
 }
 
 async function loadLocalImage(relativePath) {
