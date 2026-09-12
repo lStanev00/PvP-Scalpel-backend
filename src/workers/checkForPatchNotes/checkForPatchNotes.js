@@ -1,7 +1,7 @@
 import { fork } from "child_process";
 import { delay } from "../../helpers/startBGTask.js";
 
-export default async function workerUpdateRealm() {
+export default async function checkForPatchNotes() {
     while (true) {
         let exited = false;
         const task = fork("src/services/CFPNotes.js");
