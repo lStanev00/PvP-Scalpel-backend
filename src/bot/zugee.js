@@ -1,4 +1,4 @@
-// version: 1.1.54
+// version: 1.1.56
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -9,9 +9,8 @@ import {
     Client,
     Events,
     GatewayIntentBits,
+    MessageFlags,
     Partials,
-    AttachmentBuilder,
-    EmbedBuilder,
 } from "discord.js";
 import { configDotenv } from "dotenv";
 import botRouter from "./src/botRouter.js";
@@ -117,7 +116,7 @@ await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (messag
 
         console.info(`Received class tuning announcement: ${title}`);
 
-        const testChannel = await client.channels.fetch("1437019535218577528");
+        const testChannel = await client.channels.fetch("1498225618095964230");
 
         if (!testChannel?.isTextBased()) return;
 
@@ -133,27 +132,15 @@ await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (messag
             */
         const imageBuffer = Buffer.isBuffer(cardBuffer) ? cardBuffer : Buffer.from(cardBuffer.data);
 
-        const attachment = new AttachmentBuilder(imageBuffer, {
-            name: "class-tuning.png",
-            description: "PvP Scalpel class tuning quick overview",
-        });
-
-        const embed = new EmbedBuilder()
-            .setTitle(title)
-            .setURL(url)
-            .setDescription(
-                "⚔️ **New World of Warcraft class tuning detected**\n\n" +
-                    "Quick PvP overview below. Click the title to view the official Blizzard post.",
-            )
-            .setImage("attachment://class-tuning.png")
-            .setFooter({
-                text: "PvP Scalpel • Class Tuning Tracker",
-            })
-            .setTimestamp();
-
         await testChannel.send({
-            embeds: [embed],
-            files: [attachment],
+            content: `### [${escapeLinkTitle(title)}](${url})`,
+            files: [{
+                attachment: imageBuffer,
+                name: "class-tuning.png",
+                description: "PvP Scalpel class tuning quick overview",
+            }],
+            allowedMentions: { parse: [] },
+            flags: MessageFlags.SuppressEmbeds,
         });
 
         console.info(`Class tuning announcement sent: ${url}`);
@@ -163,6 +150,10 @@ await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (messag
 
     return null;
 });
+
+function escapeLinkTitle(title) {
+    return title.replaceAll("\\", "\\\\").replaceAll("]", "\\]");
+}
 
 const redisSubClone = redisCache.duplicate();
 

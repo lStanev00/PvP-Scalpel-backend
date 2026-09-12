@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { loadImage } from "@napi-rs/canvas";
+import { GlobalFonts, loadImage } from "@napi-rs/canvas";
 import GameClass from "../src/Models/GameClass.js";
 import GameSpecialization from "../src/Models/GameSpecialization.js";
 import generatePNotesSummaryCard, {
@@ -93,40 +92,26 @@ function mockCardModels(t, classes = CLASSES, specs = SPECS) {
     );
 }
 
-async function temporaryDirectory(t) {
-    const directory = await mkdtemp(path.join(tmpdir(), "cfp-notes-card-"));
-    t.after(() => rm(directory, { recursive: true, force: true }));
-    return directory;
-}
-
-test("renders the Shaman summary as a timestamped 1536px PNG", async (t) => {
+test("renders the Shaman summary as a 1536px PNG buffer with bundled fonts", async (t) => {
     mockCardModels(t);
-    const outputDir = await temporaryDirectory(t);
     const iconBuffer = await readFile(path.join(ASSET_DIRECTORY, "ui/bug.png"));
     let fetchCalls = 0;
 
-    const result = await generatePNotesSummaryCard(ANALYSIS, POST, {
-        outputDir,
-        now: new Date("2026-09-12T10:20:30.456Z"),
+    const png = await generatePNotesSummaryCard(ANALYSIS, POST, {
         fetchImpl: async () => {
             fetchCalls += 1;
             return new Response(iconBuffer, { status: 200 });
         },
     });
 
-    assert.equal(result.width, 1536);
-    assert.ok(result.height >= 1024);
-    assert.equal(
-        path.basename(result.path),
-        "cfp-notes-6350810-20260912T102030456Z.png",
-    );
+    assert.ok(Buffer.isBuffer(png));
     assert.equal(fetchCalls, 1, "duplicate media URLs should be fetched once");
-
-    const png = await readFile(result.path);
     assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
     const decoded = await loadImage(png);
     assert.equal(decoded.width, 1536);
-    assert.equal(decoded.height, result.height);
+    assert.ok(decoded.height >= 1024);
+    assert.equal(GlobalFonts.has("PVP Scalpel Serif"), true);
+    assert.equal(GlobalFonts.has("PVP Scalpel Sans"), true);
 });
 
 test("grows vertically when class and spec grids need additional rows", () => {
@@ -212,45 +197,37 @@ test("uses the effective title date and falls back to createdAt", () => {
 });
 
 test("renders system-only cards and survives unavailable remote icons", async (t) => {
-    const outputDir = await temporaryDirectory(t);
     const systemOnly = {
         changes: { classes: [], specs: [] },
         systemUpdated: true,
     };
 
     const systemResult = await generatePNotesSummaryCard(systemOnly, POST, {
-        outputDir,
-        now: new Date("2026-09-12T10:20:30.000Z"),
         fetchImpl: async () => {
             throw new Error("fetch must not run without entries");
         },
     });
-    assert.equal(systemResult.height, 1024);
+    assert.equal((await loadImage(systemResult)).height, 1024);
 
     mockCardModels(t);
     const fallbackResult = await generatePNotesSummaryCard(ANALYSIS, POST, {
-        outputDir,
-        now: new Date("2026-09-12T10:20:31.000Z"),
         fetchImpl: async () => new Response("unavailable", { status: 503 }),
     });
-    assert.equal((await loadImage(await readFile(fallbackResult.path))).width, 1536);
+    assert.equal((await loadImage(fallbackResult)).width, 1536);
 });
 
 test("loads a specialization's parent class when no class card is present", async (t) => {
     mockCardModels(t);
-    const outputDir = await temporaryDirectory(t);
     const specOnly = {
         changes: { classes: [], specs: [[262, "nerf"]] },
         systemUpdated: false,
     };
 
     const result = await generatePNotesSummaryCard(specOnly, POST, {
-        outputDir,
-        now: new Date("2026-09-12T10:20:32.000Z"),
         fetchImpl: async () => new Response("unavailable", { status: 503 }),
     });
 
-    assert.equal(result.width, 1536);
+    assert.equal((await loadImage(result)).width, 1536);
 });
 
 test("rejects malformed analysis and missing database IDs", async (t) => {
