@@ -1,4 +1,4 @@
-// version: 1.1.56
+// version: 1.1.58
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -116,9 +116,9 @@ await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (messag
 
         console.info(`Received class tuning announcement: ${title}`);
 
-        const testChannel = await client.channels.fetch("1498225618095964230");
+        const blizzNewsChannel = await client.channels.fetch("1548298695022215188");
 
-        if (!testChannel?.isTextBased()) return;
+        if (!blizzNewsChannel?.isTextBased()) return;
 
         /*
                 JSON.stringify(Buffer) produces:
@@ -132,7 +132,7 @@ await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (messag
             */
         const imageBuffer = Buffer.isBuffer(cardBuffer) ? cardBuffer : Buffer.from(cardBuffer.data);
 
-        await testChannel.send({
+        await blizzNewsChannel.send({
             content: `### [${escapeLinkTitle(title)}](${url})`,
             files: [{
                 attachment: imageBuffer,
