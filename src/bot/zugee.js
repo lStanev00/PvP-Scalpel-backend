@@ -1,11 +1,18 @@
-// version: 1.1.53
+// version: 1.1.54
 
 // This is a discord bot
 // the name of the file is the name of the bot
 // this file is used as index.js alike
 
 import "dotenv/config";
-import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import {
+    Client,
+    Events,
+    GatewayIntentBits,
+    Partials,
+    AttachmentBuilder,
+    EmbedBuilder,
+} from "discord.js";
 import { configDotenv } from "dotenv";
 import botRouter from "./src/botRouter.js";
 import "./src/botCommands.js";
@@ -93,6 +100,69 @@ client.on(Events.MessageCreate, async (message) => {
 if (!messageCommandsEnabled) {
     console.info("Guild message commands disabled. Team members can DM Zugee for AI chat.");
 }
+
+const redisSubNotesClone = redisCache.duplicate();
+
+if (!redisSubNotesClone.isOpen) await redisSubNotesClone.connect();
+
+await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (message, channel) => {
+    try {
+        const { title, url, cardBuffer } = JSON.parse(message);
+
+        if (!title || !url || !cardBuffer) {
+            console.warn("Invalid class tuning announcement payload");
+
+            return;
+        }
+
+        console.info(`Received class tuning announcement: ${title}`);
+
+        const testChannel = await client.channels.fetch("1437019535218577528");
+
+        if (!testChannel?.isTextBased()) return;
+
+        /*
+                JSON.stringify(Buffer) produces:
+
+                {
+                    type: "Buffer",
+                    data: [...]
+                }
+
+                Rebuild the actual Node.js Buffer here.
+            */
+        const imageBuffer = Buffer.isBuffer(cardBuffer) ? cardBuffer : Buffer.from(cardBuffer.data);
+
+        const attachment = new AttachmentBuilder(imageBuffer, {
+            name: "class-tuning.png",
+            description: "PvP Scalpel class tuning quick overview",
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle(title)
+            .setURL(url)
+            .setDescription(
+                "⚔️ **New World of Warcraft class tuning detected**\n\n" +
+                    "Quick PvP overview below. Click the title to view the official Blizzard post.",
+            )
+            .setImage("attachment://class-tuning.png")
+            .setFooter({
+                text: "PvP Scalpel • Class Tuning Tracker",
+            })
+            .setTimestamp();
+
+        await testChannel.send({
+            embeds: [embed],
+            files: [attachment],
+        });
+
+        console.info(`Class tuning announcement sent: ${url}`);
+    } catch (error) {
+        console.error("Failed to send class tuning Discord announcement:", error);
+    }
+
+    return null;
+});
 
 const redisSubClone = redisCache.duplicate();
 
