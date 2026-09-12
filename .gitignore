@@ -142,3 +142,6 @@ dist
 
 
 PvP-Scalpel-lychcloud
+
+# Generated patch-note preview cards
+/image_gen/*.png
