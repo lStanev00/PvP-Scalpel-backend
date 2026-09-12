@@ -9,6 +9,7 @@ import {
     Client,
     Events,
     GatewayIntentBits,
+    MessageFlags,
     Partials,
 } from "discord.js";
 import { configDotenv } from "dotenv";
@@ -139,6 +140,7 @@ await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (messag
                 description: "PvP Scalpel class tuning quick overview",
             }],
             allowedMentions: { parse: [] },
+            flags: MessageFlags.SuppressEmbeds,
         });
 
         console.info(`Class tuning announcement sent: ${url}`);
