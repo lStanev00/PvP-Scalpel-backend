@@ -1,18 +1,26 @@
-// version: 1.1.51
+// version: 1.1.54
 
 // This is a discord bot
 // the name of the file is the name of the bot
 // this file is used as index.js alike
 
 import "dotenv/config";
-import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import {
+    Client,
+    Events,
+    GatewayIntentBits,
+    Partials,
+    AttachmentBuilder,
+    EmbedBuilder,
+} from "discord.js";
 import { configDotenv } from "dotenv";
 import botRouter from "./src/botRouter.js";
 import "./src/botCommands.js";
 import messageRouter from "./src/messageRouter.js";
 import threadBoot from "../helpers/threadBoot.js";
 import { redisCache } from "../helpers/redis/connectRedis.js";
-import buildVideoAnno from "./src/textBuilders/videoMsgBuild.js";
+import MediaMeta from "../Models/MediaMeta.js";
+import User from "../Models/User.js";
 
 configDotenv({ path: "src/bot/bot.env" });
 
@@ -27,9 +35,7 @@ const client = new Client({
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.DirectMessages,
         GatewayIntentBits.MessageContent,
-        ...(messageCommandsEnabled
-            ? [GatewayIntentBits.GuildMessages]
-            : []),
+        ...(messageCommandsEnabled ? [GatewayIntentBits.GuildMessages] : []),
     ],
     partials: [Partials.Channel, Partials.Message, Partials.User],
 });
@@ -92,33 +98,108 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 if (!messageCommandsEnabled) {
-    console.info(
-        "Guild message commands disabled. Team members can DM Zugee for AI chat.",
-    );
+    console.info("Guild message commands disabled. Team members can DM Zugee for AI chat.");
 }
+
+const redisSubNotesClone = redisCache.duplicate();
+
+if (!redisSubNotesClone.isOpen) await redisSubNotesClone.connect();
+
+await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (message, channel) => {
+    try {
+        const { title, url, cardBuffer } = JSON.parse(message);
+
+        if (!title || !url || !cardBuffer) {
+            console.warn("Invalid class tuning announcement payload");
+
+            return;
+        }
+
+        console.info(`Received class tuning announcement: ${title}`);
+
+        const testChannel = await client.channels.fetch("1437019535218577528");
+
+        if (!testChannel?.isTextBased()) return;
+
+        /*
+                JSON.stringify(Buffer) produces:
+
+                {
+                    type: "Buffer",
+                    data: [...]
+                }
+
+                Rebuild the actual Node.js Buffer here.
+            */
+        const imageBuffer = Buffer.isBuffer(cardBuffer) ? cardBuffer : Buffer.from(cardBuffer.data);
+
+        const attachment = new AttachmentBuilder(imageBuffer, {
+            name: "class-tuning.png",
+            description: "PvP Scalpel class tuning quick overview",
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle(title)
+            .setURL(url)
+            .setDescription(
+                "⚔️ **New World of Warcraft class tuning detected**\n\n" +
+                    "Quick PvP overview below. Click the title to view the official Blizzard post.",
+            )
+            .setImage("attachment://class-tuning.png")
+            .setFooter({
+                text: "PvP Scalpel • Class Tuning Tracker",
+            })
+            .setTimestamp();
+
+        await testChannel.send({
+            embeds: [embed],
+            files: [attachment],
+        });
+
+        console.info(`Class tuning announcement sent: ${url}`);
+    } catch (error) {
+        console.error("Failed to send class tuning Discord announcement:", error);
+    }
+
+    return null;
+});
 
 const redisSubClone = redisCache.duplicate();
 
-if(!redisSubClone.isOpen) await redisSubClone.connect();
+if (!redisSubClone.isOpen) await redisSubClone.connect();
 
 await redisSubClone.pSubscribe("annoDiscord:newVideo", async (message, channel) => {
     // todo ship msg to test bot-stroke channel for fire testing
-    // export to dif file for file struct 
+    // export to dif file for file struct
     // on success after meeting the satisfaction of msg struct ship msg to #kill-reel channel
     // channel id of main target => 1437019535218577528
     // test/bot-stroke chann ID => 1498225618095964230
 
     const videoID = JSON.parse(message);
-    if(!videoID) return;
+    if (!videoID) return;
     console.info(`recived anno for ${videoID}`);
 
     const killReelChannel = await client.channels.fetch("1437019535218577528");
     if (!killReelChannel?.isTextBased()) return;
-    const textAnno = await buildVideoAnno(videoID);
-    if(textAnno === "vid is priv") return console.info(`Video is private ann skipped`);
+    // const textAnno = await buildVideoAnno(videoID);
+    const videoDoc = await MediaMeta.findById(videoID);
+    const user = await User.findById(videoDoc.author);
+    const discordID = user?.discordIDs?.[0];
 
-    if (textAnno) await killReelChannel.send(textAnno);
-    return null
-})
+    const textAnno = `
+https://www.pvpscalpel.com/watch/${videoID}
+${discordID ? `By <@${discordID}>` : ""}
+`.trim();
+    if (textAnno === "vid is priv") return console.info(`Video is private ann skipped`);
+
+    if (textAnno)
+        await killReelChannel.send({
+            content: textAnno,
+            allowedMentions: {
+                users: discordID ? [discordID] : [],
+            },
+        });
+    return null;
+});
 
 await client.login(process.env.DISCORD_TOKEN);
