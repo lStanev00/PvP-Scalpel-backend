@@ -1,10 +1,10 @@
-import { fork } from "node:child_process";
+// import { fork } from "node:child_process";
 import JobQueue from "../workers/jobQueue/jobQueue.js";
 import workerPatchGuildMembersData from "../workers/PatchGuildMembersData/workerPatchGuildMembersData.js";
 import workerupdateDBAchieves from "../workers/updateDBAchievements/workerUDBA.js";
 import workerUpdateRealm from "../workers/updateRealm/workerUpdateRealm.js";
-import { delay } from "../helpers/startBGTask.js";
-import checkForPatchNotes from "../workers/checkForPatchNotes/checkForPatchNotes.js";
+// import { delay } from "../helpers/startBGTask.js";
+// import checkForPatchNotes from "../workers/checkForPatchNotes/checkForPatchNotes.js";
 
 const jobQueue = new JobQueue();
 
@@ -19,7 +19,7 @@ export default async function startServices() {
     // while (warmupFinished !== true) await delay(1000);
     // console.info("[Cache] Initial cache warmup finished.");
 
-    checkForPatchNotes();
+    // checkForPatchNotes();
     workerUpdateRealm();
     workerPatchGuildMembersData();
     workerupdateDBAchieves();
