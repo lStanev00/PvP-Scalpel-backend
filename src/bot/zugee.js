@@ -9,7 +9,6 @@ import {
     Client,
     Events,
     GatewayIntentBits,
-    MessageFlags,
     Partials,
 } from "discord.js";
 import { configDotenv } from "dotenv";
@@ -20,6 +19,7 @@ import threadBoot from "../helpers/threadBoot.js";
 import { redisCache } from "../helpers/redis/connectRedis.js";
 import MediaMeta from "../Models/MediaMeta.js";
 import User from "../Models/User.js";
+import sendClassTuning from "./src/textBuilders/sendClassTuning.js";
 
 configDotenv({ path: "src/bot/bot.env" });
 
@@ -106,54 +106,15 @@ if (!redisSubNotesClone.isOpen) await redisSubNotesClone.connect();
 
 await redisSubNotesClone.pSubscribe("annoDiscord:newClassChanges", async (message, channel) => {
     try {
-        const { title, url, cardBuffer } = JSON.parse(message);
-
-        if (!title || !url || !cardBuffer) {
-            console.warn("Invalid class tuning announcement payload");
-
-            return;
-        }
-
-        console.info(`Received class tuning announcement: ${title}`);
-
-        const blizzNewsChannel = await client.channels.fetch("1548298695022215188");
-
-        if (!blizzNewsChannel?.isTextBased()) return;
-
-        /*
-                JSON.stringify(Buffer) produces:
-
-                {
-                    type: "Buffer",
-                    data: [...]
-                }
-
-                Rebuild the actual Node.js Buffer here.
-            */
-        const imageBuffer = Buffer.isBuffer(cardBuffer) ? cardBuffer : Buffer.from(cardBuffer.data);
-
-        await blizzNewsChannel.send({
-            content: `### [${escapeLinkTitle(title)}](${url})`,
-            files: [{
-                attachment: imageBuffer,
-                name: "class-tuning.png",
-                description: "PvP Scalpel class tuning quick overview",
-            }],
-            allowedMentions: { parse: [] },
-            flags: MessageFlags.SuppressEmbeds,
-        });
-
-        console.info(`Class tuning announcement sent: ${url}`);
+        const payload = JSON.parse(message);
+        await sendClassTuning(client, payload);
+        console.info(`Class tuning announcement sent: ${payload.url}`);
     } catch (error) {
         console.error("Failed to send class tuning Discord announcement:", error);
     }
 
     return null;
 });
-
-function escapeLinkTitle(title) {
-    return title.replaceAll("\\", "\\\\").replaceAll("]", "\\]");
-}
 
 const redisSubClone = redisCache.duplicate();
 
