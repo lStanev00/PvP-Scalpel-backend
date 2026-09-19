@@ -54,6 +54,9 @@ Target rules:
 - Aggregate all active PvP-relevant changes for each target into exactly one
   entry. Never repeat an ID. For example, a nerf and bug fix for one target must
   be one [id, "nerf|bug_fix"] entry, not separate nerf and bug_fix entries.
+- Include every target with active changes, but never infer a change from a
+  heading, developer explanation, or database membership alone. A shared class
+  heading does not make specialization changes class-wide.
 
 Classification rules:
 - The allowed labels are buff, nerf, bug_fix, buff|bug_fix, and nerf|bug_fix.
@@ -213,25 +216,34 @@ export function annotatePNotesScopes(content, classes, specs) {
     }
 
     const hierarchy = [];
+    let headingScope = null;
+    let lastScope = null;
+    let heroHeading = false;
 
     return content.split("\n").map((line) => {
-        const bullet = /^(\s*)•\s+(.*)$/.exec(line);
-        if (!bullet) {
-            if (line.trim()) hierarchy.length = 0;
+        if (!line.trim()) return line;
+        const bullet = /^([ \t]*)•[ \t]+(.*)$/.exec(line);
+        const indentation = bullet?.[1] ?? "";
+        const text = bullet?.[2] ?? line.trim();
+        const headingName = normalizeTargetName(text);
+        if (/^(?:classes|class changes|player versus player|pvp|items|dungeons and raids|user interface|system changes)$/.test(headingName)) {
+            hierarchy.length = 0;
+            headingScope = lastScope = null;
+            heroHeading = false;
             return line;
         }
-
-        const [, indentation, text] = bullet;
         const depth = Math.floor(indentation.length / 2);
-        hierarchy.length = depth;
-
-        const parentScope = hierarchy[depth - 1] ?? null;
-        const headingName = normalizeTargetName(text);
+        if (bullet) hierarchy.length = depth;
+        const parentScope = bullet
+            ? hierarchy[depth - 1] ?? headingScope
+            : headingScope ?? lastScope;
         const classMatch = classByName.get(headingName);
         let scope = parentScope;
+        let isHeading = Boolean(classMatch);
 
         if (classMatch) {
             scope = { classId: classMatch.id, specId: null };
+            heroHeading = false;
         } else {
             const specMatches = specsByName.get(headingName) ?? [];
             const specMatch = parentScope?.classId
@@ -242,10 +254,22 @@ export function annotatePNotesScopes(content, classes, specs) {
 
             if (specMatch) {
                 scope = { classId: specMatch.classId, specId: specMatch.id };
+                isHeading = true;
+                heroHeading = false;
             }
         }
 
-        hierarchy[depth] = scope;
+        if (bullet) hierarchy[depth] = scope;
+        else if (isHeading) {
+            headingScope = scope;
+            hierarchy.length = 0;
+        } else {
+            if (headingName === "hero talents") heroHeading = true;
+            scope = heroHeading || /[.!?%\d]/.test(text) ? lastScope : null;
+            if (!scope) { headingScope = null; hierarchy.length = 0; }
+            else if (heroHeading) headingScope = scope;
+        }
+        lastScope = scope;
 
         if (!scope) return line;
 
@@ -354,14 +378,12 @@ export async function analyzePNotesContext(context, settings = {}) {
     try {
         responseBody = await response.json();
     } catch (error) {
-        throw new Error("Ollama patch-note response was not valid JSON", {
-            cause: error,
-        });
+        throw new PNotesValidationError(["Ollama patch-note response was not valid JSON"]);
     }
 
     const analysisJSON = responseBody?.message?.content;
     if (typeof analysisJSON !== "string") {
-        throw new Error("Ollama patch-note response is missing message.content");
+        throw new PNotesValidationError(["Ollama patch-note response is missing message.content"], null, responseBody);
     }
 
     let analysis;
@@ -370,17 +392,138 @@ export async function analyzePNotesContext(context, settings = {}) {
         analysis = JSON.parse(analysisJSON);
     } catch (error) {
         const preview = analysisJSON.trim().replace(/\s+/g, " ").slice(0, 200);
-        throw new Error(
+        throw new PNotesValidationError([
             "Ollama patch-note analysis was not valid JSON" +
                 `${preview ? `: ${preview}` : " (empty response)"}`,
-            { cause: error },
-        );
+        ], null, analysisJSON);
     }
 
-    return groundBugFixClassifications(
-        validatePNotesAnalysis(analysis, context),
-        context.post.content,
-    );
+    let validated;
+    try {
+        validated = validatePNotesAnalysis(analysis, context);
+    } catch (error) {
+        throw new PNotesValidationError([error.message], null, analysis);
+    }
+    return validatePNotesEvidence(validated, context);
+}
+
+/** Retain diagnostics; only `analysis` is schema/ID-checked and safe to render. */
+export class PNotesValidationError extends Error {
+    constructor(reasons, analysis = null, rejectedAnalysis = analysis) {
+        super(`Patch-note validation failed: ${reasons.join("; ")}`);
+        this.name = "PNotesValidationError";
+        this.reasons = reasons;
+        this.analysis = analysis;
+        this.rejectedAnalysis = rejectedAnalysis;
+    }
+}
+
+const ACTIVE_FIX = /\b(?:fix(?:ed|es|ing)?|correct(?:ed|s|ing|ion))\b/i;
+const CHANGE_ACTION = /\b(?:increased?|increases|decreased?|decreases|reduced?|reduces|grants?|deals?|heals?|causes?|reflects?|now|no longer|fix(?:ed|es|ing)?|correct(?:ed|s|ing)?|doubled|halved|removed|added)\b/i;
+const PVP_EXCLUSION = /(?:does? not|do not|not|no longer) (?:\w+\s+){0,3}(?:affect|apply|applied|affects|applies) (?:to )?pvp|\bpve[- ]only\b/i;
+
+function activeChangeText(text) {
+    const active = text.replace(/\[WITHDRAWN\][\s\S]*?\[\/WITHDRAWN\]/gi, " ").trim();
+    if (/^developers?[’']? notes?:/i.test(active)) return "";
+    if (/\b(?:not going out|cancelled|canceled|withdrawn|reverted)\b/i.test(active)) return "";
+    const sentences = active.split(/(?<=[.!?])\s+(?=[A-Z])/);
+    return sentences.filter((sentence, i) => {
+        const next = sentences[i + 1] ?? "";
+        // A separate "Does not apply..." sentence qualifies the previous change.
+        const nextQualifiesPrevious = /^(?:This |These changes? )?(?:does? not|not applied|not applicable)/i.test(next);
+        return !PVP_EXCLUSION.test(sentence) && !(nextQualifiesPrevious && PVP_EXCLUSION.test(next));
+    }).join(" ").trim();
+}
+
+/** Only infer direction for simple quantified statements; mixed effects stay AI-weighted. */
+function clearDirection(text) {
+    const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z])/);
+    const directions = [];
+    for (const sentence of sentences) {
+        if (!sentence.trim()) continue;
+        if (!/\b(?:damage|healing|cooldown)\b/i.test(sentence)) return null;
+        if (/\b(?:cast time|mana cost|primary stat|strength)\b/i.test(sentence)) return null;
+        const comparison = /(?:by |at |for |to |is |of |grants? |damage |healing )?(\d+(?:\.\d+)?)\s*(%|seconds?)\s*(?:[^()]*?)\(was\s+(\d+(?:\.\d+)?)/i.exec(sentence);
+        const correction = ACTIVE_FIX.test(sentence) && /(\d+(?:\.\d+)?)% instead of[^\d]*(\d+(?:\.\d+)?)%/i.exec(sentence);
+        let sign;
+        if (correction) {
+            sign = Math.sign(Number(correction[2]) - Number(correction[1]));
+        } else if (comparison) {
+            if ((sentence.match(/\d+(?:\.\d+)?/g) ?? []).length !== 2 || /\bno longer\b/i.test(sentence)) return null;
+            sign = Math.sign(Number(comparison[1]) - Number(comparison[3]));
+            if (/\b(?:damage|healing) (?:is )?(?:reduced|reduction|decreased) by\b/i.test(sentence)) sign *= -1;
+        } else {
+            // Multiple numeric effects require weighting, not a keyword guess.
+            if ((sentence.match(/\d+(?:\.\d+)?\s*(?:%|seconds?)/g) ?? []).length !== 1) return null;
+            const action = /\b(increased|increases|reduced|reduces|decreased)\b/i.exec(sentence);
+            if (!action || /\bno longer\b/i.test(sentence)) return null;
+            sign = /^increas/i.test(action[1]) ? 1 : -1;
+        }
+        if (/\bdamage taken\b/i.test(sentence)) {
+            if (/from your|your .*effects/i.test(sentence)) return null;
+            sign *= -1;
+        }
+        if (/\bcooldown\b/i.test(sentence)) {
+            // A larger cooldown reduction is beneficial, a larger cooldown is not.
+            const reductionAmount = comparison && /(?:reduces? (?:the )?cooldown|cooldown reduction)/i.test(sentence);
+            if (!reductionAmount) sign *= -1;
+        }
+        if (!sign) return null;
+        directions.push(sign > 0 ? "buff" : "nerf");
+    }
+    return directions.length && new Set(directions).size === 1 ? directions[0] : null;
+}
+
+/** Check source support and coverage without modifying the model's answer. */
+export function validatePNotesEvidence(analysis, context) {
+    const evidence = new Map();
+    const reasons = [];
+    const names = new Map([
+        ...context.classes.map(({ id, name }) => [`classId:${id}`, name]),
+        ...context.specs.map(({ id, name, classId }) => [
+            `specId:${id}`, `${context.classes.find(c => c.id === classId)?.name} / ${name}`,
+        ]),
+    ]);
+    let classSection = false;
+    for (const line of context.post.content.split("\n")) {
+        const target = /\[TARGET (classId|specId)=(\d+)\]/.exec(line);
+        if (target) classSection = true;
+        else if (line.trim() && !/^\s*•/.test(line)) classSection = false;
+        const text = activeChangeText(line.replace(/^\s*•\s*/, "").replace(/\[TARGET (?:classId|specId)=\d+\]\s*/, ""));
+        if (!CHANGE_ACTION.test(text) && !/\b(?:is|are) \d/i.test(text)) continue;
+        if (!target) {
+            // Only scoped change bullets require a target; introductory prose is context.
+            if (classSection && /^\s*•/.test(line)) reasons.push(`Unresolved change target: ${text.slice(0,160)}`);
+            continue;
+        }
+        const key = `${target[1]}:${target[2]}`;
+        const entries = evidence.get(key) ?? [];
+        entries.push(text);
+        evidence.set(key, entries);
+    }
+    const returned = new Set();
+    for (const [collection, targetType] of [["classes", "classId"], ["specs", "specId"]]) {
+        for (const [id, change] of analysis.changes[collection]) {
+            const key = `${targetType}:${id}`;
+            returned.add(key);
+            const label = `${names.get(key)} (${key})`;
+            const entries = evidence.get(key);
+            if (!entries) { reasons.push(`Unsupported target: ${label}`); continue; }
+            const hasFix = entries.some(text => ACTIVE_FIX.test(text));
+            if (change.includes("bug_fix") !== hasFix) reasons.push(`${label}: ${hasFix ? "missing" : "unsupported"} bug_fix`);
+            // A non-numeric fix does not erase the direction of explicit tuning.
+            const tuning = entries.filter(text => !ACTIVE_FIX.test(text) || /\d/.test(text));
+            const directions = tuning.map(clearDirection);
+            if (directions.length && directions.every(Boolean) && new Set(directions).size === 1 && change.split("|")[0] !== directions[0]) {
+                reasons.push(`${label}: expected ${directions[0]}, received ${change}`);
+            }
+        }
+    }
+    for (const key of evidence.keys()) {
+        if (!returned.has(key)) reasons.push(`Missing target: ${names.get(key)} (${key})`);
+    }
+    if (reasons.length) throw new PNotesValidationError(reasons, analysis);
+    return analysis;
 }
 
 /**
@@ -420,52 +563,6 @@ export function validatePNotesAnalysis(analysis, context) {
                 analysis.changes.specs,
                 specIds,
                 "specs",
-            ),
-        },
-        systemUpdated: analysis.systemUpdated,
-    };
-}
-
-/**
- * Prevents a model from copying bug-fix status between targets that mention the
- * same ability. Buff/nerf direction remains model-classified.
- *
- * @param {PNotesAnalysis} analysis
- * @param {string} content Annotated patch-note content.
- * @returns {PNotesAnalysis}
- */
-export function groundBugFixClassifications(analysis, content) {
-    if (!content.includes("[TARGET ")) return analysis;
-
-    const evidenceByTarget = new Map();
-    const targetPattern = /\[TARGET (classId|specId)=(\d+)\]/;
-
-    for (const line of content.split("\n")) {
-        const target = targetPattern.exec(line);
-        if (!target) continue;
-
-        const key = `${target[1]}:${target[2]}`;
-        const activeText = line.replace(
-            /\[WITHDRAWN\][\s\S]*?\[\/WITHDRAWN\]/gi,
-            " ",
-        );
-        evidenceByTarget.set(
-            key,
-            `${evidenceByTarget.get(key) ?? ""} ${activeText}`,
-        );
-    }
-
-    return {
-        changes: {
-            classes: groundEntries(
-                analysis.changes.classes,
-                "classId",
-                evidenceByTarget,
-            ),
-            specs: groundEntries(
-                analysis.changes.specs,
-                "specId",
-                evidenceByTarget,
             ),
         },
         systemUpdated: analysis.systemUpdated,
@@ -562,23 +659,6 @@ function validateChangeEntries(entries, knownIds, label) {
     });
 }
 
-function groundEntries(entries, targetType, evidenceByTarget) {
-    return entries.flatMap(([id, change]) => {
-        if (!change.includes("bug_fix")) return [[id, change]];
-
-        const evidence = evidenceByTarget.get(`${targetType}:${id}`) ?? "";
-        const hasBugFixEvidence =
-            /\b(?:bugs?|bugged|fix(?:ed|es|ing)?|issues?|correct(?:ed|s|ing|ion)|unintended)\b/i
-                .test(evidence);
-
-        if (hasBugFixEvidence) return [[id, change]];
-        if (change === "buff|bug_fix") return [[id, "buff"]];
-        if (change === "nerf|bug_fix") return [[id, "nerf"]];
-
-        return [];
-    });
-}
-
 function normalizeBaseUrl(value) {
     const baseUrl = readNonEmptyString(value, "OLLAMA_BASE_URL").replace(/\/+$/, "");
     let parsed;
@@ -643,7 +723,7 @@ function readNonEmptyString(value, label) {
 }
 
 function normalizeTargetName(value) {
-    return String(value).trim().toLocaleLowerCase("en-US");
+    return String(value).trim().replace(/\s+/g, " ").replace(/:$/, "").toLocaleLowerCase("en-US");
 }
 
 function assertPositiveInteger(value, label) {

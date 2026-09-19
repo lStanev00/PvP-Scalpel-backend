@@ -6,7 +6,7 @@ import analyzePNotes, {
     annotatePNotesScopes,
     analyzePNotesContext,
     buildPNotesAIContext,
-    groundBugFixClassifications,
+    validatePNotesEvidence,
     validatePNotesAnalysis,
 } from "../src/services/Service-Helpers/CFPNotes/analyzePNotes.js";
 import {
@@ -38,7 +38,7 @@ const SPECS = [
 const POST = {
     id: 6350810,
     title: "Class Tuning Incoming - 1 September",
-    content: "Classes\n\nShaman\nNatural Harmony was corrected.",
+    content: "Classes\n\nShaman\n• Fixed excess healing being 20% instead of 10%.\n\nPlayer versus Player\nShaman\n• Elemental\n  • Natural Harmony now reduces the cooldown by 10 seconds (was 15 seconds).",
     html: "<p>not sent</p>",
     author: "not sent",
 };
@@ -123,7 +123,7 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
     assert.deepEqual(sentContext, {
         post: {
             title: POST.title,
-            content: POST.content,
+            content: buildPNotesAIContext(POST, CLASSES, SPECS).post.content,
         },
         classes: [
             { id: 1, name: "Warrior" },
@@ -215,7 +215,7 @@ test("annotates nested bullets with independent class and spec IDs", () => {
     );
 });
 
-test("keeps bug fixes grounded to active text for the exact target", () => {
+test("rejects rather than silently strips bug fixes on the wrong target", () => {
     const content = [
         "• [TARGET classId=7] Shaman",
         "  • [TARGET classId=7] Fixed an issue that caused excess healing.",
@@ -225,8 +225,8 @@ test("keeps bug fixes grounded to active text for the exact target", () => {
         "  • [TARGET classId=1] [WITHDRAWN] Fixed an issue. [/WITHDRAWN]",
     ].join("\n");
 
-    assert.deepEqual(
-        groundBugFixClassifications(
+    assert.throws(
+        () => validatePNotesEvidence(
             {
                 changes: {
                     classes: [[7, "nerf|bug_fix"], [1, "bug_fix"]],
@@ -234,15 +234,9 @@ test("keeps bug fixes grounded to active text for the exact target", () => {
                 },
                 systemUpdated: false,
             },
-            content,
+            { ...buildPNotesAIContext(POST, CLASSES, SPECS), post: { title: POST.title, content } },
         ),
-        {
-            changes: {
-                classes: [[7, "nerf|bug_fix"]],
-                specs: [[262, "nerf"]],
-            },
-            systemUpdated: false,
-        },
+        /Unsupported target: Warrior.*unsupported bug_fix/s,
     );
 });
 
