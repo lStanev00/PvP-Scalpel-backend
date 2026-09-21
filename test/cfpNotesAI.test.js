@@ -149,6 +149,50 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
         "required",
         "type",
     ]);
+    assert.deepEqual(
+        requestBody.format.properties.changes.properties.classes.items.prefixItems[0],
+        { type: "integer", enum: [1, 7] },
+    );
+    assert.deepEqual(
+        requestBody.format.properties.changes.properties.specs.items.prefixItems[0],
+        { type: "integer", enum: [71, 262] },
+    );
+});
+
+test("retries one rejected analysis with the prior response and validation feedback", async () => {
+    const context = buildPNotesAIContext(POST, CLASSES, SPECS);
+    const rejected = {
+        changes: {
+            classes: [[25, "buff"]],
+            specs: [[262, "nerf"]],
+        },
+        systemUpdated: false,
+    };
+    const requests = [];
+
+    const result = await analyzePNotesContext(context, {
+        fetchImpl: async (_url, options) => {
+            requests.push(JSON.parse(options.body));
+            return requests.length === 1
+                ? successfulResponse(rejected)
+                : successfulResponse();
+        },
+    });
+
+    assert.deepEqual(result, EXPECTED_ANALYSIS);
+    assert.equal(requests.length, 2);
+    assert.deepEqual(
+        requests[1].messages.map(({ role }) => role),
+        ["system", "user", "assistant", "user"],
+    );
+    assert.equal(requests[1].messages[2].content, JSON.stringify(rejected));
+    assert.match(
+        requests[1].messages[3].content,
+        /unknown classes ID 25/,
+    );
+    assert.match(requests[1].messages[3].content, /Allowed changes\.classes IDs: 1, 7/);
+    assert.match(requests[1].messages[3].content, /Allowed changes\.specs IDs: 71, 262/);
+    assert.deepEqual(requests[1].format, requests[0].format);
 });
 
 test("marks strikethrough and deleted forum text as withdrawn", () => {
