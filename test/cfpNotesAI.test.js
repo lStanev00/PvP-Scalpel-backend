@@ -109,7 +109,7 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
     assert.equal(requestBody.stream, false);
     assert.equal(requestBody.think, false);
     assert.equal(requestBody.options.temperature, 0);
-    assert.equal(requestBody.options.num_ctx, 8192);
+    assert.equal(requestBody.options.num_ctx, 16384);
     assert.match(requestBody.messages[0].content, /general class-tuning sections/);
     assert.match(requestBody.messages[0].content, /not going live/);
     assert.match(requestBody.messages[0].content, /systemUpdated is true only/);
