@@ -110,9 +110,18 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
     assert.equal(requestBody.think, false);
     assert.equal(requestBody.options.temperature, 0);
     assert.equal(requestBody.options.num_ctx, 8192);
-    assert.match(requestBody.messages[0].content, /general "Classes" section/);
-    assert.match(requestBody.messages[0].content, /not going out/);
+    assert.match(requestBody.messages[0].content, /general class-tuning sections/);
+    assert.match(requestBody.messages[0].content, /not going live/);
     assert.match(requestBody.messages[0].content, /systemUpdated is true only/);
+    assert.match(
+        requestBody.messages[0].content,
+        /only valid class IDs are the exact integers in classes\[\]\.id/,
+    );
+    assert.match(
+        requestBody.messages[0].content,
+        /percentage, amount, duration, cooldown, date, patch version, spell ID/,
+    );
+    assert.match(requestBody.messages[0].content, /FINAL ID AUDIT BEFORE RESPONDING/);
     assert.match(
         requestBody.messages[0].content,
         /Class > Hero Talents > Hero tree > change.*class entry/s,
