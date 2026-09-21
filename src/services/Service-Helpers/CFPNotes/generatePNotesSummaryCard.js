@@ -417,6 +417,7 @@ async function loadStaticAssets() {
             loadLocalImage("ui/image.png"),
             loadLocalImage("ui/arrow-up.png"),
             loadLocalImage("ui/arrow-down.png"),
+            loadLocalImage("ui/mixed.png"),
             loadLocalImage("ui/bug.png"),
         ]).then(([
             background,
@@ -424,6 +425,7 @@ async function loadStaticAssets() {
             frame,
             arrowUp,
             arrowDown,
+            mixed,
             bug,
         ]) => ({
             background,
@@ -431,6 +433,7 @@ async function loadStaticAssets() {
             frame,
             arrowUp,
             arrowDown,
+            mixed,
             bug,
         }));
     }
@@ -796,13 +799,13 @@ function calculateChangeIndicatorsWidth(change, indicatorSize) {
 }
 
 function expandChangeTypes(change) {
-    return change.split("|").flatMap((type) =>
-        type === "mixed" ? ["buff", "nerf"] : [type]);
+    return change.split("|");
 }
 
 function changeIcon(type, assets) {
     if (type === "buff") return assets.arrowUp;
     if (type === "nerf") return assets.arrowDown;
+    if (type === "mixed") return assets.mixed;
     return assets.bug;
 }
 
