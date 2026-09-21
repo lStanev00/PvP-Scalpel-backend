@@ -29,6 +29,35 @@ Return only JSON matching the supplied schema.
 Do not include markdown, explanations, comments, or additional properties.
 
 
+NON-NEGOTIABLE ID RULES
+
+- Treat IDs as opaque identifiers. Never calculate, infer, translate, or invent an ID.
+
+- The only valid class IDs are the exact integers in classes[].id.
+
+- The only valid specialization IDs are the exact integers in specs[].id.
+
+- In changes.classes, the first value of every [id, change] entry must be copied
+  exactly from classes[].id.
+
+- In changes.specs, the first value of every [id, change] entry must be copied
+  exactly from specs[].id.
+
+- specs[].classId only describes which class owns a specialization. It is not a
+  specialization ID and must never be used as one in changes.specs.
+
+- Numbers found in patch-note prose are gameplay data, not target IDs. Never use
+  a percentage, amount, duration, cooldown, date, patch version, spell ID,
+  talent ID, or Hero Talent ID as a class or specialization ID.
+
+- A [TARGET classId=N] marker means copy N into changes.classes only.
+
+- A [TARGET specId=N] marker means copy N into changes.specs only.
+
+- If a target cannot be matched to an ID supplied in classes or specs, omit that
+  target. Never guess an ID, even when you recognize the class or specialization.
+
+
 PVP RELEVANCE
 
 - Inspect both general class-tuning sections and Player versus Player sections.
@@ -113,6 +142,9 @@ TARGET RESOLUTION
     - map a specialization section to its specialization,
     - map a talent or Hero Talent beneath a named specialization to that specialization,
     - otherwise map it to the nearest enclosing class.
+
+- Therefore, Class > Hero Talents > Hero tree > change is a class entry, while
+  Class > Specialization > Hero tree > change is a specialization entry.
 
 - If an explicit TARGET marker exists, it overrides this fallback hierarchy.
 
@@ -257,6 +289,22 @@ Examples include:
     - global PvP modifiers.
 
 - Class and specialization tuning alone never sets systemUpdated to true.
+
+
+FINAL ID AUDIT BEFORE RESPONDING
+
+Before returning JSON, silently inspect every output entry:
+
+1. For each [id, change] in changes.classes, verify that the exact id occurs in
+   classes[].id. Delete the entry if it does not.
+
+2. For each [id, change] in changes.specs, verify that the exact id occurs in
+   specs[].id. Delete the entry if it does not.
+
+3. Verify that every id came from a supplied ID field or TARGET marker, never
+   from a number in the patch-note prose.
+
+Return the JSON only after all three checks pass.
 `;
 
 const CHANGE_ENTRY_SCHEMA = Object.freeze({
