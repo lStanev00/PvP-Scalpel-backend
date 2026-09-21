@@ -21,8 +21,8 @@ const ASSET_DIRECTORY = fileURLToPath(
 
 const ANALYSIS = {
     changes: {
-        classes: [[7, "nerf|bug_fix"]],
-        specs: [[262, "nerf"]],
+        classes: [[7, "mixed|bug_fix"]],
+        specs: [[262, "mixed"]],
     },
     systemUpdated: false,
 };
@@ -167,16 +167,16 @@ test("keeps a full-data layout compact and centers incomplete rows", () => {
 test("counts combined classifications in each applicable summary category", () => {
     assert.deepEqual(calculateSummaryStats({
         changes: {
-            classes: [[7, "nerf|bug_fix"], [1, "buff"]],
+            classes: [[7, "nerf|bug_fix"], [1, "buff"], [2, "mixed"]],
             specs: [[262, "buff|bug_fix"], [71, "bug_fix"]],
         },
         systemUpdated: true,
     }), {
-        affected: 4,
-        classes: 2,
+        affected: 5,
+        classes: 3,
         specs: 2,
-        buffs: 2,
-        nerfs: 1,
+        buffs: 3,
+        nerfs: 2,
         bugFixes: 3,
         systemUpdated: true,
     });

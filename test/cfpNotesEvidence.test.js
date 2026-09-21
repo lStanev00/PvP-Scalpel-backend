@@ -16,11 +16,11 @@ const contextForHTML = html => buildPNotesAIContext({ title: "Class Tuning", con
 const contextFor = id => contextForHTML(posts.find(post => post.id === id).html);
 const check = (analysis, context) => validatePNotesEvidence(validatePNotesAnalysis(analysis, context), context);
 const september22 = result([[5, "buff"]], [
-    [250, "nerf"], [252, "buff"], [577, "buff"], [581, "buff"],
-    [105, "nerf|bug_fix"], [1473, "buff"], [254, "buff"], [255, "nerf"],
-    [63, "nerf"], [64, "buff"], [70, "buff"], [256, "buff"], [258, "buff"],
+    [250, "mixed"], [252, "buff"], [577, "buff"], [581, "buff"],
+    [105, "nerf|bug_fix"], [1473, "buff"], [254, "buff"], [255, "mixed"],
+    [63, "mixed"], [64, "buff"], [70, "buff"], [256, "buff"], [258, "buff"],
     [72, "buff"], [73, "buff"], [103, "buff"], [1468, "nerf"], [253, "buff"],
-    [269, "buff"], [257, "buff"], [259, "nerf"], [260, "buff"], [262, "buff"],
+    [269, "mixed"], [257, "buff"], [259, "nerf"], [260, "buff"], [262, "mixed"],
     [263, "buff"], [265, "buff"], [71, "buff"],
 ]);
 
@@ -121,10 +121,13 @@ test("whitespace, continuations, standalone Hero Talents, repeated spec names, a
     assert.deepEqual(check(expected, context), expected);
 });
 
-test("mixed effects remain model-weighted; a clear quantified direction cannot be reversed", () => {
+test("quantified mixed effects require mixed; clear one-way direction cannot be reversed", () => {
     const context = contextForHTML(`<p>Shaman</p><ul><li>Elemental<ul>
       <li>Damage increased by 20%.</li><li>Healing reduced by 10%.</li></ul></li></ul>`);
-    for (const label of ["buff","nerf"]) assert.doesNotThrow(() => check(result([],[[262,label]]), context));
+    assert.doesNotThrow(() => check(result([], [[262, "mixed"]]), context));
+    for (const label of ["buff","nerf"]) {
+        assert.throws(() => check(result([], [[262,label]]), context), /expected mixed/);
+    }
     for (const [change, expected] of [
         ["Damage increased by 20%.","buff"], ["Healing reduced by 20%.","nerf"],
         ["Cooldown reduced to 10 seconds (was 15 seconds).","buff"],
@@ -135,6 +138,7 @@ test("mixed effects remain model-weighted; a clear quantified direction cannot b
         const simple = contextForHTML(`<p>Shaman</p><ul><li>${change}</li></ul>`);
         assert.doesNotThrow(() => check(result([[7,expected]]), simple));
         assert.throws(() => check(result([[7,expected === "buff" ? "nerf" : "buff"]]), simple), /expected/);
+        assert.throws(() => check(result([[7,"mixed"]]), simple), /expected/);
     }
 });
 

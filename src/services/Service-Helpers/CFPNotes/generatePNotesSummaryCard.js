@@ -23,9 +23,11 @@ const SANS_FONT = '"PVP Scalpel Sans"';
 const CHANGE_TYPES = Object.freeze([
     "buff",
     "nerf",
+    "mixed",
     "bug_fix",
     "buff|bug_fix",
     "nerf|bug_fix",
+    "mixed|bug_fix",
 ]);
 
 const ASSET_DIRECTORY = fileURLToPath(
@@ -45,7 +47,7 @@ const DEFAULT_OUTPUT_DIRECTORY = fileURLToPath(
 let staticAssetsPromise;
 
 /**
- * @typedef {"buff"|"nerf"|"bug_fix"|"buff|bug_fix"|"nerf|bug_fix"} CardChangeType
+ * @typedef {"buff"|"nerf"|"mixed"|"bug_fix"|"buff|bug_fix"|"nerf|bug_fix"|"mixed|bug_fix"} CardChangeType
  */
 
 /**
@@ -163,8 +165,10 @@ export function calculateSummaryStats(analysis) {
         affected: entries.length,
         classes: normalized.changes.classes.length,
         specs: normalized.changes.specs.length,
-        buffs: entries.filter(([, change]) => change.includes("buff")).length,
-        nerfs: entries.filter(([, change]) => change.includes("nerf")).length,
+        buffs: entries.filter(([, change]) =>
+            change.includes("buff") || change.includes("mixed")).length,
+        nerfs: entries.filter(([, change]) =>
+            change.includes("nerf") || change.includes("mixed")).length,
         bugFixes: entries.filter(([, change]) => change.includes("bug_fix")).length,
         systemUpdated: normalized.systemUpdated,
     };
@@ -663,7 +667,7 @@ function drawClassCard(ctx, assets, entry, rect) {
     const iconSize = Math.min(100, innerBottom - innerTop - 4);
     const indicatorHeight = 72;
     const statusAreaWidth = calculateChangeIndicatorsWidth(
-        "buff|bug_fix",
+        "mixed|bug_fix",
         indicatorHeight,
     );
     const iconTextGap = 22;
@@ -761,7 +765,7 @@ function drawChangeBadges(
     height,
     alignment = "center",
 ) {
-    const types = change.split("|");
+    const types = expandChangeTypes(change);
     const gap = 14;
     const indicatorSize = Math.min(height, availableWidth);
     const totalWidth = indicatorSize * types.length +
@@ -787,8 +791,13 @@ function drawChangeBadges(
 }
 
 function calculateChangeIndicatorsWidth(change, indicatorSize) {
-    const indicatorCount = change.split("|").length;
+    const indicatorCount = expandChangeTypes(change).length;
     return indicatorCount * indicatorSize + Math.max(0, indicatorCount - 1) * 14;
+}
+
+function expandChangeTypes(change) {
+    return change.split("|").flatMap((type) =>
+        type === "mixed" ? ["buff", "nerf"] : [type]);
 }
 
 function changeIcon(type, assets) {
