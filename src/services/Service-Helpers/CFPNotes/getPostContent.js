@@ -28,33 +28,49 @@
  * @returns {string}
  */
 export function htmlToText(html = "") {
+    // Discourse wraps some list labels in <p>/<h3> and leaves others inline.
+    // Keep each item's own text together, flushing it before nested lists.
+    const lines = [];
+    const items = [];
     let listDepth = 0;
-
-    return html
+    let outside = "";
+    const append = (text) => {
+        if (items.length) items.at(-1).text += text;
+        else outside += text;
+    };
+    const flush = () => {
+        const item = items.at(-1);
+        const text = (item ? item.text : outside).replace(/\s+/g, " ").trim();
+        if (text) {
+            lines.push(item
+                ? `${"  ".repeat(item.depth)}• ${text}`
+                : text);
+        }
+        if (item) item.text = "";
+        else outside = "";
+    };
+    const marked = html
         .replace(/<(?:s|del)\b[^>]*>/gi, "[WITHDRAWN] ")
-        .replace(/<\/(?:s|del)>/gi, " [\/WITHDRAWN]")
-        .replace(/<br\s*\/?>/gi, "\n")
-        .replace(/<\/p>/gi, "\n\n")
-        .replace(
-            /<\/?(?:ul|ol)\b[^>]*>|<li\b[^>]*>|<\/li>/gi,
-            (tag) => {
-                if (/^<\/(?:ul|ol)/i.test(tag)) {
-                    listDepth = Math.max(0, listDepth - 1);
-                    return "\n";
-                }
-                if (/^<(?:ul|ol)/i.test(tag)) {
-                    listDepth += 1;
-                    return "\n";
-                }
-                if (/^<li/i.test(tag)) {
-                    return `${"  ".repeat(Math.max(0, listDepth - 1))}• `;
-                }
-
-                return "\n";
-            },
-        )
-        .replace(/<\/h[1-6]>/gi, "\n\n")
-        .replace(/<[^>]+>/g, "")
+        .replace(/<\/(?:s|del)>/gi, " [/WITHDRAWN]");
+    for (const token of marked.match(/<[^>]*>|[^<]+/g) ?? []) {
+        if (!token.startsWith("<")) {
+            append(token);
+        } else if (/^<\/?(?:ul|ol)\b/i.test(token)) {
+            flush();
+            listDepth = Math.max(0, listDepth + (token.startsWith("</") ? -1 : 1));
+        } else if (/^<li\b/i.test(token)) {
+            flush();
+            items.push({ depth: Math.max(0, listDepth - 1), text: "" });
+        } else if (/^<\/li\s*>/i.test(token)) {
+            flush();
+            items.pop();
+        } else if (/^<\/?(?:p|h[1-6]|div|br|hr)\b/i.test(token)) {
+            if (items.length) append(" ");
+            else { flush(); lines.push(""); }
+        }
+    }
+    flush();
+    return lines.join("\n")
         .replace(/&nbsp;/g, " ")
         .replace(/&amp;/g, "&")
         .replace(/&lt;/g, "<")
