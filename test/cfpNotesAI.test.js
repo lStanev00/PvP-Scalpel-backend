@@ -105,7 +105,7 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
     const result = await analyzePNotes(POST);
 
     assert.deepEqual(result, EXPECTED_ANALYSIS);
-    assert.equal(requestBody.model, "gemma4:e4b");
+    assert.equal(requestBody.model, "gemma4:e4b-it-qat");
     assert.equal(requestBody.stream, false);
     assert.equal(requestBody.think, false);
     assert.equal(requestBody.options.temperature, 0);
@@ -150,21 +150,32 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
         "type",
     ]);
     assert.deepEqual(
-        requestBody.format.properties.changes.properties.classes.items.prefixItems[0],
-        { type: "integer", enum: [1, 7] },
+        requestBody.format.properties.changes.properties.classes.prefixItems[0]
+            .prefixItems[0],
+        { type: "integer", enum: [7] },
     );
     assert.deepEqual(
-        requestBody.format.properties.changes.properties.specs.items.prefixItems[0],
-        { type: "integer", enum: [71, 262] },
+        requestBody.format.properties.changes.properties.specs.prefixItems[0]
+            .prefixItems[0],
+        { type: "integer", enum: [262] },
     );
+    assert.deepEqual(
+        requestBody.format.properties.changes.properties.specs.prefixItems[0]
+            .prefixItems[1].enum,
+        ["buff", "nerf", "mixed", "bug_fix", "buff|bug_fix", "nerf|bug_fix", "mixed|bug_fix"],
+    );
+    assert.equal(requestBody.format.properties.changes.properties.classes.minItems, 1);
+    assert.equal(requestBody.format.properties.changes.properties.classes.maxItems, 1);
+    assert.equal(requestBody.format.properties.changes.properties.specs.minItems, 1);
+    assert.equal(requestBody.format.properties.changes.properties.specs.maxItems, 1);
 });
 
 test("retries one rejected analysis with the prior response and validation feedback", async () => {
     const context = buildPNotesAIContext(POST, CLASSES, SPECS);
     const rejected = {
         changes: {
-            classes: [[25, "buff"]],
-            specs: [[262, "nerf"]],
+            classes: [[7, "nerf|bug_fix"]],
+            specs: [[262, "buff"], [262, "nerf"]],
         },
         systemUpdated: false,
     };
@@ -188,10 +199,16 @@ test("retries one rejected analysis with the prior response and validation feedb
     assert.equal(requests[1].messages[2].content, JSON.stringify(rejected));
     assert.match(
         requests[1].messages[3].content,
-        /unknown classes ID 25/,
+        /duplicate specs ID 262: buff and nerf.*Aggregate them into one entry/s,
     );
-    assert.match(requests[1].messages[3].content, /Allowed changes\.classes IDs: 1, 7/);
-    assert.match(requests[1].messages[3].content, /Allowed changes\.specs IDs: 71, 262/);
+    assert.match(
+        requests[1].messages[3].content,
+        /Required changes\.classes IDs, exactly once and in this order: 7/,
+    );
+    assert.match(
+        requests[1].messages[3].content,
+        /Required changes\.specs IDs, exactly once and in this order: 262/,
+    );
     assert.deepEqual(requests[1].format, requests[0].format);
 });
 
@@ -323,6 +340,26 @@ test("accepts empty grouped changes and a PvP system update", () => {
                 specs: [],
             },
             systemUpdated: true,
+        },
+    );
+
+    assert.deepEqual(
+        validatePNotesAnalysis(
+            {
+                changes: {
+                    classes: [[7, "mixed|bug_fix"]],
+                    specs: [[262, "mixed"]],
+                },
+                systemUpdated: false,
+            },
+            context,
+        ),
+        {
+            changes: {
+                classes: [[7, "mixed|bug_fix"]],
+                specs: [[262, "mixed"]],
+            },
+            systemUpdated: false,
         },
     );
 });
