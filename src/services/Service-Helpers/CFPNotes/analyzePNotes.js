@@ -4,7 +4,7 @@ import GameSpecialization from "../../../Models/GameSpecialization.js";
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434";
 // const DEFAULT_OLLAMA_MODEL = "qwen3:8b";
 const DEFAULT_OLLAMA_MODEL = "gemma4:e4b";
-const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000;
+const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000 * 2;
 const DEFAULT_CONTEXT_LENGTH = 8192;
 
 const CHANGE_TYPES = Object.freeze([
