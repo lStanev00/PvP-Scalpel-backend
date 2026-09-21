@@ -145,3 +145,5 @@ PvP-Scalpel-lychcloud
 
 # Generated patch-note preview cards
 /image_gen/*.png
+latest10-ai-audit.json
+.tmp-cfp-latest10-audit.mjs

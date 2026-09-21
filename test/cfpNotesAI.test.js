@@ -105,14 +105,23 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
     const result = await analyzePNotes(POST);
 
     assert.deepEqual(result, EXPECTED_ANALYSIS);
-    assert.equal(requestBody.model, "gemma4:e4b");
+    assert.equal(requestBody.model, "gemma4:e4b-it-qat");
     assert.equal(requestBody.stream, false);
     assert.equal(requestBody.think, false);
     assert.equal(requestBody.options.temperature, 0);
-    assert.equal(requestBody.options.num_ctx, 8192);
-    assert.match(requestBody.messages[0].content, /general "Classes" section/);
-    assert.match(requestBody.messages[0].content, /not going out/);
+    assert.equal(requestBody.options.num_ctx, 16384);
+    assert.match(requestBody.messages[0].content, /general class-tuning sections/);
+    assert.match(requestBody.messages[0].content, /not going live/);
     assert.match(requestBody.messages[0].content, /systemUpdated is true only/);
+    assert.match(
+        requestBody.messages[0].content,
+        /only valid class IDs are the exact integers in classes\[\]\.id/,
+    );
+    assert.match(
+        requestBody.messages[0].content,
+        /percentage, amount, duration, cooldown, date, patch version, spell ID/,
+    );
+    assert.match(requestBody.messages[0].content, /FINAL ID AUDIT BEFORE RESPONDING/);
     assert.match(
         requestBody.messages[0].content,
         /Class > Hero Talents > Hero tree > change.*class entry/s,
@@ -140,6 +149,67 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
         "required",
         "type",
     ]);
+    assert.deepEqual(
+        requestBody.format.properties.changes.properties.classes.prefixItems[0]
+            .prefixItems[0],
+        { type: "integer", enum: [7] },
+    );
+    assert.deepEqual(
+        requestBody.format.properties.changes.properties.specs.prefixItems[0]
+            .prefixItems[0],
+        { type: "integer", enum: [262] },
+    );
+    assert.deepEqual(
+        requestBody.format.properties.changes.properties.specs.prefixItems[0]
+            .prefixItems[1].enum,
+        ["buff", "nerf", "mixed", "bug_fix", "buff|bug_fix", "nerf|bug_fix", "mixed|bug_fix"],
+    );
+    assert.equal(requestBody.format.properties.changes.properties.classes.minItems, 1);
+    assert.equal(requestBody.format.properties.changes.properties.classes.maxItems, 1);
+    assert.equal(requestBody.format.properties.changes.properties.specs.minItems, 1);
+    assert.equal(requestBody.format.properties.changes.properties.specs.maxItems, 1);
+});
+
+test("retries one rejected analysis with the prior response and validation feedback", async () => {
+    const context = buildPNotesAIContext(POST, CLASSES, SPECS);
+    const rejected = {
+        changes: {
+            classes: [[7, "nerf|bug_fix"]],
+            specs: [[262, "buff"], [262, "nerf"]],
+        },
+        systemUpdated: false,
+    };
+    const requests = [];
+
+    const result = await analyzePNotesContext(context, {
+        fetchImpl: async (_url, options) => {
+            requests.push(JSON.parse(options.body));
+            return requests.length === 1
+                ? successfulResponse(rejected)
+                : successfulResponse();
+        },
+    });
+
+    assert.deepEqual(result, EXPECTED_ANALYSIS);
+    assert.equal(requests.length, 2);
+    assert.deepEqual(
+        requests[1].messages.map(({ role }) => role),
+        ["system", "user", "assistant", "user"],
+    );
+    assert.equal(requests[1].messages[2].content, JSON.stringify(rejected));
+    assert.match(
+        requests[1].messages[3].content,
+        /duplicate specs ID 262: buff and nerf.*Aggregate them into one entry/s,
+    );
+    assert.match(
+        requests[1].messages[3].content,
+        /Required changes\.classes IDs, exactly once and in this order: 7/,
+    );
+    assert.match(
+        requests[1].messages[3].content,
+        /Required changes\.specs IDs, exactly once and in this order: 262/,
+    );
+    assert.deepEqual(requests[1].format, requests[0].format);
 });
 
 test("marks strikethrough and deleted forum text as withdrawn", () => {
@@ -270,6 +340,26 @@ test("accepts empty grouped changes and a PvP system update", () => {
                 specs: [],
             },
             systemUpdated: true,
+        },
+    );
+
+    assert.deepEqual(
+        validatePNotesAnalysis(
+            {
+                changes: {
+                    classes: [[7, "mixed|bug_fix"]],
+                    specs: [[262, "mixed"]],
+                },
+                systemUpdated: false,
+            },
+            context,
+        ),
+        {
+            changes: {
+                classes: [[7, "mixed|bug_fix"]],
+                specs: [[262, "mixed"]],
+            },
+            systemUpdated: false,
         },
     );
 });
