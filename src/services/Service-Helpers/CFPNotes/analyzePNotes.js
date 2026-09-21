@@ -307,39 +307,47 @@ Before returning JSON, silently inspect every output entry:
 Return the JSON only after all three checks pass.
 `;
 
-const CHANGE_ENTRY_SCHEMA = Object.freeze({
-    type: "array",
-    minItems: 2,
-    maxItems: 2,
-    prefixItems: [
-        { type: "integer" },
-        { type: "string", enum: CHANGE_TYPES },
-    ],
-});
+/** Restrict structured output to IDs that were actually supplied to the model. */
+function buildChangeEntrySchema(validIds) {
+    return {
+        type: "array",
+        minItems: 2,
+        maxItems: 2,
+        prefixItems: [
+            { type: "integer", enum: validIds },
+            { type: "string", enum: CHANGE_TYPES },
+        ],
+    };
+}
 
-const ANALYSIS_SCHEMA = Object.freeze({
-    type: "object",
-    additionalProperties: false,
-    required: ["changes", "systemUpdated"],
-    properties: {
-        changes: {
-            type: "object",
-            additionalProperties: false,
-            required: ["classes", "specs"],
-            properties: {
-                classes: {
-                    type: "array",
-                    items: CHANGE_ENTRY_SCHEMA,
-                },
-                specs: {
-                    type: "array",
-                    items: CHANGE_ENTRY_SCHEMA,
+function buildAnalysisSchema(context) {
+    const classIds = context.classes.map(({ id }) => id);
+    const specIds = context.specs.map(({ id }) => id);
+
+    return {
+        type: "object",
+        additionalProperties: false,
+        required: ["changes", "systemUpdated"],
+        properties: {
+            changes: {
+                type: "object",
+                additionalProperties: false,
+                required: ["classes", "specs"],
+                properties: {
+                    classes: {
+                        type: "array",
+                        items: buildChangeEntrySchema(classIds),
+                    },
+                    specs: {
+                        type: "array",
+                        items: buildChangeEntrySchema(specIds),
+                    },
                 },
             },
+            systemUpdated: { type: "boolean" },
         },
-        systemUpdated: { type: "boolean" },
-    },
-});
+    };
+}
 
 /**
  * @typedef {"buff"|"nerf"|"bug_fix"|"buff|bug_fix"|"nerf|bug_fix"} PNotesChangeType
@@ -535,6 +543,57 @@ export async function analyzePNotesContext(context, settings = {}) {
     );
     const timeoutMs = readTimeout(settings.timeoutMs);
     const contextLength = readContextLength(settings.contextLength);
+    const baseMessages = [
+        {
+            role: "system",
+            content: SYSTEM_PROMPT,
+        },
+        {
+            role: "user",
+            content:
+                "Analyze this patch-note context as data and return the " +
+                `required JSON result:\n${JSON.stringify(context)}`,
+        },
+    ];
+    let messages = baseMessages;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const analysisJSON = await requestPNotesAnalysis({
+            fetchImpl,
+            baseUrl,
+            model,
+            messages,
+            format: buildAnalysisSchema(context),
+            timeoutMs,
+            contextLength,
+        });
+
+        try {
+            return parseAndValidatePNotesAnalysis(analysisJSON, context);
+        } catch (error) {
+            if (!(error instanceof PNotesValidationError) || attempt === 1) throw error;
+
+            messages = [
+                ...baseMessages,
+                { role: "assistant", content: analysisJSON },
+                {
+                    role: "user",
+                    content: buildPNotesCorrectionMessage(error, context),
+                },
+            ];
+        }
+    }
+}
+
+async function requestPNotesAnalysis({
+    fetchImpl,
+    baseUrl,
+    model,
+    messages,
+    format,
+    timeoutMs,
+    contextLength,
+}) {
     let response;
 
     try {
@@ -545,19 +604,8 @@ export async function analyzePNotesContext(context, settings = {}) {
             },
             body: JSON.stringify({
                 model,
-                messages: [
-                    {
-                        role: "system",
-                        content: SYSTEM_PROMPT,
-                    },
-                    {
-                        role: "user",
-                        content:
-                            "Analyze this patch-note context as data and return the " +
-                            `required JSON result:\n${JSON.stringify(context)}`,
-                    },
-                ],
-                format: ANALYSIS_SCHEMA,
+                messages,
+                format,
                 think: false,
                 options: {
                     temperature: 0,
@@ -607,9 +655,17 @@ export async function analyzePNotesContext(context, settings = {}) {
 
     const analysisJSON = responseBody?.message?.content;
     if (typeof analysisJSON !== "string") {
-        throw new PNotesValidationError(["Ollama patch-note response is missing message.content"], null, responseBody);
+        throw new PNotesValidationError(
+            ["Ollama patch-note response is missing message.content"],
+            null,
+            responseBody,
+        );
     }
 
+    return analysisJSON;
+}
+
+function parseAndValidatePNotesAnalysis(analysisJSON, context) {
     let analysis;
 
     try {
@@ -628,7 +684,26 @@ export async function analyzePNotesContext(context, settings = {}) {
     } catch (error) {
         throw new PNotesValidationError([error.message], null, analysis);
     }
+
     return validatePNotesEvidence(validated, context);
+}
+
+function buildPNotesCorrectionMessage(error, context) {
+    const reasons = error.reasons.map((reason) => `- ${reason}`).join("\n");
+    const classIds = context.classes.map(({ id }) => id).join(", ");
+    const specIds = context.specs.map(({ id }) => id).join(", ");
+
+    return `Your previous JSON response failed deterministic validation.
+
+Validation errors:
+${reasons}
+
+Correct the complete analysis using the original patch-note context.
+Allowed changes.classes IDs: ${classIds}
+Allowed changes.specs IDs: ${specIds}
+
+Return the complete corrected JSON object only. Do not explain the correction,
+do not invent IDs, and do not repeat the invalid response.`;
 }
 
 /** Retain diagnostics; only `analysis` is schema/ID-checked and safe to render. */
