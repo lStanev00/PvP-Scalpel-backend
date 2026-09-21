@@ -14,7 +14,7 @@ const latestPNotes = await getLatestPNotes()
 if (!latestPNotes?.id) process.exit(1);
 
 const latestCache = await getCache(HASH_NAME);
-if (latestCache === latestPNotes.id) process.exit(0);
+// if (latestCache === latestPNotes.id) process.exit(0);
 
 const postContent = await getPostContent(latestPNotes);
 await publishPNotes(postContent, {

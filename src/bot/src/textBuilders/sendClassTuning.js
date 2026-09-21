@@ -1,6 +1,7 @@
 import { MessageFlags } from "discord.js";
 
-const NEWS_CHANNEL = "1548298695022215188";
+// const NEWS_CHANNEL = "1548298695022215188";
+const NEWS_CHANNEL = "1498225618095964230"; //test
 const DIAGNOSTIC_USER = "348181106878840832";
 
 /** Send the public announcement and, on validation failure, a private diagnostic. */

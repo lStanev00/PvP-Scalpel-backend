@@ -105,7 +105,7 @@ test("loads minimal class/spec context and returns the validated Shaman analysis
     const result = await analyzePNotes(POST);
 
     assert.deepEqual(result, EXPECTED_ANALYSIS);
-    assert.equal(requestBody.model, "qwen3:8b");
+    assert.equal(requestBody.model, "gemma4:e4b");
     assert.equal(requestBody.stream, false);
     assert.equal(requestBody.think, false);
     assert.equal(requestBody.options.temperature, 0);
