@@ -19,7 +19,7 @@ export default async function startServices() {
     // while (warmupFinished !== true) await delay(1000);
     // console.info("[Cache] Initial cache warmup finished.");
 
-    checkForPatchNotes();
+    // checkForPatchNotes();
     workerUpdateRealm();
     workerPatchGuildMembersData();
     workerupdateDBAchieves();
