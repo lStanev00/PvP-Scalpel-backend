@@ -1,10 +1,11 @@
+import Service from "../../../Models/Services.js";
 import analyzePNotes, { PNotesValidationError } from "./analyzePNotes.js";
 import generatePNotesSummaryCard from "./generatePNotesSummaryCard.js";
 
 /** Prepare one normal or rejected announcement; cache only after publishing it. */
 export default async function publishPNotes(post, {
     publish,
-    cache,
+    docID,
     analyze = analyzePNotes,
     render = generatePNotesSummaryCard,
 }) {
@@ -26,5 +27,10 @@ export default async function publishPNotes(post, {
     if (!payload.validationFailure) payload.cardBuffer = await render(analysis, post);
     await publish("annoDiscord:newClassChanges", JSON.stringify(payload));
     await cache("CFPNotes", post.id);
+    await Service.updateOne({_id: docID}, {
+        $push: {
+            data: post.id
+        }
+    });
     return payload;
 }
