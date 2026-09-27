@@ -17,6 +17,10 @@ const ServiceSchema = new mongoose.Schema({
     msRecords: {
         type: [String],
         default: []
+    },
+    data: {
+        default: [],
+        type: [String]
     }
 
 })
