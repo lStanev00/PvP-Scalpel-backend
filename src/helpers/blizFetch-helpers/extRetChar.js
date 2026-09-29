@@ -205,6 +205,7 @@ async function fetchExternalCharacterApi(apiUrl, apiPath, referer) {
     }
 
     if (response.status !== 200) {
+        console.info(`apiUrl: ${apiUrl}\napiPath: ${apiPath}\nreferer: ${referer}`)
         throw new Error(`ext direct character API returned ${response.status}`);
     }
 
