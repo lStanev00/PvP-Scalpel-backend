@@ -205,7 +205,7 @@ async function fetchExternalCharacterApi(apiUrl, apiPath, referer) {
     }
 
     if (response.status !== 200) {
-        console.info(`apiUrl: ${apiUrl}\napiPath: ${apiPath}\nreferer: ${referer}`)
+        // console.info(`apiUrl: ${apiUrl}\napiPath: ${apiPath}\nreferer: ${referer}`)
         throw new Error(`ext direct character API returned ${response.status}`);
     }
 
@@ -215,21 +215,16 @@ async function fetchExternalCharacterApi(apiUrl, apiPath, referer) {
 
 /**
  * Parse a Blizzard character PvP summary URL or a character identity object.
- * Object realm slugs have hyphens replaced with `%20` for the external URL.
+ * Realm display names are preserved; URL encoding happens when the request is built.
  *
  * @param {string | PvPSummaryIdentity} pvpSummaryPath - PvP summary URL or an object with `name`, `realm`, and `server`.
  * @returns {PvPSummaryIdentity | null | undefined} Parsed identity; `null` for an object missing a required field, or `undefined` for an invalid URL.
  */
 export function parsePvpSummaryPath(pvpSummaryPath) {
     if (typeof pvpSummaryPath !== "string") {
-        let { name, realm, server } = pvpSummaryPath;
+        const { name, realm, server } = pvpSummaryPath ?? {};
         if (!name || !realm || !server) return null;
-        realm = realm.replaceAll("-", "%20")
-        return {
-            server,
-            realm,
-            name,
-        };
+        return { server, realm, name };
     }
 
     let url;
