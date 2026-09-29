@@ -1,4 +1,4 @@
-// version: 1.1.62
+// version: 1.1.64
 
 // This is a discord bot
 // the name of the file is the name of the bot
@@ -20,6 +20,7 @@ import { redisCache } from "../helpers/redis/connectRedis.js";
 import MediaMeta from "../Models/MediaMeta.js";
 import User from "../Models/User.js";
 import sendClassTuning from "./src/textBuilders/sendClassTuning.js";
+import { flushCFPNotesQueue } from "./src/botHandlers/cfpNotesReview.js";
 
 configDotenv({ path: "src/bot/bot.env" });
 
@@ -39,7 +40,18 @@ const client = new Client({
     partials: [Partials.Channel, Partials.Message, Partials.User],
 });
 
+let cfpQueueBusy = false;
+async function pollCFPNotesQueue() {
+    if (cfpQueueBusy) return;
+    cfpQueueBusy = true;
+    try { await flushCFPNotesQueue(client); }
+    catch (error) { console.error("[CFPNotes] Queue poll failed:", error); }
+    finally { cfpQueueBusy = false; }
+}
+
 client.once(Events.ClientReady, () => {
+    void pollCFPNotesQueue();
+    setInterval(() => { void pollCFPNotesQueue(); }, 15_000);
     console.log(`Zugee online as ${client.user.tag}`);
     console.log(
         `DM AI chat enabled for team roles. Guild message commands: ${messageCommandsEnabled ? "enabled" : "disabled"}.`,
