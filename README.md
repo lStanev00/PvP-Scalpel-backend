@@ -3,7 +3,7 @@
 REST API and background services for the PvP Scalpel guild site. This service
 handles guild rosters, PvP ladders, character search, posts, authentication,
 weekly ladders, and CDN metadata. The API also serves the desktop ecosystem
-for `louncher` and the desktop helper app. Production API lives on branch
+for `launcher` and the desktop helper app. Production API lives on branch
 `production`.
 
 ## Stack
