@@ -11,12 +11,16 @@ import buildCharSearch from "../buildCharSearch.js";
 import {
     applyExternalRecordOnlyRatings,
     createDefaultRatingResult,
+    createEmptyRatingBracket,
     getRatingBracket,
+    getRatingMediaByRange,
     highestRecord,
 } from "./ratingHelpers.js";
 import getCache from "../redis/getterRedis.js";
 import setCache from "../redis/setterRedis.js";
 import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
+import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
+import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -169,9 +173,12 @@ const helpFetch = {
                     return;
                 }
 
-                const dbaseRatingBracket = getRatingBracket(ratingCharRefDbase, bracketName);
-                const externalRecord = externalRecordsByBracket[currentBracket];
-                const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
+                // const dbaseRatingBracket = getRatingBracket(ratingCharRefDbase, bracketName);
+                const externalRecord = currentBracket === "BLITZ" || currentBracket === "SHUFFLE"
+                    ? undefined
+                    : externalRecordsByBracket[currentBracket];
+                // const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
+                const rec = highestRecord(externalRecord, curentBracketData.rating);
                 const record = highestRecord(rec, curentBracketData?.rating) ?? 0;
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
@@ -196,14 +203,46 @@ const helpFetch = {
             if(!brackets) {
                 // since blizzard is buggerd for some characters we try best efort for acurate ratings
                 const extRetrive = await extRetChar({name, realm, server});
+                await applyExternalRecordOnlyRatings(result, extRetrive, ratingCharRefDbase);
                 result["2v2"].currentSeason.rating = extRetrive.rate["2v2"];
                 result["3v3"].currentSeason.rating = extRetrive.rate["3v3"];
                 result["rbg"].currentSeason.rating = extRetrive.rate["rbg"];
 
-                const charDoc = await this.fetchBlizzard(blizDoc?.character?.key?.href);
-                const buildKey = (bSlug) => [bSlug, (charDoc?.character_class?.name).toLowerCase(), (charDoc?.active_spec?.name).toLowerCase()].join("-");
-                result[buildKey("shuffle")].currentSeason.rating = extRetrive.rate["shuffle"];
-                result[buildKey("blitz")].currentSeason.rating = extRetrive.rate["blitz"];
+                const buildKey = (bracketSlug, charClass, charSpec) => [bracketSlug, charClass.toLowerCase().replaceAll(" ", ""), charSpec.toLowerCase().replaceAll(" ", "")].join("-");
+                const jobArr = [];
+                for (const [bracketSlug, entries] of [["blitz", extRetrive.blitzEntries], ["shuffle", extRetrive.ssEntries]]) {
+                    if (!Array.isArray(entries)) continue;
+                    for (const element of entries) {
+                        jobArr.push((async () => {
+                            if (!element?.specId) return;
+                            const spec = await getGameSpecializationByID(element.specId);
+                            if (!spec?.relClass || !spec?.name) return;
+                            const charClass = await getGameClass({id: spec.relClass});
+                            if (!charClass?.name) return;
+
+                            const workEntrySlug = buildKey(bracketSlug, charClass.name, spec.name);
+                            result[workEntrySlug] ??= createEmptyRatingBracket();
+
+                            result[workEntrySlug].currentSeason.rating = element.rating;
+                            const externalBest = highestRecord(element.maxRating);
+                            result[workEntrySlug].record = externalBest !== undefined && externalBest > 0
+                                ? highestRecord(externalBest, element.rating)
+                                : highestRecord(result[workEntrySlug].record, element.rating) ?? 0;
+                            result[workEntrySlug].currentSeason.seasonMatchStatistics = {
+                                played: element.win + element.lose,
+                                won: element.win,
+                                lost: element.lose
+                            };
+
+                            const media = await getRatingMediaByRange(element.rating);
+                            if (media) result[workEntrySlug].currentSeason.title = {
+                                ...result[workEntrySlug].currentSeason.title,
+                                media,
+                            };
+                        })());
+                    }
+                }
+                await Promise.all(jobArr)
             }
             return result;
         } catch (error) {
