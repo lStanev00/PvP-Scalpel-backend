@@ -20,8 +20,29 @@ mediaCTRL.get("/userMedia", requireAdmin, userMediaGET);
 // specifical controllers for the videos;
 mediaCTRL.get("/videos/user", getUserVideos);
 mediaCTRL.get("/videos", getVideos);
+mediaCTRL.get("/videosIDs", getVideosIDs);
 mediaCTRL.get("/video/:videoID", getVideo);
 mediaCTRL.delete("/video/:videoID", deleteVideo);
+
+async function getVideosIDs(_, res) {
+    try {
+
+        const idsArr = (
+            await MediaMeta.distinct("_id", {
+                type: "video",
+                state: "done",
+                censored: false,
+                isPrivate: false,
+                quarantined: false,
+            })
+        ).map(String);
+
+        return jsonResponse(res, 200, idsArr);
+    } catch (error) {
+        console.error(error);
+        return jsonResponse(res, 500);
+    }
+}
 
 async function deleteVideo(req, res) {
     const { videoID } = req.params;
@@ -90,7 +111,7 @@ async function getVideo(req, res) {
     const { videoID } = req.params;
 
     try {
-        const bumpViews = await shouldBumpViews(req, { _id: videoID });
+        const bumpViews = req.headers?.["fe-ping"] === "front-end" ? false : await shouldBumpViews(req, { _id: videoID });
         const videoDoc = await MediaMeta.findByIdAndUpdate(
             videoID,
             {

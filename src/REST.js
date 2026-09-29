@@ -1,4 +1,4 @@
-// version: 0.0.68
+// version: 0.0.71
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
@@ -37,6 +37,7 @@ app.listen(port, console.info(`REST's running at http://localhost:${port} or ${p
 
 // import { getCharacter } from "./caching/characters/charCache.js";
 // const char = await getCharacter("eu", "chamber-of-aspects", "Lychezar", false, true);
+// const char = await getCharacter("eu", "kirin-tor", "Arluin", false, true);
 // console.info(char);
 // const region = await searchRegionFromMapBySlug("eu");
 // console.info(region);

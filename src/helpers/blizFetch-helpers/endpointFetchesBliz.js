@@ -80,8 +80,13 @@ const helpFetch = {
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
 
-            let brackets = (await this.fetchBlizzard(path)).brackets; // blizzard side bug
-            // let brackets = await this.fetchBlizzard(path);
+
+            const blizDoc = (await this.fetchBlizzard(path)); // blizzard side bug
+            realm = realm ? realm : blizDoc?.character?.realm?.slug;
+            name = name ? name : blizDoc?.character?.name;
+            server = server ? server : (blizDoc?._links?.self?.href).split(".")[0].replace("https://", "");
+            // console.info(server)
+            let brackets = blizDoc.brackets;
             // console.info(brackets);
             // brackets = brackets.brackets;
             const hasBrackets = Array.isArray(brackets) && brackets.length > 0;
@@ -188,6 +193,18 @@ const helpFetch = {
             await Promise.all(processBrackets);
             // if(name == "Lychezar" || name == `lychezar`) debugger;
 
+            if(!brackets) {
+                // since blizzard is buggerd for some characters we try best efort for acurate ratings
+                const extRetrive = await extRetChar({name, realm, server});
+                result["2v2"].currentSeason.rating = extRetrive.rate["2v2"];
+                result["3v3"].currentSeason.rating = extRetrive.rate["3v3"];
+                result["rbg"].currentSeason.rating = extRetrive.rate["rbg"];
+
+                const charDoc = await this.fetchBlizzard(blizDoc?.character?.key?.href);
+                const buildKey = (bSlug) => [bSlug, (charDoc?.character_class?.name).toLowerCase(), (charDoc?.active_spec?.name).toLowerCase()].join("-");
+                result[buildKey("shuffle")].currentSeason.rating = extRetrive.rate["shuffle"];
+                result[buildKey("blitz")].currentSeason.rating = extRetrive.rate["blitz"];
+            }
             return result;
         } catch (error) {
             console.log(error)

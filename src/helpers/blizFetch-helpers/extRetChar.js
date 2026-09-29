@@ -93,6 +93,7 @@ function optionalFiniteNumber(value) {
 }
 
 function extractRatings(data) {
+    // console.info(data)
     return {
         blitzRecord: optionalFiniteNumber(data?.ratemaxblitz),
         SSRecord: optionalFiniteNumber(data?.ratemaxshuffle),
@@ -101,7 +102,14 @@ function extractRatings(data) {
         threesRecord: optionalFiniteNumber(data?.ratemax3v3),
         activeSpecId: optionalFiniteNumber(data?.activeSpecId),
         classId: optionalFiniteNumber(data?.class),
-        twinks: data?.rerolls
+        twinks: data?.rerolls,
+        rate: { 
+            "2v2": optionalFiniteNumber(data?.rateatm2v2),
+            "3v3": optionalFiniteNumber(data?.rateatm3v3),
+            "shuffle": optionalFiniteNumber(data?.rateatmshuffle),
+            "blitz": optionalFiniteNumber(data?.rateatmblitz),
+            "rbg": optionalFiniteNumber(data?.rateatmrbg),
+        }
     };
 }
 
