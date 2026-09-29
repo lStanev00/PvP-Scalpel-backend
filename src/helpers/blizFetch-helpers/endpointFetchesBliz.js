@@ -67,6 +67,7 @@ const helpFetch = {
 
     },
     getRating: async function(path, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
+        let externalFallbackFailed = false;
         try {
             const bracketsCheatSheet = {
                 "SHUFFLE": `solo`,
@@ -89,6 +90,10 @@ const helpFetch = {
             realm = realm ? realm : blizDoc?.character?.realm?.slug;
             name = name ? name : blizDoc?.character?.name;
             server = server ? server : (blizDoc?._links?.self?.href).split(".")[0].replace("https://", "");
+            const blizzardRealmName = blizDoc?.character?.realm?.name;
+            let externalRealm = typeof blizzardRealmName === "string" && blizzardRealmName
+                ? blizzardRealmName
+                : realm;
             // console.info(server)
             let brackets = blizDoc.brackets;
             // console.info(brackets);
@@ -107,10 +112,13 @@ const helpFetch = {
             try {
                 ratingCharRefDoc = await findCharFromDatabase.byPvPUrl(path);
                 ratingCharRefDbase = ratingCharRefDoc?.rating;
+                if (externalRealm === realm && typeof ratingCharRefDoc?.playerRealm?.name === "string") {
+                    externalRealm = ratingCharRefDoc.playerRealm.name;
+                }
 
                 if (ratingCharRefDoc?.legacyRetrieved !== true) {
                     try {
-                        retrievedRecords = await extRetChar(path);
+                        retrievedRecords = await extRetChar({ name, realm: externalRealm, server });
                         if (ratingCharRefDoc) {
                             try {
                                 ratingCharRefDoc = await ratingCharRefDoc.updateOne(
@@ -200,9 +208,17 @@ const helpFetch = {
             await Promise.all(processBrackets);
             // if(name == "Lychezar" || name == `lychezar`) debugger;
 
-            if(!brackets) {
-                // since blizzard is buggerd for some characters we try best efort for acurate ratings
-                const extRetrive = await extRetChar({name, realm, server});
+            if (!hasBrackets) {
+                // Since Blizzard sometimes omits brackets, use the external character data.
+                let extRetrive = retrievedRecords;
+                if (!extRetrive) {
+                    try {
+                        extRetrive = await extRetChar({ name, realm: externalRealm, server });
+                    } catch (error) {
+                        externalFallbackFailed = true;
+                        throw error;
+                    }
+                }
                 await applyExternalRecordOnlyRatings(result, extRetrive, ratingCharRefDbase);
                 result["2v2"].currentSeason.rating = extRetrive.rate["2v2"];
                 result["3v3"].currentSeason.rating = extRetrive.rate["3v3"];
@@ -244,9 +260,15 @@ const helpFetch = {
                 }
                 await Promise.all(jobArr)
             }
+            if (Number(result["2v2"]?.currentSeason?.rating) > 0 && !result["2v2"].currentSeason.title?.media) {
+                result["2v2"].currentSeason.title = {
+                    ...result["2v2"].currentSeason.title,
+                    media: "https://render.worldofwarcraft.com/eu/icons/56/ui_rankedpvp_01.jpg",
+                };
+            }
             return result;
         } catch (error) {
-            console.log(error)
+            if (!externalFallbackFailed) console.log(error);
             return createDefaultRatingResult();
         }
     },
