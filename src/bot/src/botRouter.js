@@ -9,6 +9,7 @@ import linkDiscordHandler from "./helpers/linkDiscordHandler.js";
 import pingHandler from "./botHandlers/pingHandler.js";
 import searchHandler from "./botHandlers/searchHandler.js";
 import unknownHandler from "./botHandlers/unknownHandler.js";
+import { handleCFPNotesReviewButton } from "./botHandlers/cfpNotesReview.js";
 
 function isUnknownInteractionError(error) {
     return error?.code === 10062 || error?.rawError?.code === 10062;
@@ -61,6 +62,7 @@ export default async function botRouter(interaction) {
         }
 
         if (interaction.isButton()) {
+            if (await handleCFPNotesReviewButton(interaction)) return;
             const handled = await joinButtonHandler(interaction);
             if (!handled) await unknownHandler(interaction);
             return;

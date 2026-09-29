@@ -42,6 +42,7 @@ Required:
 - `CLIENT_ID` - Blizzard API client id.
 - `CLIENT_SECRET` - Blizzard API client secret.
 - `RESEND_API_KEY` - Resend API key.
+- `TYPESAFE_API_KEY` - TypeSafe Jev API key for the CFPNotes worker. Without it, candidates remain pending for retry.
 - `IS_LOCAL` - `true` to use `REDIS_URL`, `false` to use `REDIS_PASSWORD` and `REDISPORT`.
 - `REDIS_URL` - local Redis URL (used when `IS_LOCAL=true`).
 - `REDIS_PASSWORD` - Redis password (used when `IS_LOCAL=false`).
