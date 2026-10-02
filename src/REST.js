@@ -10,10 +10,6 @@ import sanitizer from "./middlewares/sanitizer.js";
 import compression from "compression";
 import { delay } from "./helpers/startBGTask.js";
 import threadBoot from "./helpers/threadBoot.js";
-// import { searchRegionFromMapBySlug } from "./caching/regions/regionCache.js";
-// import helpFetch from "./helpers/blizFetch-helpers/endpointFetchesBliz.js";
-// import BracketTops from "./Models/bracketTops/BracketTops.js";
-import MediaMeta from "./Models/MediaMeta.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
