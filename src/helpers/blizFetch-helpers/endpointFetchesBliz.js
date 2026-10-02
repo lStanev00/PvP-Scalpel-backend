@@ -85,7 +85,7 @@ const helpFetch = {
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
             
-            const extRetrieve = await extRetChar(path);
+            let extRetrieve = await extRetChar(path);
             const blizDoc = (await this.fetchBlizzard(path)); // blizzard side bug
             realm = realm ? realm : blizDoc?.character?.realm?.slug;
             name = name ? name : blizDoc?.character?.name;
@@ -236,23 +236,23 @@ const helpFetch = {
 
             if (!hasBrackets) {
                 // Since Blizzard sometimes omits brackets, use the external character data.
-                let extRetrive = retrievedRecords;
-                if (!extRetrive) {
+
+                if (!extRetrieve) {
                     try {
-                        extRetrive = await extRetChar({ name, realm: externalRealm, server });
+                        extRetrieve = await extRetChar({ name, realm: externalRealm, server });
                     } catch (error) {
                         externalFallbackFailed = true;
                         throw error;
                     }
                 }
-                await applyExternalRecordOnlyRatings(result, extRetrive, ratingCharRefDbase);
-                result["2v2"].currentSeason.rating = extRetrive.rate["2v2"];
-                result["3v3"].currentSeason.rating = extRetrive.rate["3v3"];
-                result["rbg"].currentSeason.rating = extRetrive.rate["rbg"];
+                await applyExternalRecordOnlyRatings(result, extRetrieve, ratingCharRefDbase);
+                result["2v2"].currentSeason.rating = extRetrieve.rate["2v2"];
+                result["3v3"].currentSeason.rating = extRetrieve.rate["3v3"];
+                result["rbg"].currentSeason.rating = extRetrieve.rate["rbg"];
 
                 const buildKey = (bracketSlug, charClass, charSpec) => [bracketSlug, charClass.toLowerCase().replaceAll(" ", ""), charSpec.toLowerCase().replaceAll(" ", "")].join("-");
                 const jobArr = [];
-                for (const [bracketSlug, entries] of [["blitz", extRetrive.blitzEntries], ["shuffle", extRetrive.ssEntries]]) {
+                for (const [bracketSlug, entries] of [["blitz", extRetrieve.blitzEntries], ["shuffle", extRetrieve.ssEntries]]) {
                     if (!Array.isArray(entries)) continue;
                     for (const element of entries) {
                         jobArr.push((async () => {
