@@ -115,11 +115,12 @@ function getForumBaseUrl(postUrl) {
     return `${url.origin}/${parts[0]}/${parts[1]}`;
 }
 
+export class PostNotStaffError extends Error {}
+
 /**
- * Retrieves the full content of a Blizzard Class Tuning post.
+ * Retrieves the full content of a normal Blizzard staff post.
  *
- * The supplied object should be the structure returned by
- * getLatestClassTuning().
+ * The supplied object should be a staff-feed post reference.
  *
  * @param {ClassTuningPostRef} postRef
  * @returns {Promise<ClassTuningPostContent>}
@@ -191,9 +192,9 @@ export default async function getPostContent(
         Extra safety since this function is meant
         specifically for official Blizzard posts.
     */
-    if (post.staff !== true) {
-        throw new Error(
-            `Post ${postRef.id} is not a Blizzard staff post.`
+    if (post.staff !== true || post.post_type !== 1) {
+        throw new PostNotStaffError(
+            `Post ${postRef.id} is not a normal Blizzard staff post.`
         );
     }
 

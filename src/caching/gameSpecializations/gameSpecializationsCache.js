@@ -65,7 +65,7 @@ function normalizeGameSpecializationId(id) {
 
 function normalizeLookupName(name) {
     if (typeof name !== "string") return undefined;
-    return name.trim().toLowerCase().replaceAll(" ", "");
+    return name.trim().toLowerCase().replace(/[\s-]/g, "");
 }
 
 /**
@@ -142,9 +142,10 @@ export async function getGameSpecializationByID(id) {
  * Read one specialization from the cached list by name.
  *
  * @param {string} name
+ * @param {number|string} [classId] Optional class ID to disambiguate shared spec names.
  * @returns {Promise<GameSpecializationDoc|null>}
  */
-export async function getGameSpecializationByName(name) {
+export async function getGameSpecializationByName(name, classId) {
     if (typeof name !== "string") return null;
 
     const normalizedName = name.trim().toLowerCase();
@@ -154,13 +155,16 @@ export async function getGameSpecializationByName(name) {
         /** @type {GameSpecializationDoc[]} */
         const gameSpecializations = await getGameSpecializations();
 
+        const matchesClass = (entry) =>
+            classId === undefined || Number(entry.relClass) === Number(classId);
+
         for (const entry of gameSpecializations) {
-            if (entry.name.toLowerCase() === normalizedName) return entry;
+            if (matchesClass(entry) && entry.name.toLowerCase() === normalizedName) return entry;
         }
 
         const normalizedLookupName = normalizeLookupName(name);
         for (const entry of gameSpecializations) {
-            if (normalizeLookupName(entry.name) === normalizedLookupName) return entry;
+            if (matchesClass(entry) && normalizeLookupName(entry.name) === normalizedLookupName) return entry;
         }
 
         return null;

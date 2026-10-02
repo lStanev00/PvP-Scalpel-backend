@@ -21,7 +21,7 @@ function setTwoDayCache(res) {
 async function getGameClasses(_, res) {
     try {
         const data = await GameClass.find().populate("specs").lean();
-        setTwoDayCache(res);
+        res.set("Cache-Control", "no-store");
         return jsonResponse(res, 200, data);
     } catch (error) {
         console.warn(error);
@@ -32,7 +32,7 @@ async function getGameClasses(_, res) {
 async function getGameSpecs(_, res) {
     try {
         const data = await GameSpecialization.find().lean();
-        setTwoDayCache(res);
+        res.set("Cache-Control", "no-store");
         return jsonResponse(res, 200, data);
     } catch (error) {
         console.warn(error);
