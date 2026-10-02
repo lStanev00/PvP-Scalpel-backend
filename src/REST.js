@@ -36,7 +36,7 @@ app.use(`/`, router);
 app.listen(port, console.info(`REST's running at http://localhost:${port} or ${productionUrl}`));
 
 
-import { getCharacter } from "./caching/characters/charCache.js";
+// import { getCharacter } from "./caching/characters/charCache.js";
 // import Char from "./Models/Chars.js";
 // const result = await Char.updateMany({legacyRetrieved: true}, {legacyRetrieved: false});
 // console.log("Matched:", result.matchedCount);
