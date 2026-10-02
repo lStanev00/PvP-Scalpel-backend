@@ -21,7 +21,10 @@ const ServiceSchema = new mongoose.Schema({
     data: {
         default: [],
         type: [String]
-    }
+    },
+    scanCursor: { type: String, default: null },
+    scanLockToken: { type: String, default: null },
+    scanLockUntil: { type: Date, default: null }
 
 })
 const Service = mongoose.model("Service", ServiceSchema);

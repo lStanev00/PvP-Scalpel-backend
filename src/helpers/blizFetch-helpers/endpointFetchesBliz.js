@@ -19,7 +19,7 @@ import {
 import getCache from "../redis/getterRedis.js";
 import setCache from "../redis/setterRedis.js";
 import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
-import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
+import { getGameSpecializationByID, getGameSpecializationByName } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
 dotenv.config({ path: '../../../.env' });
 
@@ -67,6 +67,7 @@ const helpFetch = {
 
     },
     getRating: async function(path, currentSeasonIndex, server = undefined, realm = undefined, name = undefined) {
+        let externalFallbackFailed = false;
         try {
             const bracketsCheatSheet = {
                 "SHUFFLE": `solo`,
@@ -83,12 +84,16 @@ const helpFetch = {
 
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
-
-
+            
+            const extRetrieve = await extRetChar(path);
             const blizDoc = (await this.fetchBlizzard(path)); // blizzard side bug
             realm = realm ? realm : blizDoc?.character?.realm?.slug;
             name = name ? name : blizDoc?.character?.name;
             server = server ? server : (blizDoc?._links?.self?.href).split(".")[0].replace("https://", "");
+            const blizzardRealmName = blizDoc?.character?.realm?.name;
+            let externalRealm = typeof blizzardRealmName === "string" && blizzardRealmName
+                ? blizzardRealmName
+                : realm;
             // console.info(server)
             let brackets = blizDoc.brackets;
             // console.info(brackets);
@@ -107,10 +112,13 @@ const helpFetch = {
             try {
                 ratingCharRefDoc = await findCharFromDatabase.byPvPUrl(path);
                 ratingCharRefDbase = ratingCharRefDoc?.rating;
+                if (externalRealm === realm && typeof ratingCharRefDoc?.playerRealm?.name === "string") {
+                    externalRealm = ratingCharRefDoc.playerRealm.name;
+                }
 
                 if (ratingCharRefDoc?.legacyRetrieved !== true) {
                     try {
-                        retrievedRecords = await extRetChar(path);
+                        retrievedRecords = await extRetChar({ name, realm: externalRealm, server });
                         if (ratingCharRefDoc) {
                             try {
                                 ratingCharRefDoc = await ratingCharRefDoc.updateOne(
@@ -141,8 +149,6 @@ const helpFetch = {
                 ratingCharRefDbase = undefined;
             }
 
-            await applyExternalRecordOnlyRatings(result, retrievedRecords, ratingCharRefDbase);
-
             const processBrackets = allBracketsData.map(async (data, index) => {
                 if (data?.code === 404) return null; // blizzard sometimes dont sanitize data and there are fauty requests
 
@@ -172,14 +178,41 @@ const helpFetch = {
                     console.warn(`Unknown bracket: ${currentBracket}`);
                     return;
                 }
-
-                // const dbaseRatingBracket = getRatingBracket(ratingCharRefDbase, bracketName);
-                const externalRecord = currentBracket === "BLITZ" || currentBracket === "SHUFFLE"
-                    ? undefined
-                    : externalRecordsByBracket[currentBracket];
-                // const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
-                const rec = highestRecord(externalRecord, curentBracketData.rating);
-                const record = highestRecord(rec, curentBracketData?.rating) ?? 0;
+                // determinate best record for the player spec of solo/blitz or non dinamic bracket
+                let record;
+                if (bracketName.includes("blitz") || bracketName.includes("shuffle")) {
+                    console.info(extRetrieve);
+                    const [, PCSlug, ...specSlugParts] = bracketName.split("-");
+                    const playerClass = await getGameClass({ name: PCSlug });
+                    const playerSpec = playerClass?._id
+                        ? await getGameSpecializationByName(
+                              specSlugParts.join("-"),
+                              playerClass._id,
+                          )
+                        : null;
+                    if (bracketName.includes("blitz")) {
+                        const exist = extRetrieve?.blitzEntries?.find(
+                            (value) => value.specId == playerSpec?._id,
+                        );
+                        console.info(exist);
+                        if (exist) {
+                            record = highestRecord(exist.maxRating, data?.rating);
+                        }
+                    } else if (bracketName.includes("shuffle")) {
+                        const exist = extRetrieve?.ssEntries?.find(
+                            (value) => value.specId == playerSpec?._id,
+                        );
+                        if (exist) {
+                            record = highestRecord(exist.maxRating, data?.rating);
+                        }
+                    }
+                } else if (bracketName == "3v3") {
+                    record = highestRecord(data.rating, extRetrieve.threesRecord);
+                } else if (bracketName == "2v2") {
+                    record = highestRecord(data?.rating, extRetrieve.twosRecord);
+                } else if (bracketName == "rbg") {
+                    record = highestRecord(data?.rating, extRetrieve.rbgRecord);
+                }
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
                     result[bracketName] = {
@@ -200,9 +233,17 @@ const helpFetch = {
             await Promise.all(processBrackets);
             // if(name == "Lychezar" || name == `lychezar`) debugger;
 
-            if(!brackets) {
-                // since blizzard is buggerd for some characters we try best efort for acurate ratings
-                const extRetrive = await extRetChar({name, realm, server});
+            if (!hasBrackets) {
+                // Since Blizzard sometimes omits brackets, use the external character data.
+                let extRetrive = retrievedRecords;
+                if (!extRetrive) {
+                    try {
+                        extRetrive = await extRetChar({ name, realm: externalRealm, server });
+                    } catch (error) {
+                        externalFallbackFailed = true;
+                        throw error;
+                    }
+                }
                 await applyExternalRecordOnlyRatings(result, extRetrive, ratingCharRefDbase);
                 result["2v2"].currentSeason.rating = extRetrive.rate["2v2"];
                 result["3v3"].currentSeason.rating = extRetrive.rate["3v3"];
@@ -244,9 +285,15 @@ const helpFetch = {
                 }
                 await Promise.all(jobArr)
             }
+            if (Number(result["2v2"]?.currentSeason?.rating) > 0 && !result["2v2"].currentSeason.title?.media) {
+                result["2v2"].currentSeason.title = {
+                    ...result["2v2"].currentSeason.title,
+                    media: "https://render.worldofwarcraft.com/eu/icons/56/ui_rankedpvp_01.jpg",
+                };
+            }
             return result;
         } catch (error) {
-            console.log(error)
+            if (!externalFallbackFailed) console.log(error);
             return createDefaultRatingResult();
         }
     },
