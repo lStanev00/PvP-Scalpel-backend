@@ -19,7 +19,7 @@ import {
 import getCache from "../redis/getterRedis.js";
 import setCache from "../redis/setterRedis.js";
 import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
-import { getGameSpecializationByID } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
+import { getGameSpecializationByID, getGameSpecializationByName } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
 dotenv.config({ path: '../../../.env' });
 
@@ -84,8 +84,8 @@ const helpFetch = {
 
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
-
-
+            
+            const extRetrieve = await extRetChar(path);
             const blizDoc = (await this.fetchBlizzard(path)); // blizzard side bug
             realm = realm ? realm : blizDoc?.character?.realm?.slug;
             name = name ? name : blizDoc?.character?.name;
@@ -149,8 +149,6 @@ const helpFetch = {
                 ratingCharRefDbase = undefined;
             }
 
-            await applyExternalRecordOnlyRatings(result, retrievedRecords, ratingCharRefDbase);
-
             const processBrackets = allBracketsData.map(async (data, index) => {
                 if (data?.code === 404) return null; // blizzard sometimes dont sanitize data and there are fauty requests
 
@@ -180,14 +178,41 @@ const helpFetch = {
                     console.warn(`Unknown bracket: ${currentBracket}`);
                     return;
                 }
-
-                // const dbaseRatingBracket = getRatingBracket(ratingCharRefDbase, bracketName);
-                const externalRecord = currentBracket === "BLITZ" || currentBracket === "SHUFFLE"
-                    ? undefined
-                    : externalRecordsByBracket[currentBracket];
-                // const rec = highestRecord(externalRecord, dbaseRatingBracket?.record, curentBracketData.rating);
-                const rec = highestRecord(externalRecord, curentBracketData.rating);
-                const record = highestRecord(rec, curentBracketData?.rating) ?? 0;
+                // determinate best record for the player spec of solo/blitz or non dinamic bracket
+                let record;
+                if (bracketName.includes("blitz") || bracketName.includes("shuffle")) {
+                    console.info(extRetrieve);
+                    const [, PCSlug, ...specSlugParts] = bracketName.split("-");
+                    const playerClass = await getGameClass({ name: PCSlug });
+                    const playerSpec = playerClass?._id
+                        ? await getGameSpecializationByName(
+                              specSlugParts.join("-"),
+                              playerClass._id,
+                          )
+                        : null;
+                    if (bracketName.includes("blitz")) {
+                        const exist = extRetrieve?.blitzEntries?.find(
+                            (value) => value.specId == playerSpec?._id,
+                        );
+                        console.info(exist);
+                        if (exist) {
+                            record = highestRecord(exist.maxRating, data?.rating);
+                        }
+                    } else if (bracketName.includes("shuffle")) {
+                        const exist = extRetrieve?.ssEntries?.find(
+                            (value) => value.specId == playerSpec?._id,
+                        );
+                        if (exist) {
+                            record = highestRecord(exist.maxRating, data?.rating);
+                        }
+                    }
+                } else if (bracketName == "3v3") {
+                    record = highestRecord(data.rating, extRetrieve.threesRecord);
+                } else if (bracketName == "2v2") {
+                    record = highestRecord(data?.rating, extRetrieve.twosRecord);
+                } else if (bracketName == "rbg") {
+                    record = highestRecord(data?.rating, extRetrieve.rbgRecord);
+                }
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
                     result[bracketName] = {
