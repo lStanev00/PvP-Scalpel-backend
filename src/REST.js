@@ -36,13 +36,14 @@ app.use(`/`, router);
 app.listen(port, console.info(`REST's running at http://localhost:${port} or ${productionUrl}`));
 
 
-// import { getCharacter } from "./caching/characters/charCache.js";
+import { getCharacter } from "./caching/characters/charCache.js";
 // import Char from "./Models/Chars.js";
 // const result = await Char.updateMany({legacyRetrieved: true}, {legacyRetrieved: false});
 // console.log("Matched:", result.matchedCount);
 // console.log("Updated:", result.modifiedCount);
 // const char = await getCharacter("eu", "chamber-of-aspects", "Lychezar", false, true);
 // const char = await getCharacter("eu", "doomhammer", "Hellomykitty", false, true);
+// const char = await getCharacter("eu", "ravencrest", "Ursite", false, true);
 // console.info(char)
 // const char = await getCharacter("eu", "dragonblight", "Liatwo", false, true);
 // const char = await getCharacter("eu", "kirin-tor", "Arluin", false, true);
