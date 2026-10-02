@@ -72,7 +72,7 @@ export default async function getCache(key, hash = "", clientIndex = 0) {
             .catch((reason) => console.info(`Redis Bug reason: ` + reason));
     }
 
-    if (result === null) return null;
+    if (result === null || result === undefined) return null;
 
     if (!result && result !== null) {
         console.warn(result);
