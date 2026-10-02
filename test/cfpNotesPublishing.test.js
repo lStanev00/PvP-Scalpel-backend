@@ -42,6 +42,10 @@ function harness({ rejected = false, renderable = true, renderFails = false, dmF
             // Exercise the real Buffer -> JSON -> Buffer Redis boundary.
             await sendClassTuning(client, JSON.parse(message), {error: (...args) => logs.push(args)});
         },
+        saveHandled: async (id, postId) => {
+            assert.equal(id, undefined);
+            assert.equal(postId, post.id);
+        },
         cache: async (key, id) => {
             assert.equal(key, "CFPNotes");
             assert.equal(id, post.id);

@@ -19,7 +19,7 @@ const CHANGE_TYPES = Object.freeze([
 ]);
 
 const SYSTEM_PROMPT = `
-You analyze official World of Warcraft class-tuning posts for PvP Scalpel.
+You analyze official World of Warcraft retail gameplay update posts for PvP Scalpel.
 
 The user message contains JSON containing:
 - the patch-note post
