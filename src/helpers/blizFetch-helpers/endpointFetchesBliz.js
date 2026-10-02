@@ -181,7 +181,7 @@ const helpFetch = {
                 // determinate best record for the player spec of solo/blitz or non dinamic bracket
                 let record;
                 if (bracketName.includes("blitz") || bracketName.includes("shuffle")) {
-                    console.info(extRetrieve);
+                    // console.info(extRetrieve);
                     const [, PCSlug, ...specSlugParts] = bracketName.split("-");
                     const playerClass = await getGameClass({ name: PCSlug });
                     const playerSpec = playerClass?._id
@@ -194,7 +194,7 @@ const helpFetch = {
                         const exist = extRetrieve?.blitzEntries?.find(
                             (value) => value.specId == playerSpec?._id,
                         );
-                        console.info(exist);
+                        // console.info(exist);
                         if (exist) {
                             record = highestRecord(exist.maxRating, data?.rating);
                         }
@@ -213,6 +213,7 @@ const helpFetch = {
                 } else if (bracketName == "rbg") {
                     record = highestRecord(data?.rating, extRetrieve.rbgRecord);
                 }
+                // debugger
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
                     result[bracketName] = {
