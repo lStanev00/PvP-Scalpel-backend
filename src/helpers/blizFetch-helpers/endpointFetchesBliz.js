@@ -85,7 +85,8 @@ const helpFetch = {
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
             
-            let extRetrieve = await extRetChar(path);
+            let extRetrieve = await extRetChar(path).catch(() => undefined);
+            if (extRetrieve === 404) extRetrieve = undefined;
             const blizDoc = (await this.fetchBlizzard(path)); // blizzard side bug
             realm = realm ? realm : blizDoc?.character?.realm?.slug;
             name = name ? name : blizDoc?.character?.name;
@@ -180,7 +181,7 @@ const helpFetch = {
                 }
                 // determinate best record for the player spec of solo/blitz or non dinamic bracket
                 let record;
-                if (bracketName.includes("blitz") || bracketName.includes("shuffle")) {
+                if (bracketName.includes("blitz") || bracketName.includes("shuffle") && extRetrieve) {
                     // console.info(extRetrieve);
                     const [, PCSlug, ...specSlugParts] = bracketName.split("-");
                     const playerClass = await getGameClass({ name: PCSlug });
@@ -206,11 +207,11 @@ const helpFetch = {
                             record = highestRecord(exist.maxRating, data?.rating);
                         }
                     }
-                } else if (bracketName == "3v3") {
+                } else if (bracketName == "3v3" && extRetrieve) {
                     record = highestRecord(data.rating, extRetrieve.threesRecord);
-                } else if (bracketName == "2v2") {
+                } else if (bracketName == "2v2" && extRetrieve) {
                     record = highestRecord(data?.rating, extRetrieve.twosRecord);
-                } else if (bracketName == "rbg") {
+                } else if (bracketName == "rbg" && extRetrieve) {
                     record = highestRecord(data?.rating, extRetrieve.rbgRecord);
                 }
                 // debugger
