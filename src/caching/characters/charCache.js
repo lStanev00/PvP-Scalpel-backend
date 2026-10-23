@@ -30,7 +30,7 @@ const CHAR_CACHE_EMMITER_MAX_LISTENERS = Number(process.env?.CHAR_CACHE_EMMITER_
 CharCacheEmitter.setMaxListeners(CHAR_CACHE_EMMITER_MAX_LISTENERS);
 const CHARACTER_CACHE_TTL_SECONDS = 3600;
 const hashName = "";
-const humanReadableName = "Characters Cache";
+const logModuleName = "Characters Cache";
 /** @type {Map<string, Promise<CharacterRecord | 404 | null | undefined>>} */
 const inFlightWorkerCharacters = new Map();
 
@@ -101,9 +101,9 @@ async function populateCharacterGameRefs(character) {
     return character;
 }
 
-CharCacheEmitter.on("update", (msg) => console.log(`[${humanReadableName}] ${msg}`));
-CharCacheEmitter.on("error", (msg) => console.error(`[${humanReadableName} ERROR] ${msg}`));
-CharCacheEmitter.on("info", (msg) => console.info(`[${humanReadableName} INFO] ${msg}`));
+CharCacheEmitter.on("update", (msg) => console.log(`[${logModuleName}] ${msg}`));
+CharCacheEmitter.on("error", (msg) => console.error(`[${logModuleName} ERROR] ${msg}`));
+CharCacheEmitter.on("info", (msg) => console.info(`[${logModuleName} INFO] ${msg}`));
 CharCacheEmitter.on("updateRequest", async (search) => {
     try {
         const exist = await getCache(search, hashName, CharacterCacheTTL);
