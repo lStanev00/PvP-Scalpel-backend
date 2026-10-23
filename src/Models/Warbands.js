@@ -19,21 +19,22 @@ const warbandSchema = new mongoose.Schema({
         type: [Number],
         default: [],
     },
-    achindex: {
-        // sum of the achievement ids (they are Numbers)
-        type: Number,
-        index: true,
-        unique: false,
-    },
     ACWAches: {
         type: [ACWAchesSchema],
         default: [],
     },
-    hashIndex: {
-        type: String,
-        required: true,
-        index: true
-    },
+    // Non required 
+    // achindex: {
+    //     // sum of the achievement ids (they are Numbers)
+    //     type: Number,
+    //     index: true,
+    //     unique: false,
+    // },
+    // hashIndex: {
+    //     type: String,
+    //     required: true,
+    //     index: true
+    // },
 });
 
 const Warbands = mongoose.model("warbands", warbandSchema);
