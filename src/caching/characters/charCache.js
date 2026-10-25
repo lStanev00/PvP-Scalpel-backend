@@ -8,12 +8,13 @@
 import { EventEmitter, once } from "node:events";
 import setCache from "../../helpers/redis/setterRedis.js";
 import getCache from "../../helpers/redis/getterRedis.js";
+import delCache from "../../helpers/redis/deletersRedis.js";
 import isOlderThanHour from "../../helpers/isOlderThanHour.js";
 import Char from "../../Models/Chars.js";
 import buildCharSearch from "../../helpers/buildCharSearch.js";
 import normalizeCharacterSearch from "../../helpers/normalizeCharacterSearch.js";
 import buildCharacter from "../../helpers/buildCharacter.js";
-import fetchData from "../../helpers/blizFetch.js";
+import fetchData, { fetchMinimalCharacter } from "../../helpers/blizFetch.js";
 import shipCharById from "./utils/shipCharById.js";
 import { findRealmById } from "../realms/realmCache.js";
 import { findRealmSearchById } from "../searchCache/realmSearchCach.js";
@@ -117,6 +118,9 @@ CharCacheEmitter.on("updateRequest", async (search) => {
 });
 
 export async function cacheOneCharacter(charData) {
+    // Epoch marks a minimal refresh that still needs a full fetch.
+    if (charData?.updatedAt && new Date(charData.updatedAt).getTime() === 0) return null;
+
     let search = charData?.search;
     const _id = charData?._id;
     if (!_id || !search) {
@@ -318,13 +322,22 @@ export async function getCharacterViaWorker(
  * @param {string} name Character name.
  * @param {boolean} [incChecks=true] Increment `checkedCount` on successful existing lookups.
  * @param {boolean} [renewCache=false] Ignore current cache and refresh character data.
+ * @param {boolean} [minimal=false] Fetch core data without caching it; leave the record due for a full refresh.
  * @returns {Promise<CharacterRecord | 404 | null | undefined>}
  * Returns a populated character record on success, `404` when the character or mapped realm
  * cannot be resolved, `null` when caching helpers reject invalid input, or `undefined` if the
  * request fails before a final value is produced.
  */
-export async function getCharacter(server, realm, name, incChecks = true, renewCache = false) {
+export async function getCharacter(
+    server,
+    realm,
+    name,
+    incChecks = true,
+    renewCache = false,
+    minimal = false,
+) {
     let character;
+    const fetchCharacter = minimal ? fetchMinimalCharacter : fetchData;
 
     // API try to return accurate data for non english realm eg гордунни => gordunni
     let realmSlug = realm + ":" + server;
@@ -350,7 +363,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
         }
     }
     const search = buildCharSearch({ server, realm, name });
-    
+
     try {
         // redis data logic
         if (renewCache === false) character = await getCharFromCacheBySearch(search);
@@ -366,13 +379,13 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
                     $inc: {
                         checkedCount: 1,
                     },
-                }).catch(console.error);
+                }, { timestamps: !minimal }).catch(console.error);
                 character.checkedCount = character.checkedCount + 1;
-                cacheOneCharacter(character);
+                if (!minimal) cacheOneCharacter(character);
             }
             //check if the new data is not served
             const exist = character?.gear?.head?.pvpIlvl;
-            if(!exist) {
+            if (!minimal && !exist) {
                 renewCache = true;
                 character = undefined;
             }
@@ -386,7 +399,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             // }
             if (!renewCache) {
                 character = await populateCharacterGameRefs(character);
-                await cacheOneCharacter(character);
+                if (!minimal) await cacheOneCharacter(character);
                 return character;
             }
         } else {
@@ -404,34 +417,41 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
         character = await findCharFromDatabase.byCredentials(server, realm, name);
         // if (!character) await Char.findOne({ search: search }); // >? not in variable
 
-        if (character && (isOlderThanHour(character) || renewCache === true)) {
-            // renews the cache case if it was explicity set or is older then a hour
+        const needsFullData = character && !minimal && (
+            !character.gear?.head?.pvpIlvl || new Date(character.updatedAt).getTime() === 0
+        );
+        if (character && (isOlderThanHour(character) || renewCache === true || needsFullData)) {
+            // Refresh stale/explicit requests, or fill details missing from a minimal record.
 
-            const newData = await fetchData(
+            const newData = await fetchCharacter(
                 character.server,
                 character.playerRealm.slug,
                 character.name,
                 character.checkedCount,
-                renewCache
+                renewCache || needsFullData,
             );
             let setter = undefined;
             if (newData?.code && newData?.data?.blizID) {
                 character = await Char.findOne({ blizID: newData.data.blizID });
-                if (newData.code === 202 || newData.code === 409) setter = newData?.data;
+                if (newData.code === 202 || newData.code === 409 || (minimal && newData.code === 304))
+                    setter = newData.data;
             } else {
                 setter = newData;
             }
 
             if (setter) {
-                for (const [key, value] of Object.entries(setter)) {
-                    if (character?.[key] && value) character[key] = value;
-                }
-
+                if (minimal) setter.updatedAt = new Date(0);
+                // Patch only fetched fields so minimal refreshes preserve detailed data.
                 character = await Char.findByIdAndUpdate(
                     character._id,
-                    { $set: character },
-                    { new: true },
+                    { $set: setter },
+                    { new: true, timestamps: !minimal },
                 );
+                if (minimal && character) {
+                    await delCache(search, hashName, CharacterCacheTTL);
+                    if (character.search !== search)
+                        await delCache(character.search, hashName, CharacterCacheTTL);
+                }
             }
         } else if (character) {
             character = await Char.findOneAndUpdate(
@@ -445,7 +465,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             );
         }
         if (!character) {
-            character = await buildCharacter(server, realm, name);
+            character = await buildCharacter(server, realm, name, undefined, minimal);
             if (character === null) {
                 await setCache(
                     search,
@@ -470,7 +490,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             });
         } catch (error) {
             // posts can be missing
-            console.warn(search + "No posts");
+            // console.warn(search + "No posts");
         }
         try {
             if (character?.listAchievements?.length !== 0)
@@ -493,7 +513,7 @@ export async function getCharacter(server, realm, name, incChecks = true, renewC
             }
         }
         await populateCharacterGameRefs(character);
-        await cacheOneCharacter(character);
+        if (!minimal) await cacheOneCharacter(character);
         try {
             character = character.toObject();
         } catch (error) {}
