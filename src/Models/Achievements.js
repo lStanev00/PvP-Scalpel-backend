@@ -12,6 +12,11 @@ const achSchema = new mongoose.Schema({
     expansion: {
         name: String,
         season: Number,
+    },
+    isAccWide: {
+        type: Boolean,
+        default: false,
+        index: true
     }
 
 });

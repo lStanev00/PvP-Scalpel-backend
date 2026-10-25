@@ -21,6 +21,7 @@ import setCache from "../redis/setterRedis.js";
 import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
 import { getGameSpecializationByID, getGameSpecializationByName } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
+import charToWarband from "./warbandMapping.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -85,7 +86,8 @@ const helpFetch = {
                 currentSeasonIndex = await this.getCurrentPvPSeasonIndex();  
             }
             
-            const extRetrieve = await extRetChar(path);
+            let extRetrieve = await extRetChar(path).catch(() => undefined);
+            if (extRetrieve === 404) extRetrieve = undefined;
             const blizDoc = (await this.fetchBlizzard(path)); // blizzard side bug
             realm = realm ? realm : blizDoc?.character?.realm?.slug;
             name = name ? name : blizDoc?.character?.name;
@@ -180,8 +182,8 @@ const helpFetch = {
                 }
                 // determinate best record for the player spec of solo/blitz or non dinamic bracket
                 let record;
-                if (bracketName.includes("blitz") || bracketName.includes("shuffle")) {
-                    console.info(extRetrieve);
+                if (bracketName.includes("blitz") || bracketName.includes("shuffle") && extRetrieve) {
+                    // console.info(extRetrieve);
                     const [, PCSlug, ...specSlugParts] = bracketName.split("-");
                     const playerClass = await getGameClass({ name: PCSlug });
                     const playerSpec = playerClass?._id
@@ -194,7 +196,7 @@ const helpFetch = {
                         const exist = extRetrieve?.blitzEntries?.find(
                             (value) => value.specId == playerSpec?._id,
                         );
-                        console.info(exist);
+                        // console.info(exist);
                         if (exist) {
                             record = highestRecord(exist.maxRating, data?.rating);
                         }
@@ -206,13 +208,14 @@ const helpFetch = {
                             record = highestRecord(exist.maxRating, data?.rating);
                         }
                     }
-                } else if (bracketName == "3v3") {
+                } else if (bracketName == "3v3" && extRetrieve) {
                     record = highestRecord(data.rating, extRetrieve.threesRecord);
-                } else if (bracketName == "2v2") {
+                } else if (bracketName == "2v2" && extRetrieve) {
                     record = highestRecord(data?.rating, extRetrieve.twosRecord);
-                } else if (bracketName == "rbg") {
+                } else if (bracketName == "rbg" && extRetrieve) {
                     record = highestRecord(data?.rating, extRetrieve.rbgRecord);
                 }
+                // debugger
     
                 if (currentBracket === "BLITZ" || currentBracket === "SHUFFLE") {
                     result[bracketName] = {
@@ -235,23 +238,24 @@ const helpFetch = {
 
             if (!hasBrackets) {
                 // Since Blizzard sometimes omits brackets, use the external character data.
-                let extRetrive = retrievedRecords;
-                if (!extRetrive) {
+
+                if (!extRetrieve) {
                     try {
-                        extRetrive = await extRetChar({ name, realm: externalRealm, server });
+                        extRetrieve = await extRetChar({ name, realm: externalRealm, server });
                     } catch (error) {
                         externalFallbackFailed = true;
                         throw error;
                     }
                 }
-                await applyExternalRecordOnlyRatings(result, extRetrive, ratingCharRefDbase);
-                result["2v2"].currentSeason.rating = extRetrive.rate["2v2"];
-                result["3v3"].currentSeason.rating = extRetrive.rate["3v3"];
-                result["rbg"].currentSeason.rating = extRetrive.rate["rbg"];
+                await applyExternalRecordOnlyRatings(result, extRetrieve, ratingCharRefDbase);
+                if (!extRetrieve?.rate) return result;
+                result["2v2"].currentSeason.rating = extRetrieve.rate["2v2"];
+                result["3v3"].currentSeason.rating = extRetrieve.rate["3v3"];
+                result["rbg"].currentSeason.rating = extRetrieve.rate["rbg"];
 
                 const buildKey = (bracketSlug, charClass, charSpec) => [bracketSlug, charClass.toLowerCase().replaceAll(" ", ""), charSpec.toLowerCase().replaceAll(" ", "")].join("-");
                 const jobArr = [];
-                for (const [bracketSlug, entries] of [["blitz", extRetrive.blitzEntries], ["shuffle", extRetrive.ssEntries]]) {
+                for (const [bracketSlug, entries] of [["blitz", extRetrieve.blitzEntries], ["shuffle", extRetrieve.ssEntries]]) {
                     if (!Array.isArray(entries)) continue;
                     for (const element of entries) {
                         jobArr.push((async () => {
@@ -307,7 +311,7 @@ const helpFetch = {
             }
             return result
         } catch (error) {
-            if (data.startsWith("Downstream Error")) {
+            if (data && data.startsWith("Downstream Error")) {
                 try {
                     await delay(2000);
                     const retry = await this.getPvPTitle(href);
@@ -387,6 +391,8 @@ const helpFetch = {
                     seasonalAchieves.push(id);
                 }
             }
+            const achFireTest = await charToWarband(data.character.id, achievementsMAP);
+            // debugger
             const result = [await filterAchiev(achievementsMAP, points), seasonalAchieves];
             return result
         } catch (error) {
