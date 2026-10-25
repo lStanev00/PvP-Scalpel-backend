@@ -1,12 +1,13 @@
 import { insertOneCharSearchMap } from "../caching/searchCache/charSearchCache.js";
 import Char from "../Models/Chars.js";
-import fetchData from "./blizFetch.js";
+import fetchData, { fetchMinimalCharacter } from "./blizFetch.js";
 import buildCharSearch from "./buildCharSearch.js";
 import convertSearch from "./convertSearch.js";
 import delCache from "./redis/deletersRedis.js";
 import getCache from "./redis/getterRedis.js";
 import setCache from "./redis/setterRedis.js";
 import { delay } from "./startBGTask.js";
+import { CharacterCacheTTL } from "./redis/connectRedis.js";
 
 
 const guildRanks = {
@@ -43,6 +44,7 @@ const hashName = "buildingEntries";
  * @param {string} realm - Realm slug used to resolve the character.
  * @param {string} name - Character name.
  * @param {number} [memberRankNumber] - Optional guild rank index used to populate `guildInsight`.
+ * @param {boolean} [minimal=false] - Fetch core data and mark it due for a full refresh.
  * @returns {Promise<object|null>} The existing or newly saved character record, or `null` when the character cannot be built.
  */
 
@@ -71,7 +73,13 @@ const returnChar = async (key, blizID = undefined) => {
     return undefined;
 };
 
-export default async function buildCharacter(server, realm, name, memberRankNumber = undefined) {
+export default async function buildCharacter(
+    server,
+    realm,
+    name,
+    memberRankNumber = undefined,
+    minimal = false,
+) {
     let character;
     // const key = `${server + realm + name}`;
     const key = buildCharSearch({ server, realm, name })
@@ -90,7 +98,8 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
 
     await setCache(key, true, hashName, 60);
 
-    character = await fetchData(server, realm, name, undefined, false);
+    const fetchCharacter = minimal ? fetchMinimalCharacter : fetchData;
+    character = await fetchCharacter(server, realm, name, undefined, false);
     if (character?.status === 409 && character?.data?.blizID) {
         try {
             const setter = character.data;
@@ -127,7 +136,13 @@ export default async function buildCharacter(server, realm, name, memberRankNumb
             }
         }
         const newCharacter = new Char(character);
-        const savedChar = await newCharacter.save();
+        if (minimal) newCharacter.updatedAt = new Date(0);
+        const savedChar = await newCharacter.save({ timestamps: { updatedAt: !minimal } });
+        if (minimal) {
+            await delCache(key, "", CharacterCacheTTL);
+            if (savedChar.search !== key)
+                await delCache(savedChar.search, "", CharacterCacheTTL);
+        }
         
         await delCache(key, hashName);
 
