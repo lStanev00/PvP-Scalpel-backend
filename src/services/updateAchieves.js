@@ -54,7 +54,7 @@ export default async function updateDBAchieves() {
                                 const [ title, expansion ] = name.split(`: `);
                                 // let expName;
                                 // let seasonIndex;
-                                const [ expName, seasonIndex ] = expansion.split(` Season `);
+                                let [ expName, seasonIndex ] = expansion.split(` Season `);
 
                                 if(seasonIndex) {
                                     const season = Number(seasonIndex);
@@ -133,4 +133,4 @@ export default async function updateDBAchieves() {
     return true
 
 }
-await threadBoot(false); await updateDBAchieves()
+// await threadBoot(false); await updateDBAchieves()
