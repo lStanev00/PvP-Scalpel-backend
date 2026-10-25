@@ -1,4 +1,4 @@
-// version: 0.0.73
+// version: 0.0.74
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
@@ -10,10 +10,6 @@ import sanitizer from "./middlewares/sanitizer.js";
 import compression from "compression";
 import { delay } from "./helpers/startBGTask.js";
 import threadBoot from "./helpers/threadBoot.js";
-// import { searchRegionFromMapBySlug } from "./caching/regions/regionCache.js";
-// import helpFetch from "./helpers/blizFetch-helpers/endpointFetchesBliz.js";
-// import BracketTops from "./Models/bracketTops/BracketTops.js";
-import MediaMeta from "./Models/MediaMeta.js";
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -38,11 +34,15 @@ app.listen(port, console.info(`REST's running at http://localhost:${port} or ${p
 
 // import { getCharacter } from "./caching/characters/charCache.js";
 // import Char from "./Models/Chars.js";
+// import mergeDuplicateWBDS from "./helpers/warbands/mergeDuplicateWBDS.js";
+// import Warbands from "./Models/Warbands.js";
+// import Char from "./Models/Chars.js";
 // const result = await Char.updateMany({legacyRetrieved: true}, {legacyRetrieved: false});
 // console.log("Matched:", result.matchedCount);
 // console.log("Updated:", result.modifiedCount);
-// const char = await getCharacter("eu", "chamber-of-aspects", "Lychezar", false, true);
+// const char = await getCharacter("eu", "chamber-of-aspects", "Scalped", false, true);
 // const char = await getCharacter("eu", "doomhammer", "Hellomykitty", false, true);
+// const char = await getCharacter("eu", "ravencrest", "Ursite", false, true);
 // console.info(char)
 // const char = await getCharacter("eu", "dragonblight", "Liatwo", false, true);
 // const char = await getCharacter("eu", "kirin-tor", "Arluin", false, true);
@@ -64,3 +64,46 @@ app.listen(port, console.info(`REST's running at http://localhost:${port} or ${p
 //     { likes: { $exists: false } },
 //     { $set: { likes: [] } },
 // );
+
+
+// Mass warband test 
+
+// const chars = await Char.find({level: 90}).limit(1000);
+// const batch = chars.map(char => {
+//     return getCharacter(char.server, char.playerRealm.slug, char.name, false, true)
+// });
+
+// const result = [];
+// // debugger
+// for (let i = 0; i < batch.length; i += 50) {
+//     const chunk = batch.slice(i, i + 50);
+
+//     const resolved = await Promise.all(chunk);
+
+//     result.push(...resolved);
+// // debugger
+
+// }
+// console.info(result.length)
+
+// Deduplicate test
+
+// let similarities = await mergeDuplicateWBDS();
+// while (similarities.length > 0) {
+//     similarities = await mergeDuplicateWBDS();
+// }
+
+// const bands = (await Warbands.find())
+//     .sort((a, b) => b.characters.length - a.characters.length);
+// for (const {characters, _id} of bands) {
+//     const build = [];
+//     for (const character of characters) {
+//         let stringBuilder = "";
+//         const char = await Char.findOne({blizID: character});
+
+//         if (char) stringBuilder += char.search;
+//         if (char.guildMember) stringBuilder += "|" + char.guildInsight.rank;
+//         build.push(stringBuilder);
+//     }
+//     console.info(`*****=> Warband: ${_id}\n${build.join("\n")}`)
+// }
