@@ -21,6 +21,7 @@ import setCache from "../redis/setterRedis.js";
 import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
 import { getGameSpecializationByID, getGameSpecializationByName } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
+import charToWarband from "./warbandMapping.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -247,6 +248,7 @@ const helpFetch = {
                     }
                 }
                 await applyExternalRecordOnlyRatings(result, extRetrieve, ratingCharRefDbase);
+                if (!extRetrieve?.rate) return result;
                 result["2v2"].currentSeason.rating = extRetrieve.rate["2v2"];
                 result["3v3"].currentSeason.rating = extRetrieve.rate["3v3"];
                 result["rbg"].currentSeason.rating = extRetrieve.rate["rbg"];
@@ -309,7 +311,7 @@ const helpFetch = {
             }
             return result
         } catch (error) {
-            if (data.startsWith("Downstream Error")) {
+            if (data && data.startsWith("Downstream Error")) {
                 try {
                     await delay(2000);
                     const retry = await this.getPvPTitle(href);
@@ -389,6 +391,8 @@ const helpFetch = {
                     seasonalAchieves.push(id);
                 }
             }
+            const achFireTest = await charToWarband(data.character.id, achievementsMAP);
+            // debugger
             const result = [await filterAchiev(achievementsMAP, points), seasonalAchieves];
             return result
         } catch (error) {
