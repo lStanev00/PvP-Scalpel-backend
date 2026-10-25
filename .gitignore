@@ -147,3 +147,6 @@ PvP-Scalpel-lychcloud
 /image_gen/*.png
 latest10-ai-audit.json
 .tmp-cfp-latest10-audit.mjs
+
+# Other generated datasets
+/tools/*.json
