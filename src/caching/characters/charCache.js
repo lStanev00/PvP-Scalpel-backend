@@ -150,7 +150,7 @@ export async function cacheOneCharacter(charData) {
 }
 
 export async function retrieveCharacter(params) {
-    const { incChecks, incChechks, renewCache } = params ?? {};
+    const { incChecks, incChechks, renewCache, minimal } = params ?? {};
     const nextSearch = resolveCharacterSearch(params);
 
     if (!nextSearch) {
@@ -168,6 +168,7 @@ export async function retrieveCharacter(params) {
             ...(typeof incChecks !== "undefined" ? { incChecks } : {}),
             ...(typeof incChechks !== "undefined" ? { incChechks } : {}),
             ...(typeof renewCache !== "undefined" ? { renewCache } : {}),
+            ...(typeof minimal !== "undefined" ? { minimal } : {}),
         },
     });
 }
@@ -175,7 +176,7 @@ export async function retrieveCharacter(params) {
 /**
  * Queue one worker-based character retrieval and wait for its published result once.
  *
- * @param {{ server?: string, realm?: string, name?: string, search?: string, incChecks?: boolean, incChechks?: boolean, renewCache?: boolean }} params
+ * @param {{ server?: string, realm?: string, name?: string, search?: string, incChecks?: boolean, incChechks?: boolean, renewCache?: boolean, minimal?: boolean }} params
  * @param {{ timeoutMs?: number, signal?: AbortSignal, enqueue?: boolean }} [options]
  * @returns {Promise<any | null>}
  */
@@ -239,6 +240,7 @@ export async function retrieveCharacterViaWorker(
  * @param {string} name
  * @param {boolean} [incChecks=true]
  * @param {boolean} [renewCache=false]
+ * @param {boolean} [minimal=false]
  * @returns {Promise<CharacterRecord | 404 | null | undefined>}
  */
 export async function getCharacterViaWorker(
@@ -247,6 +249,7 @@ export async function getCharacterViaWorker(
     name,
     incChecks = true,
     renewCache = false,
+    minimal = false
 ) {
     const search = resolveCharacterSearch({ server, realm, name });
 
@@ -270,6 +273,7 @@ export async function getCharacterViaWorker(
                         search,
                         incChecks,
                         renewCache,
+                        minimal
                     },
                     { timeoutMs: 60000 },
                 );

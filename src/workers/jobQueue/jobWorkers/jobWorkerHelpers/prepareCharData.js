@@ -2,7 +2,7 @@ import { getCharacter } from "../../../../caching/characters/charCache.js";
 import convertSearch from "../../../../helpers/convertSearch.js";
 
 export default async function prepareCharData(data) {
-    const { search, incChecks, incChechks, renewCache } = data ?? {};
+    const { search, incChecks, incChechks, renewCache, minimal } = data ?? {};
     // console.warn(data);
     const result = {
         search,
@@ -32,6 +32,7 @@ export default async function prepareCharData(data) {
             name,
             nextIncChecks !== undefined ? nextIncChecks : true,
             renewCache !== undefined ? renewCache : false,
+            !!minimal,
         );
 
         result.status =
