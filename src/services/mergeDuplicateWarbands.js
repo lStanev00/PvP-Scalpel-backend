@@ -65,19 +65,19 @@ while (similarities.length > 0) {
     similarities = await mergeDuplicateWBDS();
 }
 
-const bands = (await Warbands.find())
-    .sort((a, b) => b.characters.length - a.characters.length);
-for (const {characters, _id} of bands) {
-    const build = [];
-    for (const character of characters) {
-        let stringBuilder = "";
-        const char = await Char.findOne({blizID: character});
+// const bands = (await Warbands.find())
+//     .sort((a, b) => b.characters.length - a.characters.length);
+// for (const {characters, _id} of bands) {
+//     const build = [];
+//     for (const character of characters) {
+//         let stringBuilder = "";
+//         const char = await Char.findOne({blizID: character});
 
-        if (char) stringBuilder += char.search;
-        if (char.guildMember) stringBuilder += "|" + char.guildInsight.rank;
-        build.push(stringBuilder);
-    }
-    // console.info(`*****=> Warband: ${_id}\n${build.join("\n")}`)
-}
+//         // if (char) stringBuilder += char.search;
+//         // if (char.guildMember) stringBuilder += "|" + char.guildInsight.rank;
+//         // build.push(stringBuilder);
+//     }
+//     // console.info(`*****=> Warband: ${_id}\n${build.join("\n")}`)
+// }
 
 process.exit(0);
