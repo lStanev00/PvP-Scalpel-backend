@@ -110,7 +110,7 @@ export default async function queueCheckHandler(ws, msg) {
 
     function requestCharacterResult(search, initSearch, spec) {
         void retrieveCharacterViaWorker(
-            { search },
+            { search, incChecks: false, minimal: true },
             { timeoutMs: 70000, signal: requestController.signal, enqueue: false },
         )
             .then((msg) => {
