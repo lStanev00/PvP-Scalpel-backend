@@ -1,3 +1,4 @@
+/** @typedef {import("./jobQueue.types.js").QueueJob} QueueJob */
 import {
     deleteJobQueueEntry,
     getJobQueueEntries,
@@ -15,6 +16,7 @@ const QueueWorker2 = new QueueWorker("QueueWorker2"); // ws
 const QueueWorker3 = new QueueWorker("QueueWorker3"); // media can put non time sensitive
 
 let draining = false;
+/** @type {QueueJob | null | undefined} */
 let currentJobInfo = null;
 let stopRequested = false;
 let newJobRequested = false;

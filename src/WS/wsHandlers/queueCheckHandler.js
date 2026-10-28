@@ -1,3 +1,5 @@
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").BulkRetrieveCharacterQueueJob} BulkRetrieveCharacterQueueJob */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").RetrieveCharacterJobData} RetrieveCharacterJobData */
 import { retrieveCharacterViaWorker } from "../../caching/characters/charCache.js";
 import { enqueueJobQueueEntry } from "../../caching/charQueueCache/jobQueueCache.js";
 import { getGameBracketByID } from "../../caching/gameBrackets/gameBracketsCache.js";
@@ -152,12 +154,22 @@ export default async function queueCheckHandler(ws, msg) {
             });
     }
 
+    /**
+     * Build a bulk queue entry and subscribe to each character's published result.
+     * @param {unknown[]} entries
+     * @returns {Promise<void>}
+     */
     async function processEntries(entries) {
+        /** @type {BulkRetrieveCharacterQueueJob} */
         const jobBuild = {
             type: "bulkRetrieveCharacter",
             data: [],
         };
         const rejectedEntries = [];
+        /**
+         * @param {string} searchString Normalized character search key.
+         * @returns {RetrieveCharacterJobData}
+         */
         const buildEntryJob = (searchString) => {
             return {
                 search: searchString,
