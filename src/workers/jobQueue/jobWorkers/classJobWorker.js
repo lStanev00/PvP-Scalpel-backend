@@ -13,10 +13,11 @@ import delCache from "../../../helpers/redis/deletersRedis.js";
 import WorkerError from "../../../Models/WorkerErrors.js";
 import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.js";
 import { QueueClaimTTL } from "../../../helpers/redis/connectRedis.js";
+import { randomUUID } from "node:crypto";
 
 const queueClaimKey = (search) => `queuedChar:${search}`;
 const queueCharacterSearch = async (search) =>
-    await setCacheIfAbsent(queueClaimKey(search), true, 15, QueueClaimTTL);
+    await setCacheIfAbsent(queueClaimKey(search), true, 30, QueueClaimTTL);
 const dequeueCharacterSearch = async (search) =>
     await delCache(queueClaimKey(search), "", QueueClaimTTL);
 
@@ -149,6 +150,7 @@ export default class QueueWorker {
 
     /**
      * @param {RetrieveCharacterJobData[]} data Raw data array from a bulkRetrieveCharacter queue entry.
+     * @returns {Promise<boolean | null>} IPC send result, or null when no entries were claimed.
      */
     async processBulkRetrieveCharacter(data) {
         /** @type {RetrieveCharacterJobData[]} */
@@ -174,6 +176,7 @@ export default class QueueWorker {
         if (bulkJobs.length) {
             /** @type {BulkRetrieveCharacterQueueJob} */
             const queueJob = {
+                id: randomUUID(),
                 type: "bulkRetrieveCharacter",
                 data: bulkJobs,
             };
@@ -269,7 +272,7 @@ export default class QueueWorker {
     /**
      * Removes the first matching job from this worker's Redis-backed job list.
      *
-     * Matching prefers direct object identity and falls back to JSON equality.
+     * Matching prefers object identity, then job ID when present, otherwise JSON equality.
      *
      * @param {QueueWorkerJob} job
      * @returns {Promise<boolean>}
@@ -284,8 +287,15 @@ export default class QueueWorker {
             return true;
         }
 
-        const serializedJob = JSON.stringify(job);
-        const jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+        // const jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+        let jobIndex = -1;
+
+        if (job.id) {
+            jobIndex = jobs.findIndex((entry) => entry.id === job.id);
+        } else {
+            const serializedJob = JSON.stringify(job);
+            jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+        }
 
         if (jobIndex === -1) return false;
 
@@ -356,6 +366,30 @@ export default class QueueWorker {
                     stack: typeof data?.stack === "string" ? data.stack : undefined,
                     context: data,
                 }).catch(JQOLog.error);
+            }
+        } else if (type === "bulkRetrieveCharacter") {
+            const { results, job } = data;
+            if (!job)
+                return JQOLog.warn("bulkRetrieveCharacter completion is missing its job data");
+
+            for (const { search } of job.data) {
+                if (search) await dequeueCharacterSearch(search).catch(JQOLog.error);
+            }
+            await this.removeWorkerJob(job).catch(JQOLog.error);
+
+            for (const result of results) {
+                const { succeed, search } = result;
+                if (!succeed && search) {
+                    await WorkerError.create({
+                        workerName: this.name,
+                        source: "QueueWorker.onMessage",
+                        jobType: type,
+                        search,
+                        message: `Worker ${this.name} failed to retrieve ${search} in a bulkRetrieveCharacter job.`,
+                        stack: typeof result.stack === "string" ? result.stack : undefined,
+                        context: { ...result, job },
+                    }).catch(JQOLog.error);
+                }
             }
         }
     };

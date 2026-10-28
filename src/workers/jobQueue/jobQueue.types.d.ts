@@ -22,18 +22,24 @@ export interface ProcessMediaJobData {
     _id: string;
 }
 
-export interface RetrieveCharacterQueueJob {
+/** Shared correlation metadata for queued jobs and worker completion messages. */
+export interface QueueJobIdentity {
+    /** UUID assigned when a job is created; optional for jobs/messages that omit it. */
+    id?: string;
+}
+
+export interface RetrieveCharacterQueueJob extends QueueJobIdentity {
     type: "retrieveCharacter";
     data: RetrieveCharacterJobData;
 }
 
 /** Bulk character data accepted by the global queue and directly by a queue worker. */
-export interface BulkRetrieveCharacterQueueJob {
+export interface BulkRetrieveCharacterQueueJob extends QueueJobIdentity {
     type: "bulkRetrieveCharacter";
     data: RetrieveCharacterJobData[];
 }
 
-export interface ProcessMediaQueueJob {
+export interface ProcessMediaQueueJob extends QueueJobIdentity {
     type: "processMedia";
     data: ProcessMediaJobData;
 }
@@ -76,7 +82,7 @@ export interface RetrieveCharacterResult {
 }
 
 /** IPC completion metadata; the character itself is delivered through Redis. */
-export interface RetrieveCharacterWorkerMessage {
+export interface RetrieveCharacterWorkerMessage extends QueueJobIdentity {
     type: "retrieveCharacter";
     data: {
         search?: string;
@@ -115,10 +121,25 @@ export interface ProcessMediaResult {
     stack?: string;
 }
 
-export interface ProcessMediaWorkerMessage {
+export interface ProcessMediaWorkerMessage extends QueueJobIdentity {
     type: "processMedia";
     data: ProcessMediaResult & { job: ProcessMediaQueueJob };
 }
 
+/** One character's completion metadata within a bulk job. */
+export type BulkRetrieveCharacterResult = Omit<RetrieveCharacterWorkerMessage["data"], "job">;
+
+/** Bulk completion identifies the original job separately from per-character results. */
+export interface BulkRetrieveCharacterWorkerMessage extends QueueJobIdentity {
+    type: "bulkRetrieveCharacter";
+    data: {
+        results: BulkRetrieveCharacterResult[];
+        job: BulkRetrieveCharacterQueueJob;
+    };
+}
+
 /** Discriminated IPC completions sent from jobWorker to its QueueWorker parent. */
-export type QueueWorkerMessage = RetrieveCharacterWorkerMessage | ProcessMediaWorkerMessage;
+export type QueueWorkerMessage =
+    | RetrieveCharacterWorkerMessage
+    | BulkRetrieveCharacterWorkerMessage
+    | ProcessMediaWorkerMessage;
