@@ -1,3 +1,7 @@
+/** @typedef {import("../jobQueue.types.js").QueueWorkerJob} QueueWorkerJob */
+/** @typedef {import("../jobQueue.types.js").RetrieveCharacterResult} RetrieveCharacterResult */
+/** @typedef {import("../jobQueue.types.js").RetrieveCharacterWorkerMessage} RetrieveCharacterWorkerMessage */
+/** @typedef {import("../jobQueue.types.js").ProcessMediaWorkerMessage} ProcessMediaWorkerMessage */
 import { redisCache } from "../../../helpers/redis/connectRedis.js";
 import threadBoot from "../../../helpers/threadBoot.js";
 import prepareCharData from "./jobWorkerHelpers/prepareCharData.js";
@@ -14,15 +18,25 @@ if (!["QueueWorker1", "QueueWorker2", "QueueWorker3"].includes(workerName)) {
     throw new Error(`Invalid workerName "${workerName}" provided to job worker.`);
 }
 
+/**
+ * Publish character data separately from the IPC completion metadata.
+ * @param {RetrieveCharacterResult} result
+ * @returns {Promise<number>}
+ */
 const publishRetrieveCharacter = (result) =>
     redisCache.publish("job:retrieveCharacter", JSON.stringify(result));
 
 const publishVideoToZugee = (mediaID) =>
     redisCache.publish("annoDiscord:newVideo", JSON.stringify(mediaID));
 
+/** @type {QueueWorkerJob[]} */
 const jobs = [];
 
-process.on("message", async (jobInfo) => {
+process.on("message", /**
+ * Queue a character, bulk-character, or media job and drain jobs in arrival order.
+ * @param {QueueWorkerJob} jobInfo
+ * @returns {Promise<void>}
+ */ async (jobInfo) => {
     clearIdleShutdown();
     jobs.push(jobInfo);
 
@@ -32,14 +46,14 @@ process.on("message", async (jobInfo) => {
     try {
         while (jobs.length !== 0) {
             clearIdleShutdown();
-            const currentJobInfo = jobs.shift();
+            const currentJobInfo = /** @type {QueueWorkerJob} */ (jobs.shift());
 
             const { type, data } = currentJobInfo ?? {};
 
             if (type === "retrieveCharacter") {
                 const result = await prepareCharData(data);
                 void publishRetrieveCharacter(result).catch(console.error);
-                process.send({
+                process.send(/** @type {RetrieveCharacterWorkerMessage} */ ({
                     type: "retrieveCharacter",
                     data: {
                         search: result.search,
@@ -47,19 +61,21 @@ process.on("message", async (jobInfo) => {
                         status: result.status,
                         job: currentJobInfo,
                     },
-                });
+                }));
             } else if (type === "processMedia") {
                 const result = await processMedia(currentJobInfo);
                 if(result.status === 200 && result.outcome === "processed") {
                     void await publishVideoToZugee(result._id)
                 }
-                process.send({
+                process.send(/** @type {ProcessMediaWorkerMessage} */ ({
                     type: "processMedia",
                     data: {
                         ...result,
                         job: currentJobInfo,
                     },
-                });
+                }));
+            } else if (type === "bulkRetrieveCharacter") {
+                // data ... ... ... 
             }
         }
     } catch (e) {
