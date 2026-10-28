@@ -1,6 +1,7 @@
 /** @typedef {import("../jobQueue.types.js").RetrieveCharacterJobData} RetrieveCharacterJobData */
 /** @typedef {import("../jobQueue.types.js").ProcessMediaJobData} ProcessMediaJobData */
 /** @typedef {import("../jobQueue.types.js").RetrieveCharacterQueueJob} RetrieveCharacterQueueJob */
+/** @typedef {import("../jobQueue.types.js").BulkRetrieveCharacterQueueJob} BulkRetrieveCharacterQueueJob */
 /** @typedef {import("../jobQueue.types.js").ProcessMediaQueueJob} ProcessMediaQueueJob */
 /** @typedef {import("../jobQueue.types.js").QueueWorkerJob} QueueWorkerJob */
 /** @typedef {import("../jobQueue.types.js").QueueWorkerMessage} QueueWorkerMessage */
@@ -70,8 +71,7 @@ export default class QueueWorker {
     /**
      * Sends one job to the child-process worker.
      *
-     * Accepts individual character-retrieval and media-processing jobs.
-     * Bulk queue entries are split by the orchestrator before dispatch.
+     * Accepts individual character-retrieval, bulk-character, and media-processing jobs.
      *
      * @param {QueueWorkerJob} jobInfo
      * @returns {Promise<boolean>}
@@ -147,8 +147,41 @@ export default class QueueWorker {
         return await this.pushJob(queueJob);
     }
 
-    async processBulkRetrieveCharacter (data) {
-        const jobs = []
+    /**
+     * @param {RetrieveCharacterJobData[]} data Raw data array from a bulkRetrieveCharacter queue entry.
+     */
+    async processBulkRetrieveCharacter(data) {
+        /** @type {RetrieveCharacterJobData[]} */
+        const bulkJobs = [];
+        for (const entry of data) {
+            const search = normalizeCharacterSearch(entry?.search);
+            if (!search) {
+                JQOLog.warn(
+                    `Skipping bulkRetrieveCharacter for ${this.name} because search is invalid: ${JSON.stringify(entry?.search)}`,
+                );
+                continue;
+            }
+
+            const queueClaim = await queueCharacterSearch(search);
+            if (queueClaim !== 1) continue;
+
+            bulkJobs.push({
+                ...entry,
+                search,
+            });
+        }
+
+        if (bulkJobs.length) {
+            /** @type {BulkRetrieveCharacterQueueJob} */
+            const queueJob = {
+                type: "bulkRetrieveCharacter",
+                data: bulkJobs,
+            };
+
+            return await this.pushJob(queueJob);
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -293,8 +326,7 @@ export default class QueueWorker {
             const mediaId = data?._id ?? job.data?._id ?? "unknown";
 
             if (data?.succeed) {
-                const reason =
-                    typeof data?.reason === "string" ? ` (${data.reason})` : "";
+                const reason = typeof data?.reason === "string" ? ` (${data.reason})` : "";
                 JQOLog.info(
                     `Worker ${this.name} completed processMedia ${mediaId} with outcome ${data.outcome}${reason}`,
                 );
