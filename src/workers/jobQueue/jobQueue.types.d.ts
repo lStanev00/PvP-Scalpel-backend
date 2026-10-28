@@ -27,7 +27,7 @@ export interface RetrieveCharacterQueueJob {
     data: RetrieveCharacterJobData;
 }
 
-/** The orchestrator splits this entry into individual retrieveCharacter jobs. */
+/** Bulk character data accepted by the global queue and directly by a queue worker. */
 export interface BulkRetrieveCharacterQueueJob {
     type: "bulkRetrieveCharacter";
     data: RetrieveCharacterJobData[];
@@ -44,8 +44,11 @@ export type QueueJob =
     | BulkRetrieveCharacterQueueJob
     | ProcessMediaQueueJob;
 
-/** IPC requests and per-worker Redis job lists never contain bulk entries. */
-export type QueueWorkerJob = RetrieveCharacterQueueJob | ProcessMediaQueueJob;
+/** IPC requests and per-worker Redis job lists support all three job types. */
+export type QueueWorkerJob =
+    | RetrieveCharacterQueueJob
+    | BulkRetrieveCharacterQueueJob
+    | ProcessMediaQueueJob;
 
 /** Character lookup input before normalization into a required search key. */
 export type CharacterRetrievalParams = Partial<RetrieveCharacterJobData> & {
