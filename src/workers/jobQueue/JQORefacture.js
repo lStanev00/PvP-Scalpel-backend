@@ -1,3 +1,4 @@
+/** @typedef {import("./jobQueue.types.js").QueueJob} QueueJob */
 import {
     deleteJobQueueEntry,
     getJobQueueEntries,
@@ -15,6 +16,7 @@ const QueueWorker2 = new QueueWorker("QueueWorker2"); // ws
 const QueueWorker3 = new QueueWorker("QueueWorker3"); // media can put non time sensitive
 
 let draining = false;
+/** @type {QueueJob | null | undefined} */
 let currentJobInfo = null;
 let stopRequested = false;
 let newJobRequested = false;
@@ -90,14 +92,15 @@ async function startQueue() {
                     continue;
                 }
 
-                for (let i = 0; i < data.length; i++) {
-                    const jobData = data[i];
-                    if (i <= Math.floor(data.length / 2)) {
-                        await QueueWorker1.retrieveCharacter(jobData);
-                    } else {
-                        await QueueWorker2.retrieveCharacter(jobData);
-                    }
-                }
+                await QueueWorker2.processBulkRetrieveCharacter(data)
+                // for (let i = 0; i < data.length; i++) {
+                //     const jobData = data[i];
+                //     if (i <= Math.floor(data.length / 2)) {
+                //         await QueueWorker1.retrieveCharacter(jobData);
+                //     } else {
+                //         await QueueWorker2.retrieveCharacter(jobData);
+                //     }
+                // }
             } else if(type === "processMedia") {
                 try {
                     await QueueWorker3.processMedia(currentJobInfo)
