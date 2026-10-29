@@ -16,7 +16,7 @@ CharSearchCacheEmiter.on('update', () => console.info("[Character Search Cache] 
 CharSearchCacheEmiter.on("error", (msg) => console.error(`[Character Search Cache ERROR] ${msg}`));
 CharSearchCacheEmiter.on("info", (msg) => console.info(`[Character Search Cache INFO] ${msg}`));
 CharSearchCacheEmiter.on('purge', (search, newSearch) => {
-    wipeCharSearchEntry(search, newSearch)
+    wipeCharSearchEntry(search, newSearch).catch(console.warn(`Purge failed charSearchCache.js:19\nsearch: ${search}\nnewSearch: ${newSearch}`))
 });
 
 export const getCharSearchMap = async() => toMap(await hashGetAllCache(hashName));
@@ -143,7 +143,7 @@ async function wipeCharSearchEntry(search, newSearch) {
 
     const char = await Char.findOne({search : newSearch});
 
-    const id = char.id; 
+    const id = char.id || char._id; 
     const updates = [];
     for (const entry of mongoData) {
         const searchResultIndex = entry.searchResult.indexOf(search);
