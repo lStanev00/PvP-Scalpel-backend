@@ -1,6 +1,7 @@
 // import { delay } from "../helpers/startBGTask.js";
 import { initialCharSearchMap } from "./searchCache/charSearchCache.js";
 import { initialSetSeasonalIdsMap } from "./achievements/achievesEmt.js";
+import { ACWACache } from "./achievements/accWideAchesCache.js";
 import { initialSetRealmIdsMap } from "./realms/realmCache.js";
 import { initialSetRegionIdsMap } from "./regions/regionCache.js";
 import { initialRealmSearchMap } from "./searchCache/realmSearchCach.js";
@@ -11,6 +12,7 @@ import ItemBonus from "../Models/ItemBonus/ItemBonus.js";
 export default async function initialCache() {
 
     try {
+        await ACWACache.loadCache();
         await ItemBonus.seedFromJson();
         await updateGameClassAndSpecs();
         await updateDBAchieves(); 
