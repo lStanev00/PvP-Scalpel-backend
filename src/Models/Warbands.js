@@ -11,7 +11,7 @@ const ACWAchesSchema = new mongoose.Schema(
             required: true,
         },
     },
-    { id: false, versionKey: false, timestamps: false },
+    { _id: false, versionKey: false, timestamps: false },
 );
 
 const warbandSchema = new mongoose.Schema({
