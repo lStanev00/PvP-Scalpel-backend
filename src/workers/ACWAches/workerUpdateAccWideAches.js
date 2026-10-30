@@ -15,6 +15,6 @@ export default async function workerUpdateAccWideAches() {
         });
 
         while (exited !== true) await delay(3000);
-        await delay(3600000); // 1 hr
+        await delay(604800000); // 1 week
     }
 }

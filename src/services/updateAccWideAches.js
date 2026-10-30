@@ -57,13 +57,13 @@ if (dbBatch.length) {
     const result = await AccWideAches.bulkWrite(dbBatch);
     await ACWACache.loadCache()
 
-    console.info({
-        matched: result.matchedCount,
-        modified: result.modifiedCount,
-        inserted: result.upsertedCount
-    });
+    // console.info({
+    //     matched: result.matchedCount,
+    //     modified: result.modifiedCount,
+    //     inserted: result.upsertedCount
+    // });
 }
-console.info(resolvedAccWide.length);
+// console.info(resolvedAccWide.length);
 // debugger
 // console.log(data.achievements);
 process.exit(0)
