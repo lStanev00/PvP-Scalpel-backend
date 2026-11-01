@@ -75,18 +75,19 @@ export default async function dataGuard(data, forceUpdate) {
 
     // Save without modifying updatedAt timestamp
     if (trigger) {
-        await character.save({ timestamps: false });
-
         const newSearch = buildCharSearch({
             server: data.server,
             realm: data.playerRealm.slug,
             name: data.name,
         });
         const oldSearch = character.search;
+        const searchChanged = newSearch !== oldSearch && newSearch !== undefined;
+        if (searchChanged) character.search = newSearch;
 
-        if (newSearch !== oldSearch && newSearch !== undefined) {
-            character.search = newSearch;
-            CharSearchCacheEmiter.emit("purge", oldSearch, newSearch)
+        await character.save({ timestamps: false });
+
+        if (searchChanged) {
+            CharSearchCacheEmiter.emit("purge", oldSearch, newSearch);
             // servicesWorker.postMessage({
             //     type: "purge",
             //     payload: [oldSearch, newSearch],
