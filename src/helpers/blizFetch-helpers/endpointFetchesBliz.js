@@ -22,6 +22,7 @@ import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
 import { getGameSpecializationByID, getGameSpecializationByName } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
 import charToWarband from "./warbandMapping.js";
+import global_aches_non_rel from "../../caching/achievements/globalAches.js";
 dotenv.config({ path: '../../../.env' });
 
 const helpFetch = {
@@ -731,13 +732,8 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID)
         if (match && match?.completed_timestamp){
             try {
-                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-                const twosResult = {
-                    name: data.name,
-                    description: data.description,
-                    media: await helpFetch.getMedia(data, "media")
-                }
-                result["2s"] = twosResult;
+                const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+                if (data) result["2s"] = data;
             } catch (error) {
                 console.log(error);
             }
@@ -749,13 +745,8 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp){
             try {
-                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-                const threesResult = {
-                    name: data.name,
-                    description: data.description,
-                    media: await helpFetch.getMedia(data, "media")
-                }
-                result["3s"] = threesResult;
+                const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+                if (data) result["3s"] = data;
             } catch (error) {
                 console.log(error);
             }
@@ -766,13 +757,8 @@ async function filterAchiev (achievements, points) {
     for (const {key, name, id: dataID} of achievesData["soloShuffle"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-            const soloResult = {
-                name: data.name,
-                description: data.description,
-                media: await helpFetch.getMedia(data, "media")
-            }
-            result["solo"] = soloResult;
+            const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+            if (data) result["solo"] = data;
             break;
         } catch (error) {
             console.log(error); break;
@@ -782,14 +768,11 @@ async function filterAchiev (achievements, points) {
     for (const {key, name, id: dataID} of achievesData["BG"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-            const BGXPResult = {
-                name: data.name,
-                description: data.description,
-                media: await helpFetch.getMedia(data, "media")
+            const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+            if (data) {
+                result["RBG"].XP = data;
+                result["Blitz"].XP = data;
             }
-            result["RBG"].XP = BGXPResult;
-            result["Blitz"].XP = BGXPResult;
             break;
         } catch (error) {
             (error); break;
@@ -799,13 +782,8 @@ async function filterAchiev (achievements, points) {
     for (const {key, name, id: dataID} of achievesData["RBGWins"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-            const RBGWinsResult = {
-                name: data.name,
-                description: data.description,
-                media: await helpFetch.getMedia(data, "media")
-            }
-            result["RBG"].WINS = RBGWinsResult;
+            const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+            if (data) result["RBG"].WINS = data;
             break;
         } catch (error) {
             console.log(error); break;
@@ -840,13 +818,8 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp)
             try {
-                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-                const BlitzWinsResult = {
-                    name: data.name,
-                    description: data.description,
-                    media: await helpFetch.getMedia(data, "media")
-                }
-                result["Blitz"].WINS = BlitzWinsResult;
+                const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+                if (data) result["Blitz"].WINS = data;
                 break;
             } catch (error) {
                 console.log(error); break;

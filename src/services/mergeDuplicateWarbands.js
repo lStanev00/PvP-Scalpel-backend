@@ -2,7 +2,7 @@ import threadBoot from "../helpers/threadBoot.js";
 // import Char from "../Models/Chars.js";
 import Warbands from "../Models/Warbands.js";
 
-await threadBoot()
+await threadBoot(true)
 async function mergeDuplicateWBDS() {
     const wbds = await Warbands.find().lean();
     const similarities = [];

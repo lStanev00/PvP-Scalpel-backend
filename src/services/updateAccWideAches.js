@@ -2,7 +2,7 @@ import { ACWACache } from "../caching/achievements/accWideAchesCache.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import threadBoot from "../helpers/threadBoot.js";
 import AccWideAches from "../Models/AccWideAches.js";
-await threadBoot();
+await threadBoot(true);
 const url =
     "https://eu.api.blizzard.com/data/wow/achievement/index?namespace=static-eu";
 
