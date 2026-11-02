@@ -127,7 +127,7 @@ export default async function charToWarband(blizCharID, remoteAchesMap) {
             );
         }
 
-        if (wbMatch.ACWAches.length !== warbandAchWideResult.length) {
+        if (wbMatch.ACWAches.length < warbandAchWideResult.length) {
             wbMatch = await Warbands.findByIdAndUpdate(
                 wbMatch._id,
                 { ACWAches: warbandAchWideResult },
