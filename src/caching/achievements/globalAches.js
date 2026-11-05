@@ -7,21 +7,35 @@ import getCache from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
 
 const hashName = "global_aches_non_rel";
+const maxAgeMs = 50 * 24 * 60 * 60 * 1000;
+const pendingLookups = new Map();
+
+function isValidHref(href) {
+    return typeof href === "string" && URL.canParse(href) &&
+        ["http:", "https:"].includes(new URL(href).protocol);
+}
+
+function hasDefinitionData(definition) {
+    return typeof definition?.name === "string" && typeof definition.description === "string" &&
+        typeof definition.media === "string" && definition.media.startsWith("https://");
+}
 
 /**
  * Shared achievement definition stored independently of the seasonal MongoDB catalog.
  *
  * @typedef {object} GlobalAchievementDefinition
  * @property {number|string} id Positive achievement ID.
+ * @property {number} fetchedAt Fetch completion time in milliseconds.
+ * @property {string} href Achievement definition endpoint URL.
  * @property {string} name Achievement name.
  * @property {string} description Achievement description.
  * @property {string} media HTTPS media URL.
  */
 
-/** Standalone Redis cache for achievement definitions, keyed by achievement ID. */
+/** Standalone Redis achievement hash; definitions refresh on access after 50 days. */
 const global_aches_non_rel = {
     /**
-     * Validate and store an achievement definition in the shared Redis hash.
+     * Validate and store an achievement definition without applying Redis expiry to the hash.
      *
      * @param {GlobalAchievementDefinition} achDoc Definition to cache; numeric string IDs are accepted.
      * @returns {Promise<number|null|undefined>} Redis write result, null on cache failure,
@@ -50,11 +64,21 @@ const global_aches_non_rel = {
             return undefined;
         }
 
+        if (!isValidHref(achDoc.href)) {
+            console.warn(`[${hashName}] setOne: href must be a valid HTTP or HTTPS link.`);
+            return undefined;
+        }
+        if (!Number.isFinite(achDoc.fetchedAt) || achDoc.fetchedAt <= 0 || achDoc.fetchedAt > Date.now()) {
+            console.warn(`[${hashName}] setOne: fetchedAt must be a valid fetch timestamp.`);
+            return undefined;
+        }
+
         return await setCache(id, achDoc, hashName);
     }, 
     /**
-     * Read a cached definition, or fetch its definition and media from Blizzard and cache it.
+     * Read a fresh definition, or fetch its definition and media from Blizzard and cache it.
      * Both the ID and an absolute HTTP/HTTPS URL are required, including on cache hits.
+     * Missing/invalid timestamps, different URLs, and ages of 50 days or more trigger a refresh.
      *
      * @param {{id: number|string, href: string}} pseudoDoc Achievement ID and definition URL.
      * @returns {Promise<GlobalAchievementDefinition|null|undefined>} The definition,
@@ -70,31 +94,51 @@ const global_aches_non_rel = {
             return undefined;
         }
 
-        const isValidHref = typeof href === "string" &&
-            URL.canParse(href) &&
-            ["http:", "https:"].includes(new URL(href).protocol);
-        if (!isValidHref) {
+        if (!isValidHref(href)) {
             console.warn(`[${hashName}] getOne: href must be a valid HTTP or HTTPS link; received:`, href);
             return undefined;
         }
 
-        let result = await getCache(id, hashName);
-        if (result) return result;
+        // Share pending definition/media requests only for the same ID and endpoint.
+        const pendingKey = `${id}:${href}`;
+        if (pendingLookups.has(pendingKey)) return pendingLookups.get(pendingKey);
 
-        result = await helpFetch.fetchBlizzard(href);
-        if (result) {
-            result = {
-                id,
-                name: result.name,
-                description: result.description,
-                media: await helpFetch.getMedia(result, "media")
+        const lookup = (async () => {
+            const cached = await getCache(id, hashName);
+            const ageMs = Date.now() - cached?.fetchedAt;
+            if (Number(cached?.id) === id && cached?.href === href && hasDefinitionData(cached) &&
+                Number.isFinite(cached.fetchedAt) && cached.fetchedAt > 0 &&
+                ageMs >= 0 && ageMs < maxAgeMs) {
+                return cached;
             }
-            await global_aches_non_rel.setOne(result);
-            return result;
-        }
 
-        console.warn(`[${hashName}] getOne: no achievement data returned for id ${id} from ${href}.`);
-        return null
+            let result = await helpFetch.fetchBlizzard(href);
+            if (result) {
+                const media = await helpFetch.getMedia(result, "media");
+                result = {
+                    id,
+                    fetchedAt: Date.now(),
+                    href,
+                    name: result.name,
+                    description: result.description,
+                    media,
+                };
+                // Invalid/partial definitions never overwrite an older cached entry.
+                await global_aches_non_rel.setOne(result);
+                return result;
+            }
+
+            console.warn(`[${hashName}] getOne: no achievement data returned for id ${id} from ${href}.`);
+            return null;
+        })();
+
+        pendingLookups.set(pendingKey, lookup);
+        try {
+            return await lookup;
+        } finally {
+            // Completed lookups must check Redis again so their age is always respected.
+            pendingLookups.delete(pendingKey);
+        }
     }
 };
 

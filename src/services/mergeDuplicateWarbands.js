@@ -41,10 +41,9 @@ async function mergeDuplicateWBDS() {
             }
         }
     }
-    // console.info(similarities);
+    // console.info(`[MergeDuplicateWarbands] Found ${similarities.length} matching pairs among ${wbds.length} warbands.`);
 
     for (const { wbdA, wbdB, matches } of similarities) {
-        console.info(wbdA.ACWAches.length - wbdB.ACWAches.length);
         const charBlizIdSet = new Set();
         const mapChars = (charIdArr) => {
             charIdArr.map((id) => {

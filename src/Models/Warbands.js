@@ -37,6 +37,20 @@ const warbandSchema = new mongoose.Schema({
     // },
 });
 
+warbandSchema.index({ characters: 1 });
+// Support the achievement/timestamp pairs used by the warband candidate query.
+warbandSchema.index({ "ACWAches.achId": 1, "ACWAches.completedAt": 1 });
+
+warbandSchema.virtual("members", {
+    ref: "Character",
+    localField: "characters",
+    foreignField: "blizID",
+    justOne: false,
+});
+
+warbandSchema.set("toObject", { virtuals: true });
+warbandSchema.set("toJSON", { virtuals: true });
+
 const Warbands = mongoose.model("warbands", warbandSchema);
 
 export default Warbands;
