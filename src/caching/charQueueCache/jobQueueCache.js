@@ -1,3 +1,8 @@
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").CharacterQueueJobData} CharacterQueueJobData */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").RetrieveCharacterQueueJob} RetrieveCharacterQueueJob */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").BulkRetrieveCharacterQueueJob} BulkRetrieveCharacterQueueJob */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").ProcessMediaQueueJob} ProcessMediaQueueJob */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").QueueJob} QueueJob */
 import { EventEmitter } from "node:events";
 import { removeListCache } from "../../helpers/redis/deletersRedis.js";
 import { listLengthCache, listValuesCache } from "../../helpers/redis/getterRedis.js";
@@ -8,52 +13,12 @@ const key = "JobQueue";
 const humanReadableName = "Job Queue Cache";
 
 /**
- * One character-search payload queued for worker processing.
+ * Normalize one character payload before storing it in the queue.
  *
- * @typedef {object} CharacterQueueJobData
- * @property {string} search
- * @property {boolean} [incChecks]
- * @property {boolean} [incChechks]
- * @property {boolean} [renewCache]
+ * @param {CharacterQueueJobData} jobData
+ * @param {"retrieveCharacter" | "bulkRetrieveCharacter"} jobType
+ * @returns {CharacterQueueJobData}
  */
-
-/**
- * One single-character queue entry stored in the global Redis queue.
- *
- * @typedef {object} RetrieveCharacterQueueJob
- * @property {"retrieveCharacter"} type
- * @property {CharacterQueueJobData} data
- */
-
-/**
- * One bulk queue entry stored in the global Redis queue.
- *
- * @typedef {object} BulkRetrieveCharacterQueueJob
- * @property {"bulkRetrieveCharacter"} type
- * @property {CharacterQueueJobData[]} data
- */
-
-/**
- * One media-processing queue entry stored in the global Redis queue.
- *
- * @typedef {object} ProcessMediaQueueJob
- * @property {"processMedia"} type
- * @property {{_id: string}} data
- */
-
-/**
- * One job entry stored in the global Redis queue.
- *
- * @typedef {RetrieveCharacterQueueJob | BulkRetrieveCharacterQueueJob | ProcessMediaQueueJob} QueueJob
- */
-
-/**
- * Validate one job queue entry before using it against Redis.
- *
- * @param {QueueJob} jobEntry
- * @returns {QueueJob}
- */
-
 function validateCharacterQueueJobData(jobData, jobType) {
     if (!jobData || typeof jobData !== "object" || Array.isArray(jobData)) {
         throw new TypeError(`${jobType} job data must be an object.`);
@@ -70,6 +35,12 @@ function validateCharacterQueueJobData(jobData, jobType) {
     };
 }
 
+/**
+ * Validate and normalize one queue entry before using it against Redis.
+ *
+ * @param {QueueJob} jobEntry
+ * @returns {QueueJob}
+ */
 function validateJobQueueEntry(jobEntry) {
     if (!jobEntry || typeof jobEntry !== "object" || Array.isArray(jobEntry)) {
         throw new TypeError("Job queue entry must be an object.");
@@ -125,7 +96,7 @@ function validateJobQueueEntry(jobEntry) {
         };
     }
 
-    throw new TypeError(`Unsupported job queue entry type "${jobEntry.type}".`);
+    throw new TypeError(`Unsupported job queue entry type "${/** @type {{ type: string }} */ (jobEntry).type}".`);
 }
 
 export const JobQueueCacheEmitter = new EventEmitter();
@@ -204,12 +175,13 @@ export async function enqueueJobQueueEntry(jobEntry, ttl = -1) {
  */
 export async function enqueueMediaJob(mediaId, ttl = -1) {
     return await enqueueJobQueueEntry(
-        {
+        /** @satisfies {ProcessMediaQueueJob} */
+        ({
             type: "processMedia",
             data: {
                 _id: mediaId,
             },
-        },
+        }),
         ttl,
     );
 }

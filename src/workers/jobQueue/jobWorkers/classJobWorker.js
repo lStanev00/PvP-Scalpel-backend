@@ -1,3 +1,10 @@
+/** @typedef {import("../jobQueue.types.js").RetrieveCharacterJobData} RetrieveCharacterJobData */
+/** @typedef {import("../jobQueue.types.js").ProcessMediaJobData} ProcessMediaJobData */
+/** @typedef {import("../jobQueue.types.js").RetrieveCharacterQueueJob} RetrieveCharacterQueueJob */
+/** @typedef {import("../jobQueue.types.js").BulkRetrieveCharacterQueueJob} BulkRetrieveCharacterQueueJob */
+/** @typedef {import("../jobQueue.types.js").ProcessMediaQueueJob} ProcessMediaQueueJob */
+/** @typedef {import("../jobQueue.types.js").QueueWorkerJob} QueueWorkerJob */
+/** @typedef {import("../jobQueue.types.js").QueueWorkerMessage} QueueWorkerMessage */
 import { fork } from "node:child_process";
 import getCache from "../../../helpers/redis/getterRedis.js";
 import setCache, { setCacheIfAbsent } from "../../../helpers/redis/setterRedis.js";
@@ -6,39 +13,13 @@ import delCache from "../../../helpers/redis/deletersRedis.js";
 import WorkerError from "../../../Models/WorkerErrors.js";
 import normalizeCharacterSearch from "../../../helpers/normalizeCharacterSearch.js";
 import { QueueClaimTTL } from "../../../helpers/redis/connectRedis.js";
+import { randomUUID } from "node:crypto";
 
 const queueClaimKey = (search) => `queuedChar:${search}`;
 const queueCharacterSearch = async (search) =>
-    await setCacheIfAbsent(queueClaimKey(search), true, 15, QueueClaimTTL);
+    await setCacheIfAbsent(queueClaimKey(search), true, 30, QueueClaimTTL);
 const dequeueCharacterSearch = async (search) =>
     await delCache(queueClaimKey(search), "", QueueClaimTTL);
-
-/**
- * Payload for the `retrieveCharacter` job handled by `jobWorker.js`.
- *
- * `search` must be the normalized character key in the form `name:realm:server`.
- *
- * @typedef {object} RetrieveCharacterJobData
- * @property {string} search
- * @property {boolean} [incChecks]
- * @property {boolean} [incChechks]
- * @property {boolean} [renewCache]
- */
-
-/**
- * Payload for a `processMedia` job handled by `jobWorker.js`.
- *
- * @typedef {object} ProcessMediaJobData
- * @property {string} _id
- */
-
-/**
- * One job message sent from the orchestrator to the child-process queue worker.
- *
- * @typedef {object} QueueWorkerJob
- * @property {"retrieveCharacter"|"processMedia"} type
- * @property {RetrieveCharacterJobData|ProcessMediaJobData} data
- */
 
 /**
  * Thin wrapper around one child-process queue worker and its Redis-backed state.
@@ -91,14 +72,7 @@ export default class QueueWorker {
     /**
      * Sends one job to the child-process worker.
      *
-     * Expected payload shape:
-     * - `type`: job discriminator, currently `"retrieveCharacter"`
-     * - `data.search`: normalized character key in the form `name:realm:server`
-     * - `data.incChecks` / `data.incChechks`: optional checked-count increment flag
-     * - `data.renewCache`: optional cache-bypass flag
-     *
-     * Example:
-     * `{ type: "retrieveCharacter", data: { search: "name:realm:server", renewCache: true } }`
+     * Accepts individual character-retrieval, bulk-character, and media-processing jobs.
      *
      * @param {QueueWorkerJob} jobInfo
      * @returns {Promise<boolean>}
@@ -111,7 +85,7 @@ export default class QueueWorker {
     }
 
     /**
-     * Marks the worker as stopped in Redis and kills the child process reference.
+     * Marks the worker as stopped in Redis and clears its process reference.
      *
      * @returns {Promise<void>}
      */
@@ -142,6 +116,7 @@ export default class QueueWorker {
      * - `search`: normalized character key in the form `name:realm:server`
      * - `incChecks` / `incChechks`: optional checked-count increment flag
      * - `renewCache`: optional cache-bypass flag
+     * - `minimal`: optional core-data-only flag
      *
      * The method wraps the payload into a queue-worker job object:
      * `{ type: "retrieveCharacter", data }`
@@ -158,6 +133,7 @@ export default class QueueWorker {
             return false;
         }
 
+        /** @type {RetrieveCharacterQueueJob} */
         const queueJob = {
             type: "retrieveCharacter",
             data: {
@@ -172,6 +148,51 @@ export default class QueueWorker {
         return await this.pushJob(queueJob);
     }
 
+    /**
+     * @param {RetrieveCharacterJobData[]} data Raw data array from a bulkRetrieveCharacter queue entry.
+     * @returns {Promise<boolean | null>} IPC send result, or null when no entries were claimed.
+     */
+    async processBulkRetrieveCharacter(data) {
+        /** @type {RetrieveCharacterJobData[]} */
+        const bulkJobs = [];
+        for (const entry of data) {
+            const search = normalizeCharacterSearch(entry?.search);
+            if (!search) {
+                JQOLog.warn(
+                    `Skipping bulkRetrieveCharacter for ${this.name} because search is invalid: ${JSON.stringify(entry?.search)}`,
+                );
+                continue;
+            }
+
+            const queueClaim = await queueCharacterSearch(search);
+            if (queueClaim !== 1) continue;
+
+            bulkJobs.push({
+                ...entry,
+                search,
+            });
+        }
+
+        if (bulkJobs.length) {
+            /** @type {BulkRetrieveCharacterQueueJob} */
+            const queueJob = {
+                id: randomUUID(),
+                type: "bulkRetrieveCharacter",
+                data: bulkJobs,
+            };
+
+            return await this.pushJob(queueJob);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Dispatch one media job unless its ID is already queued for this worker.
+     *
+     * @param {ProcessMediaQueueJob} job
+     * @returns {Promise<boolean | undefined>}
+     */
     async processMedia(job) {
         const { type, data } = job;
         if (type !== "processMedia") {
@@ -193,6 +214,10 @@ export default class QueueWorker {
         return await this.pushJob(job);
     }
 
+    /**
+     * Register completion and exit listeners for the current child process.
+     * @returns {Promise<void>}
+     */
     async registerListeners() {
         if (!this.isRunning || this.processRef === undefined) {
             return JQOLog.warn(
@@ -219,6 +244,7 @@ export default class QueueWorker {
      * @returns {Promise<QueueWorkerJob[]>}
      */
     async getWorkerJobs() {
+        /** @type {QueueWorkerJob[] | null} */
         const jobs = await getCache("jobs", this.name);
         return Array.isArray(jobs) ? jobs : [];
     }
@@ -246,7 +272,7 @@ export default class QueueWorker {
     /**
      * Removes the first matching job from this worker's Redis-backed job list.
      *
-     * Matching prefers direct object identity and falls back to JSON equality.
+     * Matching prefers object identity, then job ID when present, otherwise JSON equality.
      *
      * @param {QueueWorkerJob} job
      * @returns {Promise<boolean>}
@@ -261,8 +287,15 @@ export default class QueueWorker {
             return true;
         }
 
-        const serializedJob = JSON.stringify(job);
-        const jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+        // const jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+        let jobIndex = -1;
+
+        if (job.id) {
+            jobIndex = jobs.findIndex((entry) => entry.id === job.id);
+        } else {
+            const serializedJob = JSON.stringify(job);
+            jobIndex = jobs.findIndex((entry) => JSON.stringify(entry) === serializedJob);
+        }
 
         if (jobIndex === -1) return false;
 
@@ -271,6 +304,12 @@ export default class QueueWorker {
         return true;
     }
 
+    /**
+     * Handle a completion, release character claims, and remove the original job.
+     *
+     * @param {QueueWorkerMessage} msg
+     * @returns {Promise<void>}
+     */
     onWorkerMessage = async (msg) => {
         const { type, data } = msg;
 
@@ -297,8 +336,7 @@ export default class QueueWorker {
             const mediaId = data?._id ?? job.data?._id ?? "unknown";
 
             if (data?.succeed) {
-                const reason =
-                    typeof data?.reason === "string" ? ` (${data.reason})` : "";
+                const reason = typeof data?.reason === "string" ? ` (${data.reason})` : "";
                 JQOLog.info(
                     `Worker ${this.name} completed processMedia ${mediaId} with outcome ${data.outcome}${reason}`,
                 );
@@ -328,6 +366,30 @@ export default class QueueWorker {
                     stack: typeof data?.stack === "string" ? data.stack : undefined,
                     context: data,
                 }).catch(JQOLog.error);
+            }
+        } else if (type === "bulkRetrieveCharacter") {
+            const { results, job } = data;
+            if (!job)
+                return JQOLog.warn("bulkRetrieveCharacter completion is missing its job data");
+
+            for (const { search } of job.data) {
+                if (search) await dequeueCharacterSearch(search).catch(JQOLog.error);
+            }
+            await this.removeWorkerJob(job).catch(JQOLog.error);
+
+            for (const result of results) {
+                const { succeed, search } = result;
+                if (!succeed && search) {
+                    await WorkerError.create({
+                        workerName: this.name,
+                        source: "QueueWorker.onMessage",
+                        jobType: type,
+                        search,
+                        message: `Worker ${this.name} failed to retrieve ${search} in a bulkRetrieveCharacter job.`,
+                        stack: typeof result.stack === "string" ? result.stack : undefined,
+                        context: { ...result, job },
+                    }).catch(JQOLog.error);
+                }
             }
         }
     };

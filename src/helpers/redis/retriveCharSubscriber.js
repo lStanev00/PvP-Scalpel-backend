@@ -1,3 +1,4 @@
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").RetrieveCharacterResult} RetrieveCharacterResult */
 import { CharCacheEmitter } from "../../caching/characters/charCache.js";
 import { redisCache } from "./connectRedis.js";
 
@@ -12,6 +13,7 @@ export async function registerCharCacheEventListener(silent = false) {
     subscriber = redisCache.duplicate();
     await subscriber.connect();
     await subscriber.subscribe("job:retrieveCharacter", async (data) => {
+        /** @type {RetrieveCharacterResult} */
         const payload = JSON.parse(data);
         if (!payload?.search) return;
 

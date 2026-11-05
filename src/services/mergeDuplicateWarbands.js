@@ -1,8 +1,8 @@
 import threadBoot from "../helpers/threadBoot.js";
-import Char from "../Models/Chars.js";
+// import Char from "../Models/Chars.js";
 import Warbands from "../Models/Warbands.js";
 
-await threadBoot()
+await threadBoot(true)
 async function mergeDuplicateWBDS() {
     const wbds = await Warbands.find().lean();
     const similarities = [];
@@ -41,10 +41,9 @@ async function mergeDuplicateWBDS() {
             }
         }
     }
-    // console.info(similarities);
+    // console.info(`[MergeDuplicateWarbands] Found ${similarities.length} matching pairs among ${wbds.length} warbands.`);
 
     for (const { wbdA, wbdB, matches } of similarities) {
-        console.info(wbdA.ACWAches.length - wbdB.ACWAches.length);
         const charBlizIdSet = new Set();
         const mapChars = (charIdArr) => {
             charIdArr.map((id) => {

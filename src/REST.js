@@ -1,4 +1,4 @@
-// version: 0.0.76
+// version: 0.0.77
 import express from "express";
 import dotenv from "dotenv";
 dotenv.config({ path: "../.env" });
@@ -32,7 +32,7 @@ app.use(`/`, router);
 app.listen(port, console.info(`REST's running at http://localhost:${port} or ${productionUrl}`));
 
 
-// import { getCharacter } from "./caching/characters/charCache.js";
+// import { fork } from "node:child_process";
 // import Char from "./Models/Chars.js";
 // import mergeDuplicateWBDS from "./helpers/warbands/mergeDuplicateWBDS.js";
 // import Warbands from "./Models/Warbands.js";
@@ -45,6 +45,75 @@ app.listen(port, console.info(`REST's running at http://localhost:${port} or ${p
 // const char = await getCharacter("eu", "ravencrest", "Ursite", false, true);
 // console.info(char)
 // const char = await getCharacter("eu", "dragonblight", "Liatwo", false, true);
+// const chars = await Char.find({name: {$regex: "drunk", $options: "i"}}).lean()
+// const chars = await Char.find({
+//     level: 90,
+//     updatedAt: { $lt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+// }).populate("warband").lean();
+// console.info(chars.length)
+// const workerCount = 3;
+// const batchSize = 8;
+// const pendingChars = chars.filter(({ warband }) => !warband).map(({ name, playerRealm, server, blizID }) => ({
+//     name, playerRealm: { slug: playerRealm.slug }, server, blizID,
+// }));
+// let nextIndex = 0;
+// let completed = 0;
+// const children = new Set();
+// const stopChildren = () => {
+//     for (const child of children) child.kill();
+// };
+// process.once("exit", stopChildren);
+// console.info(`${pendingChars.length} characters need warband processing`);
+// try {
+//     if (pendingChars.length) await Promise.all(Array.from({ length: workerCount }, (_, workerIndex) => new Promise((resolve, reject) => {
+//         const child = fork(new URL("./workers/warbandRefresh/workerWarbandRefresh.js", import.meta.url), [], {
+//             stdio: ["ignore", "inherit", "inherit", "ipc"],
+//             execArgv: process.execArgv.filter(arg => !arg.startsWith("--inspect")),
+//         });
+//         children.add(child);
+//         let stopping = false;
+//         let batchLength = 0;
+//         const sendNextBatch = () => {
+//             const batch = pendingChars.slice(nextIndex, nextIndex + batchSize);
+//             nextIndex += batch.length;
+//             batchLength = batch.length;
+//             stopping = batch.length === 0;
+//             child.send({ type: stopping ? "stop" : "batch", batch }, error => {
+//                 if (error) reject(error);
+//             });
+//         };
+//         child.on("message", message => {
+//             if (message.type === "ready") {
+//                 console.info(`[Worker ${workerIndex + 1}] PID ${child.pid} ready`);
+//                 sendNextBatch();
+//             } else if (message.type === "batchComplete") {
+//                 completed += batchLength;
+//                 console.info(`[Worker ${workerIndex + 1}, PID ${child.pid}] ${pendingChars.length - completed} chars left`);
+//                 sendNextBatch();
+//             } else if (message.type === "error") {
+//                 reject(new Error(`Warband worker ${child.pid}: ${message.error}`));
+//             }
+//         });
+//         child.once("error", reject);
+//         child.once("exit", (code, signal) => {
+//             children.delete(child);
+//             if (stopping && code === 0) resolve();
+//             else reject(new Error(`Warband worker ${child.pid} exited unexpectedly (code ${code}, signal ${signal}).`));
+//         });
+//     })));
+// } catch (error) {
+//     console.error("[Warband refresh] Worker pool failed:", error);
+// } finally {
+//     stopChildren();
+//     process.removeListener("exit", stopChildren);
+// }
+// const char = await getCharacter("eu", "ravencrest", "Dmforhealz", false, true, true);
+// if (char) {
+//     for (const {name} of char.warband.members) {
+//         console.info(name)
+//     }
+// }
+// debugger
 // const char = await getCharacter("eu", "kirin-tor", "Arluin", false, true);
 // console.info(char);
 // const region = await searchRegionFromMapBySlug("eu");

@@ -6,6 +6,7 @@ import workerupdateDBAchieves from "../workers/updateDBAchievements/workerUDBA.j
 import workerUpdateRealm from "../workers/updateRealm/workerUpdateRealm.js";
 import checkForPatchNotes from "../workers/checkForPatchNotes/checkForPatchNotes.js";
 import WDWBJob from "../workers/mergeDupWBS/MDWBSJob.js";
+import workerUpdateAccWideAches from "../workers/ACWAches/workerUpdateAccWideAches.js";
 
 const jobQueue = new JobQueue();
 
@@ -20,6 +21,7 @@ export default async function startServices() {
     while (warmupFinished !== true) await delay(1000);
     console.info("[Cache] Initial cache warmup finished.");
 
+    workerUpdateAccWideAches()
     WDWBJob();
     checkForPatchNotes();
     workerUpdateRealm();

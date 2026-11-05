@@ -1,3 +1,4 @@
+/** @typedef {import("./jobQueue.types.js").QueueJob} QueueJob */
 import {
     deleteJobQueueEntry,
     getJobQueueEntries,
@@ -28,6 +29,7 @@ await subClone.pSubscribe(`__keyspace@0__:${key}`, async (event, channel) => {
         while ((await getJobQueueSize()) !== 0) {
             // run till queue is drained
             //get curent job
+            /** @type {QueueJob | undefined} */
             const currentJobInfo = (await getJobQueueEntries()).shift();
             await deleteJobQueueEntry(currentJobInfo);
             if (!currentJobInfo) {

@@ -1,9 +1,20 @@
+/** @typedef {import("../../jobQueue.types.js").RetrieveCharacterJobData} RetrieveCharacterJobData */
+/** @typedef {import("../../jobQueue.types.js").RetrieveCharacterResult} RetrieveCharacterResult */
 import { getCharacter } from "../../../../caching/characters/charCache.js";
 import convertSearch from "../../../../helpers/convertSearch.js";
 
+/**
+ * Retrieve character data for publication on Redis job:retrieveCharacter.
+ * incChecks takes precedence over the legacy incChechks flag; defaults are
+ * incChecks=true, renewCache=false, and minimal=false.
+ *
+ * @param {RetrieveCharacterJobData} data
+ * @returns {Promise<RetrieveCharacterResult>}
+ */
 export default async function prepareCharData(data) {
     const { search, incChecks, incChechks, renewCache, minimal } = data ?? {};
     // console.warn(data);
+    /** @type {RetrieveCharacterResult} */
     const result = {
         search,
         character: null,
