@@ -129,6 +129,12 @@ CharSchema.virtual("favorite", {
     foreignField: "favChars",
 });
 
+CharSchema.virtual("warband", {
+    ref: "warbands",
+    localField: "blizID",
+    foreignField: "characters",
+    justOne: true,
+});
 
 CharSchema.set("toObject", { virtuals: true, flattenMaps: true });
 CharSchema.set("toJSON", { virtuals: true, flattenMaps: true });
@@ -139,13 +145,32 @@ CharSchema.pre(/^find/, function(next) {
     this.populate([
         {
             path: "class",
-            select : "_id name media"
+            select: "_id name media",
         },
         {
             path: "activeSpec",
-            select : "_id name media role"
+            select: "_id name media role",
         },
-    ])
+        {
+            path: "warband",
+            select: "_id characters",
+            populate: {
+                path: "members",
+                select: "_id blizID name playerRealm server class activeSpec rating media lastLogin search achieves",
+                options: { skipCharacterPopulate: true },
+                populate: [
+                    {
+                        path: "class",
+                        select: "_id name media",
+                    },
+                    {
+                        path: "activeSpec",
+                        select: "_id name media role",
+                    },
+                ],
+            },
+        },
+    ]);
     next();
 });
 

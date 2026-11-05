@@ -4,6 +4,7 @@ import CharSearchModel from "../../Models/SearchCharacter.js";
 import extractNameSlug from "../../helpers/extractName.js";
 import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
+import delCache from "../../helpers/redis/deletersRedis.js";
 import toMap from "../../helpers/toMap.js";
 import setDBChars from "./helpers/setDBChars.js";
 import convertSearch from "../../helpers/convertSearch.js";
@@ -31,6 +32,7 @@ export async function initialCharSearchMap() {
     const charList = await Char.find({}, {_id: 1, search: 1}).lean();
 
     for (const char of charList) {
+        if (char.search?.startsWith("!archived:")) continue;
         const key = extractNameSlug(char.search);
         // const exist = await hasHashCache(hashName, key);
         const exist = await getCache(key, hashName);
@@ -53,6 +55,7 @@ export async function searchCharFromMap(key) {
 
 
 export async function insertOneCharSearchMap(newChar) {
+    if (newChar?.search?.startsWith("!archived:")) return;
     if (!newChar._id && !newChar.search) {
         CharSearchCacheEmiter.emit("error", `AT => insertOneCharSearchMap\n   => INCORRECT INPUT!\n INPUT TYPE IS => ${typeof newChar}`);
         return
@@ -72,6 +75,27 @@ export async function insertOneCharSearchMap(newChar) {
     await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry); // Create exact entry match
 
     CharSearchCacheEmiter.emit("info", `Just cached character: ${newChar?.search}`);
+}
+
+/**
+ * Remove a verified archived owner's references and displaced search from the index.
+ * Invalidates affected Redis fields even if the MongoDB update fails.
+ * @param {import("mongoose").Types.ObjectId|string} characterId Archived character's MongoDB ID.
+ * @param {string} search Displaced canonical search.
+ * @returns {Promise<void>}
+ */
+export async function removeArchivedCharSearchReferences(characterId, search) {
+    const entries = await CharSearchModel.find({
+        $or: [{ relChars: characterId }, { searchResult: search }],
+    }).select("_id").setOptions({ autopopulate: false }).lean();
+    if (!entries.length) return;
+    try {
+        await CharSearchModel.updateMany({ _id: { $in: entries.map(entry => entry._id) } }, {
+            $pull: { relChars: characterId, searchResult: search },
+        });
+    } finally {
+        await Promise.all(entries.map(entry => delCache(entry._id, hashName)));
+    }
 }
 
 /**
