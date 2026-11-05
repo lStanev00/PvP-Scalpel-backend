@@ -2,6 +2,22 @@ import { ACWACache } from "../../caching/achievements/accWideAchesCache.js";
 // import { createHash } from "node:crypto";
 import Warbands from "../../Models/Warbands.js";
 
+async function traceWarbandStep(characterId, step, task) {
+    const tag = `[Warband] ${characterId} ${step}`;
+    const startedAt = Date.now();
+    const timer = setTimeout(() => console.warn(`${tag} still waiting after ${Date.now() - startedAt}ms`), 20_000);
+    timer.unref?.();
+    try {
+        const result = await task();
+        return result;
+    } catch (error) {
+        console.warn(`${tag} failed after ${Date.now() - startedAt}ms:`, error);
+        throw error;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export async function mapWDB(achMap, blizCharID) {
     if (!(achMap instanceof Map)) {
         console.warn(`[mapWBD] achMap is not an isntance of Map`);
@@ -20,7 +36,7 @@ export async function mapWDB(achMap, blizCharID) {
         // debugger
     }
 
-    const warbandAchWideResult = (await Promise.all(batch))
+    const warbandAchWideResult = (await traceWarbandStep(blizCharID, `account-wide Redis lookups (${batch.length})`, () => Promise.all(batch)))
         .filter((doesExist) => {
             if (!doesExist) return false;
             const nrId = Number(doesExist._id);
@@ -49,9 +65,9 @@ export async function mapWDB(achMap, blizCharID) {
 
 async function findWarband(characterId, achievements) {
     // First check whether the character is already assigned.
-    const existing = await Warbands.findOne({
+    const existing = await traceWarbandStep(characterId, "existing membership query", () => Warbands.findOne({
         characters: Number(characterId),
-    });
+    }));
 
     if (existing) return existing;
 
@@ -67,7 +83,7 @@ async function findWarband(characterId, achievements) {
     const probes = valid.filter((_, index) => index % step === 0).slice(0, 30);
 
     // Find possible warbands using MongoDB.
-    const candidates = await Warbands.find({
+    const candidates = await traceWarbandStep(characterId, `candidate query (${probes.length} probes)`, () => Warbands.find({
         $or: probes.map((ach) => ({
             ACWAches: {
                 $elemMatch: {
@@ -76,7 +92,7 @@ async function findWarband(characterId, achievements) {
                 },
             },
         })),
-    });
+    }));
 
     // All incoming achievements indexed by ID.
     const achMap = new Map(valid.map((ach) => [String(ach.achId), ach.completedAt]));
@@ -120,25 +136,25 @@ export default async function charToWarband(blizCharID, remoteAchesMap) {
         const isInWb = wbMatch.characters.includes(blizCharID);
 
         if (!isInWb) {
-            wbMatch = await Warbands.findByIdAndUpdate(
+            wbMatch = await traceWarbandStep(blizCharID, "membership update", () => Warbands.findByIdAndUpdate(
                 wbMatch._id,
                 { $addToSet: { characters: blizCharID } },
                 { new: true },
-            );
+            ));
         }
 
-        if (wbMatch.ACWAches.length !== warbandAchWideResult.length) {
-            wbMatch = await Warbands.findByIdAndUpdate(
+        if (wbMatch.ACWAches.length < warbandAchWideResult.length) {
+            wbMatch = await traceWarbandStep(blizCharID, "achievement update", () => Warbands.findByIdAndUpdate(
                 wbMatch._id,
                 { ACWAches: warbandAchWideResult },
                 { new: true },
-            );
+            ));
         }
     } else {
-        wbMatch = await new Warbands({
+        wbMatch = await traceWarbandStep(blizCharID, "new warband save", () => new Warbands({
             ACWAches: warbandAchWideResult,
             characters: [blizCharID],
-        }).save();
+        }).save());
         // console.info(`new wbd`)
     }
     // console.info(wbMatch.id)
