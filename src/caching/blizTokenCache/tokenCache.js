@@ -22,15 +22,24 @@ async function getToken() {
     return null;
 }
 
-export default async function getAccessToken () {
+/**
+ * Reads the cached token or requests one with a 20-second HTTP deadline.
+ * @param {AbortSignal} [signal] - Optional cancellation signal from the API caller.
+ * @returns {Promise<string>} Blizzard access token.
+ */
+export default async function getAccessToken (signal = undefined) {
+    signal?.throwIfAborted();
     const tokenUrl = 'https://eu.battle.net/oauth/token';
     const cachedToken = await getToken(); // Check if the token is cached and valid
+    signal?.throwIfAborted();
     if (cachedToken && cachedToken !== null) {
         return cachedToken;
     }
     
     try {
+        const timeoutSignal = AbortSignal.timeout(20_000);
         const response = await fetch(tokenUrl, {
+            signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -45,7 +54,6 @@ export default async function getAccessToken () {
 
         const data = await response.json();
         await setToken(data.access_token, data.expires_in);
-        console.info("[Cache] Just cached new Blizzard Access Token.")
         return data.access_token;
     } catch (error) {
         console.error('Error fetching access token:', error);

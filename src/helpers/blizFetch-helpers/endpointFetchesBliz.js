@@ -1,5 +1,7 @@
 import achievesData from "./achievesData.js";
 import {delay} from "../startBGTask.js";
+import { setTimeout as retryDelay } from "node:timers/promises";
+import { backOffBlizzard, waitForBlizzardSlot } from "./blizzardRequestGate.js";
 import Achievement from "../../Models/Achievements.js";
 import { getSeasonalIdsMap, setSeasonalIdsMap } from "../../caching/achievements/achievesEmt.js";
 import dotenv from 'dotenv';
@@ -22,9 +24,41 @@ import ItemBonus from "../../Models/ItemBonus/ItemBonus.js";
 import { getGameSpecializationByID, getGameSpecializationByName } from "../../caching/gameSpecializations/gameSpecializationsCache.js";
 import { getGameClass } from "../../caching/gameClasses/gameClassesCache.js";
 import charToWarband from "./warbandMapping.js";
+import global_aches_non_rel from "../../caching/achievements/globalAches.js";
+import global_titles_non_rel from "../../caching/titles/globalTitles.js";
 dotenv.config({ path: '../../../.env' });
 
+/**
+ * @typedef {Object} BlizzardCharacterProfile
+ * @property {number} id - Blizzard character ID.
+ * @property {string} name
+ * @property {number} level
+ * @property {{ id: number, name: string, slug: string, key: { href: string } }} realm
+ * @property {{ type: string, name: string }} faction
+ * @property {{ id: number, name: string, key: { href: string } }} character_class
+ * @property {{ id: number, name: string, key: { href: string } }} race
+ * @property {{ id: number, name: string, key: { href: string } } | null} [active_spec]
+ * @property {{ id: number, name: string, key: { href: string } }} [guild]
+ * @property {number} last_login_timestamp - Last login time in milliseconds.
+ * @property {number} achievement_points
+ * @property {{ href: string }} pvp_summary
+ * @property {{ href: string }} achievements_statistics
+ * @property {{ href: string }} achievements
+ * @property {{ href: string }} media
+ * @property {{ href: string }} equipment
+ * @property {{ href: string }} statistics
+ * @property {{ href: string }} specializations
+ */
+
 const helpFetch = {
+    /**
+     * Fetches a character profile, lowercasing the character name for the request.
+     * @param {string} server - Blizzard region, such as "eu" or "us".
+     * @param {string} realm - Realm slug, such as "ravencrest".
+     * @param {string} name - Character name.
+     * @returns {Promise<BlizzardCharacterProfile | { code: number, type?: string, detail?: string } | null | undefined>}
+     * The profile or API error response, null if fetching yields no data, or undefined after a caught error.
+     */
     getCharProfile: async function (server, realm , name) {
         name = name.toLowerCase();
         const URI = `https://${server}.api.blizzard.com/profile/wow/character/${realm}/${name}?namespace=profile-${server}&locale=en_US`;
@@ -32,7 +66,7 @@ const helpFetch = {
             const data = await this.fetchBlizzard(URI);
             return data
         } catch (error) {
-            console.log(error)
+            console.warn(error)
         }
 
     },
@@ -62,7 +96,7 @@ const helpFetch = {
             }
             
         } catch (error) {
-            console.log(`getMedia crashing!\nThe data1 is: ${data1}\nThe ERROR message is: ${error}`);
+            console.warn(`getMedia crashing!\nThe data1 is: ${data1}\nThe ERROR message is: ${error}`);
             return undefined
         }
 
@@ -164,10 +198,10 @@ const helpFetch = {
     
                 const currentBracket = data.bracket.type;
                 // const lastSeasonLadderPromise = helpFetch.getpastRate(pastSeasonCheckURL, name, headers);
-                const titlePromise = helpFetch.getPvPTitle(data.tier.key.href);
-    
-                // const [lastSeasonLadder, title] = await Promise.all([lastSeasonLadderPromise, titlePromise]);
-                const title = seasonMatch ? await titlePromise : undefined;
+                const cachedTitle = seasonMatch
+                    ? await global_titles_non_rel.getOne({ id: data.tier.id, href: data.tier.key.href })
+                    : undefined;
+                const title = cachedTitle ? { name: cachedTitle.name, media: cachedTitle.media } : undefined;
     
                 const curentBracketData = {
                     rating: seasonMatch ? data?.rating : 0,
@@ -297,10 +331,16 @@ const helpFetch = {
             }
             return result;
         } catch (error) {
-            if (!externalFallbackFailed) console.log(error);
+            if (!externalFallbackFailed) console.warn(error);
             return createDefaultRatingResult();
         }
     },
+    /**
+     * Fetches a PvP tier's English title and media, retrying downstream errors.
+     * @param {string} href - Blizzard PvP tier endpoint URL.
+     * @returns {Promise<{ name: string, media: string | null | undefined } | undefined>}
+     * The title and media, or undefined when unavailable.
+     */
     getPvPTitle: async function (href) {
         let data = await this.fetchBlizzard(href);
         try {
@@ -347,10 +387,10 @@ const helpFetch = {
             lastSeasonRating: player.rating
         }
     },
-    getAchievById : async function (href, statId) {
+    getAchievById : async function (hrefOrData, statId) {
         let data
         try {
-            data = await this.fetchBlizzard(href);
+            data = await (typeof hrefOrData === "string" ? this.fetchBlizzard(hrefOrData) : hrefOrData);
         } catch (error) {
             console.warn(`Error fetchng!`)
             return 0
@@ -368,17 +408,35 @@ const helpFetch = {
     },
     getAchievXP: async function (href, points) {
         let data;
+        const runStep = async (step, task) => {
+            const tag = `[getAchievXP] ${data?.character?.id ?? href} ${step}`;
+            const startedAt = Date.now();
+            const timer = setTimeout(() => console.warn(`${tag} still waiting after ${Date.now() - startedAt}ms`), 20_000);
+            timer.unref?.();
+            try {
+                const result = await task();
+                return result;
+            } catch (error) {
+                console.warn(`${tag} failed after ${Date.now() - startedAt}ms:`, error);
+                throw error;
+            } finally {
+                clearTimeout(timer);
+            }
+        };
         try {
             data = await helpFetch.fetchBlizzard(href);
+            if (!Array.isArray(data?.achievements) || !data?.character?.id) {
+                throw new Error(`Character achievements unavailable: ${href}`);
+            }
 
             const achievementsMAP = new Map();
             const seasonalAchieves = [];
-            let cachedMap = await getSeasonalIdsMap();
+            let cachedMap = await runStep("seasonal Redis cache", () => getSeasonalIdsMap());
 
             if(cachedMap === null) {
-                await setSeasonalIdsMap()
+                await runStep("seasonal cache warmup", () => setSeasonalIdsMap());
                 await delay(2000);
-                cachedMap = await getSeasonalIdsMap();
+                cachedMap = await runStep("seasonal Redis cache reload", () => getSeasonalIdsMap());
             }
 
             for (const element of data.achievements) {
@@ -391,15 +449,13 @@ const helpFetch = {
                     seasonalAchieves.push(id);
                 }
             }
-            const achFireTest = await charToWarband(data.character.id, achievementsMAP);
+            const achFireTest = await runStep("warband mapping", () => charToWarband(data.character.id, achievementsMAP));
             // debugger
-            const result = [await filterAchiev(achievementsMAP, points), seasonalAchieves];
+            const result = [await runStep("XP filtering", () => filterAchiev(achievementsMAP, points)), seasonalAchieves];
             return result
         } catch (error) {
-            console.log(data)
-            console.warn(error)
-            const result = [await filterAchiev(undefined, undefined, undefined)];
-            return result
+            // Let the character fetch fail instead of saving empty achievements/warband data.
+            throw error;
         }
     },
     fetchBlizzard: async function (url, options = {}) {
@@ -412,8 +468,10 @@ const helpFetch = {
         }
 
         const apiUrl = url + "&locale=en_GB"
-
-        const accessToken = await getAccessToken();
+        const callerSignal = options.signal;
+        callerSignal?.throwIfAborted();
+        const accessToken = await getAccessToken(callerSignal);
+        callerSignal?.throwIfAborted();
 
         const finalOptions = {
             ...options,
@@ -424,40 +482,51 @@ const helpFetch = {
                 'Pragma': 'no-cache'
             }
         };
-        let res;
-        let text = "D";
-        let data = null
-        let retries = 0;
-
-        while(data === null && retries < 5) { // Loop for a valid JSON
-
+        for (let attempt = 1; attempt <= 5; attempt++) {
+            callerSignal?.throwIfAborted();
+            const startedAt = Date.now();
+            let res;
+            let text = "";
             try {
-                res = await fetch(apiUrl, finalOptions);
+                await waitForBlizzardSlot(callerSignal);
+                const timeoutSignal = AbortSignal.timeout(20_000);
+                const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal;
+                res = await fetch(apiUrl, { ...finalOptions, signal });
+                if (res.status === 429) {
+                    // Rate limits apply even when the response body is empty or invalid JSON.
+                    void res.body?.cancel().catch(() => {});
+                    const cooldownMs = await backOffBlizzard(res.headers?.get("Retry-After"), attempt, callerSignal);
+                    throw new Error(`Blizzard rate limit; shared cooldown ${cooldownMs}ms`);
+                }
                 text = await res.text();
-                if(!text.startsWith("D")) {
-                    data = JSON.parse(text);
+                signal.throwIfAborted();
+                if (text.startsWith("D")) throw new Error("Downstream error response");
+                const data = JSON.parse(text);
+                if (data === null) throw new Error("Blizzard returned null JSON");
+                if (typeof data === "string" && data.startsWith("Downstream Error")) {
+                    throw new Error("Downstream error response");
                 }
+                return data;
             } catch (error) {
+                if (callerSignal?.aborted) throw callerSignal.reason;
+                const reason = error?.message ?? String(error);
+                console.warn(`[fetchBlizzard] ${url} attempt=${attempt}/5 status=${res?.status ?? 0} failed after ${Date.now() - startedAt}ms: ${reason}`);
 
+                // Diagnostic persistence must never hold up retries or final failure.
                 try {
-                    
-                    const newError = new BlizAPIError({
-                        url :url,
-                        status: res.status || 0,
-                        body : JSON.stringify(res?.body)  || text
-                    })
-                    await newError.save();
-
+                    void new BlizAPIError({
+                        url,
+                        status: res?.status ?? 0,
+                        body: text || reason,
+                    }).save().catch((logError) => console.warn("[fetchBlizzard] Error-log write failed:", logError));
                 } catch (err) {
-                    console.warn(err)
+                    console.warn("[fetchBlizzard] Error-log write failed:", err);
                 }
-
-                await delay(1000); // Delay to give the API air;
-                retries += 1
+                if (attempt < 5 && res?.status !== 429) await retryDelay(1000, undefined, { signal: callerSignal });
             }
         }
 
-        return data;
+        return null;
     },
 
     getCharMedia: async function (href) {
@@ -507,7 +576,7 @@ const helpFetch = {
             const result = extractStats(data);
             return result
         } catch (error) {
-            console.log(error);
+            console.warn(error);
             return undefined
         }
     },
@@ -628,7 +697,6 @@ const helpFetch = {
         } catch (error) {
             if (Object.keys(result).length === 0) return result
             console.warn(error);
-            console.info(result)
             if(!result.talentsCode) result.talentsCode = null;
             if(!result.talentsSpec) result.talentsSpec = null;
             return result
@@ -731,15 +799,10 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID)
         if (match && match?.completed_timestamp){
             try {
-                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-                const twosResult = {
-                    name: data.name,
-                    description: data.description,
-                    media: await helpFetch.getMedia(data, "media")
-                }
-                result["2s"] = twosResult;
+                const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+                if (data) result["2s"] = data;
             } catch (error) {
-                console.log(error);
+                console.warn(error);
             }
             break;  
         }
@@ -749,15 +812,10 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp){
             try {
-                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-                const threesResult = {
-                    name: data.name,
-                    description: data.description,
-                    media: await helpFetch.getMedia(data, "media")
-                }
-                result["3s"] = threesResult;
+                const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+                if (data) result["3s"] = data;
             } catch (error) {
-                console.log(error);
+                console.warn(error);
             }
             break;  
         }
@@ -766,49 +824,36 @@ async function filterAchiev (achievements, points) {
     for (const {key, name, id: dataID} of achievesData["soloShuffle"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-            const soloResult = {
-                name: data.name,
-                description: data.description,
-                media: await helpFetch.getMedia(data, "media")
-            }
-            result["solo"] = soloResult;
+            const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+            if (data) result["solo"] = data;
             break;
         } catch (error) {
-            console.log(error); break;
+            console.warn(error); break;
         }
     }
     // Get RBG & Blitz XP!
     for (const {key, name, id: dataID} of achievesData["BG"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-            const BGXPResult = {
-                name: data.name,
-                description: data.description,
-                media: await helpFetch.getMedia(data, "media")
+            const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+            if (data) {
+                result["RBG"].XP = data;
+                result["Blitz"].XP = data;
             }
-            result["RBG"].XP = BGXPResult;
-            result["Blitz"].XP = BGXPResult;
             break;
         } catch (error) {
-            (error); break;
+            console.warn(error); break;
         }
     }
     // Get the RBG WINS
     for (const {key, name, id: dataID} of achievesData["RBGWins"]) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp) try {
-            const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-            const RBGWinsResult = {
-                name: data.name,
-                description: data.description,
-                media: await helpFetch.getMedia(data, "media")
-            }
-            result["RBG"].WINS = RBGWinsResult;
+            const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+            if (data) result["RBG"].WINS = data;
             break;
         } catch (error) {
-            console.log(error); break;
+            console.warn(error); break;
         }
     }
 
@@ -816,8 +861,7 @@ async function filterAchiev (achievements, points) {
     try {
         strategistChecker = await Achievement.find( { name: { $regex: "strategist", $options: "i" } });
     } catch (error) {
-        console.log(error);
-        console.log(strategistChecker)
+        console.warn(error);
     }
 
     if (strategistChecker) {
@@ -840,16 +884,11 @@ async function filterAchiev (achievements, points) {
         let match = achievements.get(dataID);
         if (match && match?.completed_timestamp)
             try {
-                const data = await helpFetch.fetchBlizzard(match.achievement.key.href);
-                const BlitzWinsResult = {
-                    name: data.name,
-                    description: data.description,
-                    media: await helpFetch.getMedia(data, "media")
-                }
-                result["Blitz"].WINS = BlitzWinsResult;
+                const data = await global_aches_non_rel.getOne({ id: dataID, href: match.achievement.key.href });
+                if (data) result["Blitz"].WINS = data;
                 break;
             } catch (error) {
-                console.log(error); break;
+                console.warn(error); break;
             }
     }
     // const end = performance.now();

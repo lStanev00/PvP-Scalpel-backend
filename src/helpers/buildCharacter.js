@@ -79,8 +79,9 @@ export default async function buildCharacter(
     name,
     memberRankNumber = undefined,
     minimal = false,
+    character = undefined
 ) {
-    let character;
+    // let character;
     // const key = `${server + realm + name}`;
     const key = buildCharSearch({ server, realm, name })
     const doesEntryAlreadyBuild = await getCache(key, hashName);
@@ -99,14 +100,14 @@ export default async function buildCharacter(
     await setCache(key, true, hashName, 60);
 
     const fetchCharacter = minimal ? fetchMinimalCharacter : fetchData;
-    character = await fetchCharacter(server, realm, name, undefined, false);
-    if (character?.status === 409 && character?.data?.blizID) {
+    if(!character) character = await fetchCharacter(server, realm, name, undefined, false);
+    if (character?.code === 409 && character?.data?.blizID) {
         try {
             const setter = character.data;
             const exist = await Char.findOne({ blizID: setter.blizID }).setOptions({ skipCharacterPopulate: true });
             for (const [key, value] of Object.entries(setter)) exist[key] = value;
 
-            exist.save();
+            await exist.save();
             character = exist.toObject();
             console.info(
                 `buildCharacter just pathced one character due to rename\N OLD SEARCH: ${key}\nNEW SEARCH: ${exist.search}`,
@@ -146,11 +147,16 @@ export default async function buildCharacter(
         
         await delCache(key, hashName);
 
-        insertOneCharSearchMap(savedChar);
+        await insertOneCharSearchMap(savedChar);
         return await returnChar(key);
         
     } catch (error) {
-        console.log(error)
+        await delCache(key, hashName);
+        if (error?.code === 11000 && character?.blizID) {
+            const existing = await returnChar(key, character.blizID);
+            if (existing) return existing;
+        }
+        console.warn(`[buildCharacter] Failed for ${key} (Blizzard ID ${character?.blizID ?? "unknown"}):`, error);
         return null;
     }
 }

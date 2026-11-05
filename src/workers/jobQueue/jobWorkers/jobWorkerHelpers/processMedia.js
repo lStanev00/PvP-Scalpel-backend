@@ -1,3 +1,6 @@
+/** @typedef {import("../../jobQueue.types.js").ProcessMediaQueueJob} ProcessMediaQueueJob */
+/** @typedef {import("../../jobQueue.types.js").ProcessMediaOutcome} ProcessMediaOutcome */
+/** @typedef {import("../../jobQueue.types.js").ProcessMediaResult} ProcessMediaResult */
 /*/
     This is the formating checking for thew media uploaded by an user
     this proccess involves stages:
@@ -36,21 +39,6 @@ import {
 const RECOVERY_QUALITY_TARGET_PERCENT = 1;
 
 /**
- * @typedef {"processed"|"quarantined"|"censored"|"invalid_job"|"not_found"|"invalid_state"|"failed"} ProcessMediaOutcome
- */
-
-/**
- * @typedef {object} ProcessMediaResult
- * @property {string|null} _id Normalized media ID, or `null` when the job has no usable ID.
- * @property {boolean} succeed Whether the job reached an expected terminal outcome.
- * @property {200|400|404|409|500} status Worker completion status.
- * @property {ProcessMediaOutcome} outcome Machine-readable processing outcome.
- * @property {string} [reason] Machine-readable reason for an expected safety outcome.
- * @property {string} [message] Failure description; omitted for successful outcomes.
- * @property {string} [stack] Original error stack for unexpected processing failures.
- */
-
-/**
  * Processes one queued media document and always returns a completion result.
  *
  * Processing stages:
@@ -73,7 +61,7 @@ const RECOVERY_QUALITY_TARGET_PERCENT = 1;
  * - `409 / invalid_state`: the document is neither pending nor a quarantined retry.
  * - `500 / failed`: an unexpected processing or persistence operation failed.
  *
- * @param {{type?: string, data?: {_id?: string}}} job
+ * @param {ProcessMediaQueueJob} job
  * @returns {Promise<ProcessMediaResult>} Non-throwing completion result sent back to the parent worker.
  */
 export default async function processMedia(job) {
