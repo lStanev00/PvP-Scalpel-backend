@@ -114,7 +114,6 @@ export default async function formatBracketTops(blizResponse) {
         const [_, classSlug, ...specSlugParts] = blizResponse.name.split("-");
 
         if (classSlug.includes("overall")) {
-            console.info(blizResponse.entries.length);
             return;
         }
 
@@ -165,5 +164,4 @@ export default async function formatBracketTops(blizResponse) {
             characters,
         });
     }
-    console.info(`bracket: ${BracketTopsId} just got saved`);
 }

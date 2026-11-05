@@ -11,7 +11,7 @@ const ACWAchesSchema = new mongoose.Schema(
             required: true,
         },
     },
-    { id: false, versionKey: false, timestamps: false },
+    { _id: false, versionKey: false, timestamps: false },
 );
 
 const warbandSchema = new mongoose.Schema({
@@ -36,6 +36,20 @@ const warbandSchema = new mongoose.Schema({
     //     index: true
     // },
 });
+
+warbandSchema.index({ characters: 1 });
+// Support the achievement/timestamp pairs used by the warband candidate query.
+warbandSchema.index({ "ACWAches.achId": 1, "ACWAches.completedAt": 1 });
+
+warbandSchema.virtual("members", {
+    ref: "Character",
+    localField: "characters",
+    foreignField: "blizID",
+    justOne: false,
+});
+
+warbandSchema.set("toObject", { virtuals: true });
+warbandSchema.set("toJSON", { virtuals: true });
 
 const Warbands = mongoose.model("warbands", warbandSchema);
 

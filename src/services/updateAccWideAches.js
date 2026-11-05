@@ -2,7 +2,7 @@ import { ACWACache } from "../caching/achievements/accWideAchesCache.js";
 import helpFetch from "../helpers/blizFetch-helpers/endpointFetchesBliz.js";
 import threadBoot from "../helpers/threadBoot.js";
 import AccWideAches from "../Models/AccWideAches.js";
-await threadBoot();
+await threadBoot(true);
 const url =
     "https://eu.api.blizzard.com/data/wow/achievement/index?namespace=static-eu";
 
@@ -57,13 +57,13 @@ if (dbBatch.length) {
     const result = await AccWideAches.bulkWrite(dbBatch);
     await ACWACache.loadCache()
 
-    console.info({
-        matched: result.matchedCount,
-        modified: result.modifiedCount,
-        inserted: result.upsertedCount
-    });
+    // console.info({
+    //     matched: result.matchedCount,
+    //     modified: result.modifiedCount,
+    //     inserted: result.upsertedCount
+    // });
 }
-console.info(resolvedAccWide.length);
+// console.info(resolvedAccWide.length);
 // debugger
 // console.log(data.achievements);
 process.exit(0)

@@ -4,6 +4,7 @@ import CharSearchModel from "../../Models/SearchCharacter.js";
 import extractNameSlug from "../../helpers/extractName.js";
 import getCache, { hashGetAllCache } from "../../helpers/redis/getterRedis.js";
 import setCache from "../../helpers/redis/setterRedis.js";
+import delCache from "../../helpers/redis/deletersRedis.js";
 import toMap from "../../helpers/toMap.js";
 import setDBChars from "./helpers/setDBChars.js";
 import convertSearch from "../../helpers/convertSearch.js";
@@ -16,7 +17,12 @@ CharSearchCacheEmiter.on('update', () => console.info("[Character Search Cache] 
 CharSearchCacheEmiter.on("error", (msg) => console.error(`[Character Search Cache ERROR] ${msg}`));
 CharSearchCacheEmiter.on("info", (msg) => console.info(`[Character Search Cache INFO] ${msg}`));
 CharSearchCacheEmiter.on('purge', (search, newSearch) => {
-    wipeCharSearchEntry(search, newSearch)
+    wipeCharSearchEntry(search, newSearch).catch((error) => {
+        CharSearchCacheEmiter.emit(
+            "error",
+            `Purge failed\nsearch: ${search}\nnewSearch: ${newSearch}\n${error?.stack ?? error}`,
+        );
+    });
 });
 
 export const getCharSearchMap = async() => toMap(await hashGetAllCache(hashName));
@@ -26,6 +32,7 @@ export async function initialCharSearchMap() {
     const charList = await Char.find({}, {_id: 1, search: 1}).lean();
 
     for (const char of charList) {
+        if (char.search?.startsWith("!archived:")) continue;
         const key = extractNameSlug(char.search);
         // const exist = await hasHashCache(hashName, key);
         const exist = await getCache(key, hashName);
@@ -38,7 +45,7 @@ export async function initialCharSearchMap() {
 
 export async function searchCharFromMap(key) {
     if (typeof key !== "string") {
-        console.warn(key + "'s not a string!");
+        CharSearchCacheEmiter.emit("error", key + "'s not a string!");
         return undefined
     }
     key = key.toLowerCase();
@@ -48,8 +55,9 @@ export async function searchCharFromMap(key) {
 
 
 export async function insertOneCharSearchMap(newChar) {
+    if (newChar?.search?.startsWith("!archived:")) return;
     if (!newChar._id && !newChar.search) {
-        console.warn(`[SChar Cache] AT => insertOneCharSearchMap\n   => INCORRECT INPUT!\n INPUT TYPE IS => ${typeof newChar}`);
+        CharSearchCacheEmiter.emit("error", `AT => insertOneCharSearchMap\n   => INCORRECT INPUT!\n INPUT TYPE IS => ${typeof newChar}`);
         return
     }
 
@@ -66,9 +74,40 @@ export async function insertOneCharSearchMap(newChar) {
 
     await createCharEntry(newCharSearchEntry?.search, newCharSearchEntry); // Create exact entry match
 
-    console.info(`[Character Search Cache] Just cached character: ${newChar?.search}`)
+    CharSearchCacheEmiter.emit("info", `Just cached character: ${newChar?.search}`);
 }
 
+/**
+ * Remove a verified archived owner's references and displaced search from the index.
+ * Invalidates affected Redis fields even if the MongoDB update fails.
+ * @param {import("mongoose").Types.ObjectId|string} characterId Archived character's MongoDB ID.
+ * @param {string} search Displaced canonical search.
+ * @returns {Promise<void>}
+ */
+export async function removeArchivedCharSearchReferences(characterId, search) {
+    const entries = await CharSearchModel.find({
+        $or: [{ relChars: characterId }, { searchResult: search }],
+    }).select("_id").setOptions({ autopopulate: false }).lean();
+    if (!entries.length) return;
+    try {
+        await CharSearchModel.updateMany({ _id: { $in: entries.map(entry => entry._id) } }, {
+            $pull: { relChars: characterId, searchResult: search },
+        });
+    } finally {
+        await Promise.all(entries.map(entry => delCache(entry._id, hashName)));
+    }
+}
+
+/**
+ * Creates or updates one character-search entry and caches saved entries in Redis.
+ * Reloads the existing entry if a concurrent insert causes a duplicate-key error.
+ *
+ * @param {string} searchVal Character-name prefix or full `name:realm:server` key.
+ * @param {object} newCharSearchEntry Character to associate with the search entry.
+ * @param {import("mongoose").Types.ObjectId|string} newCharSearchEntry._id Character document ID.
+ * @param {string} newCharSearchEntry.search Canonical `name:realm:server` key.
+ * @returns {Promise<void>} Resolves after entry processing and any cache write.
+ */
 async function createCharEntry (searchVal, newCharSearchEntry) {
         let searchCharacterEntry = await CharSearchModel.findById(searchVal);
 
@@ -79,9 +118,42 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
                 searchParams: searchVal.toLowerCase(),
                 searchResult: [newCharSearchEntry.search],
                 relChars: [newCharSearchEntry._id],
-            })
+            });
+            try {
+                searchCharacterEntry = await newEntry.save();
+            } catch (error) {
+                if (error?.code === 11000) {
+                    const stringID =
+                        typeof newCharSearchEntry._id === "string"
+                            ? newCharSearchEntry._id
+                            : newCharSearchEntry._id.toString();
+                    searchCharacterEntry = await CharSearchModel.findById(searchVal);
 
-            searchCharacterEntry = await newEntry.save();
+                    if (searchCharacterEntry) {
+                        const exists = searchCharacterEntry.relChars.some(
+                            (ref) => String(ref._id ?? ref) === stringID,
+                        );
+
+                        if (!exists) {
+                            searchCharacterEntry.relChars.push(stringID)
+                        }
+
+                        if (
+                            !searchCharacterEntry.searchResult.includes(newCharSearchEntry.search)
+                        ) {
+                            searchCharacterEntry.searchResult.push(newCharSearchEntry.search);
+                        }
+
+                        await searchCharacterEntry.save()
+                    } else {
+                        CharSearchCacheEmiter.emit(
+                            "error",
+                            `Entry "${searchVal}" missing after duplicate-key error for ${newCharSearchEntry.search}.\n${error?.stack ?? error}`,
+                        );
+                        return;
+                    }
+                } else {throw error}
+            }
             searchCharacterEntry = searchCharacterEntry.toObject();
             if(searchCharacterEntry) await setCache(searchCharacterEntry._id, searchCharacterEntry, hashName);
             
@@ -107,7 +179,7 @@ async function createCharEntry (searchVal, newCharSearchEntry) {
                 searchCharacterEntry = await searchCharacterEntry.save();
                 if(searchCharacterEntry) await setCache(searchCharacterEntry._id, searchCharacterEntry, hashName);
             } else {
-                console.info(`Prevented`)
+                CharSearchCacheEmiter.emit("info", "Prevented");
             }
         }
 
@@ -123,7 +195,7 @@ async function wipeCharSearchEntry(search, newSearch) {
  */
 
     if (typeof search !== "string" || search.trim().length === 0) {
-        console.warn("[CharSearch Wipe] Invalid input:", search);
+        CharSearchCacheEmiter.emit("error", `[CharSearch Wipe] Invalid input: ${search}`);
         return ;
     }
     const CSParts = convertSearch(search);
@@ -136,19 +208,20 @@ async function wipeCharSearchEntry(search, newSearch) {
     }
     const mongoData = await CharSearchModel.find({searchResult : search})
 
-    if (mongoData.length === 0) {
-        CharSearchCacheEmiter.emit("error", `There seems to me no data for ${search} to be purged ---\n The fn will now exit.`);
+    const char = await Char.findOne({search : newSearch});
+    if (!char) {
+        CharSearchCacheEmiter.emit("error", `[CharSearch Wipe] Character not found for ${newSearch}; skipping purge of ${search}.`);
         return;
     }
 
-    const char = await Char.findOne({search : newSearch});
-
-    const id = char.id; 
+    const id = String(char._id ?? char.id);
     const updates = [];
     for (const entry of mongoData) {
         const searchResultIndex = entry.searchResult.indexOf(search);
         if (searchResultIndex !== -1) entry.searchResult.splice(searchResultIndex, 1);
-        const relCharsIndex = entry.relChars.indexOf(id);
+        const relCharsIndex = entry.relChars.findIndex((ref) =>
+            ref != null && String(ref._id ?? ref) === id,
+        );
         if (relCharsIndex !== -1) entry.relChars.splice(relCharsIndex, 1);
         await entry.save();
 
@@ -166,6 +239,6 @@ async function wipeCharSearchEntry(search, newSearch) {
 
     }
 
-    if (char) insertOneCharSearchMap(char)
+    await insertOneCharSearchMap(char);
     
 }

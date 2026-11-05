@@ -1,3 +1,7 @@
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").CharacterRetrievalParams} CharacterRetrievalParams */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").CharacterRetrievalOptions} CharacterRetrievalOptions */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").RetrieveCharacterQueueJob} RetrieveCharacterQueueJob */
+/** @typedef {import("../../workers/jobQueue/jobQueue.types.js").RetrieveCharacterResult} RetrieveCharacterResult */
 /** @typedef {import("./charCache.types").CharacterRealm} CharacterRealm */
 /** @typedef {import("./charCache.types").CharacterClassInfo} CharacterClassInfo */
 /** @typedef {import("./charCache.types").CharacterActiveSpec} CharacterActiveSpec */
@@ -35,6 +39,10 @@ const logModuleName = "Characters Cache";
 /** @type {Map<string, Promise<CharacterRecord | 404 | null | undefined>>} */
 const inFlightWorkerCharacters = new Map();
 
+/**
+ * @param {CharacterRetrievalParams} params
+ * @returns {string | undefined}
+ */
 function resolveCharacterSearch(params) {
     const { server, realm, name, search } = params ?? {};
     return normalizeCharacterSearch(search) ?? buildCharSearch({ server, realm, name });
@@ -149,6 +157,12 @@ export async function cacheOneCharacter(charData) {
     }
 }
 
+/**
+ * Normalize a character lookup and enqueue its worker job.
+ *
+ * @param {CharacterRetrievalParams} params
+ * @returns {Promise<number | null>} Queue length, zero for a duplicate, or null on failure.
+ */
 export async function retrieveCharacter(params) {
     const { incChecks, incChechks, renewCache, minimal } = params ?? {};
     const nextSearch = resolveCharacterSearch(params);
@@ -161,7 +175,7 @@ export async function retrieveCharacter(params) {
         return null;
     }
 
-    return await enqueueJobQueueEntry({
+    return await enqueueJobQueueEntry(/** @satisfies {RetrieveCharacterQueueJob} */ ({
         type: "retrieveCharacter",
         data: {
             search: nextSearch,
@@ -170,15 +184,15 @@ export async function retrieveCharacter(params) {
             ...(typeof renewCache !== "undefined" ? { renewCache } : {}),
             ...(typeof minimal !== "undefined" ? { minimal } : {}),
         },
-    });
+    }));
 }
 
 /**
  * Queue one worker-based character retrieval and wait for its published result once.
  *
- * @param {{ server?: string, realm?: string, name?: string, search?: string, incChecks?: boolean, incChechks?: boolean, renewCache?: boolean, minimal?: boolean }} params
- * @param {{ timeoutMs?: number, signal?: AbortSignal, enqueue?: boolean }} [options]
- * @returns {Promise<any | null>}
+ * @param {CharacterRetrievalParams} params
+ * @param {CharacterRetrievalOptions} [options]
+ * @returns {Promise<RetrieveCharacterResult | null>} Published character result, or null on timeout/enqueue failure.
  */
 export async function retrieveCharacterViaWorker(
     params,
@@ -213,6 +227,7 @@ export async function retrieveCharacterViaWorker(
             : (signal ?? timeoutSignal);
 
     try {
+        /** @type {RetrieveCharacterResult[]} */
         const [payload] = waitSignal
             ? await once(CharCacheEmitter, eventName, { signal: waitSignal })
             : await once(CharCacheEmitter, eventName);

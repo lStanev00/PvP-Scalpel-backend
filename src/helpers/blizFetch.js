@@ -47,6 +47,9 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             };
         }
 
+        // Share one statistics request between both arena record lookups.
+        const achievementStatistics = helpFetch.fetchBlizzard(data.achievements_statistics.href);
+
         // Fetch dependent data in parallel
         const [
             // classMedia,
@@ -62,8 +65,8 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
             // helpFetch.getMedia(data, 'character_class'),
             // helpFetch.getMedia(data, 'active_spec'),
             helpFetch.getRating(data.pvp_summary.href, currentSeasonIndex),
-            helpFetch.getAchievById(data.achievements_statistics.href, 370),
-            helpFetch.getAchievById(data.achievements_statistics.href, 595),
+            helpFetch.getAchievById(achievementStatistics, 370),
+            helpFetch.getAchievById(achievementStatistics, 595),
             helpFetch.getAchievXP(data.achievements.href, result.achieves),
             helpFetch.getCharMedia(data.media.href),
             helpFetch.getCharGear(data.equipment.href),
@@ -105,7 +108,7 @@ async function fetchData(server, realm, name, checkedCount = undefined, forceUpd
         }
         return result;
     } catch (error) {
-        console.log(error);
+        console.warn(error);
         return false;
     }
 }
@@ -121,12 +124,34 @@ export async function fetchMinimalCharacter(
     name,
     checkedCount = undefined,
     forceUpdate = false,
+    data = undefined,
+    rating = undefined
 ) {
+    const logTag = `[fetchMinimalCharacter] ${name}:${realm}:${server}`;
+    const runStage = async (stage, fetchStage) => {
+        const startedAt = Date.now();
+        const waitingTimer = setTimeout(() => {
+            console.warn(`${logTag} ${stage} still waiting after ${Date.now() - startedAt}ms`);
+        }, 20_000);
+        waitingTimer.unref?.();
+        try {
+            const value = await fetchStage();
+            return value;
+        } catch (error) {
+            console.warn(`${logTag} ${stage} failed after ${Date.now() - startedAt}ms:`, error);
+            throw error;
+        } finally {
+            clearTimeout(waitingTimer);
+        }
+    };
+
     try {
-        let data = await helpFetch.getCharProfile(server, realm, name);
+        if (!data) data = await runStage("profile", () => helpFetch.getCharProfile(server, realm, name));
         if (!data || !data.id) return false;
 
-        const currentSeasonIndex = await helpFetch.getCurrentPvPSeasonIndex();
+        const currentSeasonIndex = rating === undefined
+            ? await runStage("season", () => helpFetch.getCurrentPvPSeasonIndex())
+            : undefined;
         const result = {
             name: String(data.name),
             server,
@@ -147,7 +172,7 @@ export async function fetchMinimalCharacter(
             guildName: data?.guild?.name,
             guildMember: data?.guild?.name == "PvP Scalpel" ? true : false,
         };
-        const guard = await dataGuard(result, forceUpdate);
+        const guard = await runStage("guard", () => dataGuard(result, forceUpdate));
         if (guard === 304) {
             return {
                 code: guard,
@@ -155,14 +180,19 @@ export async function fetchMinimalCharacter(
             };
         }
 
-        const [rating, rating2v2Record, rating3v3Record, achievements] = await Promise.all([
-            helpFetch.getRating(data.pvp_summary.href, currentSeasonIndex),
-            helpFetch.getAchievById(data.achievements_statistics.href, 370),
-            helpFetch.getAchievById(data.achievements_statistics.href, 595),
-            helpFetch.getAchievXP(data.achievements.href, result.achieves),
+        // Share one statistics request between both arena record lookups.
+        const achievementStatistics = runStage("statistics", () => helpFetch.fetchBlizzard(data.achievements_statistics.href));
+
+        const [resolvedRating, rating2v2Record, rating3v3Record, achievements] = await Promise.all([
+            rating === undefined
+                ? runStage("rating", () => helpFetch.getRating(data.pvp_summary.href, currentSeasonIndex))
+                : rating,
+            helpFetch.getAchievById(achievementStatistics, 370),
+            helpFetch.getAchievById(achievementStatistics, 595),
+            runStage("achievements", () => helpFetch.getAchievXP(data.achievements.href, result.achieves)),
         ]);
 
-        result.rating = rating;
+        result.rating = resolvedRating;
         setHighestRatingRecord(result.rating, "2v2", rating2v2Record);
         setHighestRatingRecord(result.rating, "3v3", rating3v3Record);
         result.achieves = achievements[0];
@@ -185,7 +215,7 @@ export async function fetchMinimalCharacter(
         }
         return result;
     } catch (error) {
-        console.log(error);
+        console.warn(`${logTag} Failed:`, error);
         return false;
     }
 }
